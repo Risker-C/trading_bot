@@ -9,8 +9,8 @@ from typing import List, Dict
 
 EXCHANGE_CONFIG = {
     "apiKey": os.getenv("BITGET_API_KEY", ""),
-    "secret": os.getenv("BITGET_SECRET", ""),
-    "password": os.getenv("BITGET_PASSWORD", ""),
+    "secret": os.getenv("BITGET_API_SECRET") or os.getenv("BITGET_SECRET", ""),
+    "password": os.getenv("BITGET_API_PASSWORD") or os.getenv("BITGET_PASSWORD", ""),
 }
 
 SYMBOL = "BTCUSDT"
