@@ -150,37 +150,41 @@ class BitgetTrader:
     # ==================== 数据获取 ====================
     
     def fetch_ohlcv(
-        self, 
-        symbol: str = None, 
-        timeframe: str = None, 
+        self,
+        symbol: str = None,
+        timeframe: str = None,
         limit: int = None
     ) -> Optional[pd.DataFrame]:
         """获取K线数据"""
         symbol = symbol or config.SYMBOL
         timeframe = timeframe or config.TIMEFRAME
         limit = limit or config.KLINE_LIMIT
-        
+
         try:
             ohlcv = self.exchange.fetch_ohlcv(
                 symbol, timeframe, limit=limit,
                 params={"productType": config.PRODUCT_TYPE}
             )
-            
+
             df = pd.DataFrame(
                 ohlcv,
                 columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
             )
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             df.set_index('timestamp', inplace=True)
-            
+
             self.health_monitor.record_success()
-            
+
             return df
-            
+
         except Exception as e:
             self.health_monitor.record_error(e)
             logger.error(f"获取K线失败: {e}")
             return None
+
+    def get_klines(self, symbol: str = None, timeframe: str = None, limit: int = None) -> Optional[pd.DataFrame]:
+        """获取K线数据（兼容bot.py）"""
+        return self.fetch_ohlcv(symbol, timeframe, limit)
     
     def fetch_multi_timeframe_data(self) -> Dict[str, pd.DataFrame]:
         """获取多时间周期数据"""
@@ -221,9 +225,9 @@ class BitgetTrader:
                 symbols=[config.SYMBOL],
                 params={"productType": config.PRODUCT_TYPE}
             )
-            
+
             self.health_monitor.record_success()
-            
+
             for pos in positions:
                 amount = float(pos.get('contracts', 0))
                 if amount > 0:
@@ -234,14 +238,19 @@ class BitgetTrader:
                         'unrealized_pnl': float(pos.get('unrealizedPnl', 0)),
                         'liquidation_price': float(pos.get('liquidationPrice', 0)),
                     }
-            
+
             return None
-            
+
         except Exception as e:
             self.health_monitor.record_error(e)
             logger.error(f"获取持仓失败: {e}")
             return None
-    
+
+    def get_positions(self) -> list:
+        """获取持仓列表（兼容bot.py）"""
+        position = self.get_position()
+        return [position] if position else []
+
     def get_ticker(self, symbol: str = None) -> Optional[Dict]:
         """获取最新价格"""
         symbol = symbol or config.SYMBOL
@@ -296,6 +305,7 @@ class BitgetTrader:
     ) -> Optional[Dict]:
         """创建市价单"""
         try:
+            # 双向持仓模式：平仓时使用 tradeSide="close"
             params = {
                 "productType": config.PRODUCT_TYPE,
                 "tradeSide": "open" if not reduce_only else "close",
@@ -383,16 +393,32 @@ class BitgetTrader:
         if not position:
             logger.warning("无持仓可平")
             return False
-        
-        # 确定平仓方向
-        close_side = "sell" if position.side == 'long' else "buy"
-        
-        order = self.create_market_order(
-            close_side,
-            position.amount,
-            reduce_only=True
-        )
-        
+
+        # 使用 Bitget 一键平仓 API（双向持仓模式）
+        try:
+            result = self.exchange.private_mix_post_v2_mix_order_close_positions({
+                'symbol': config.SYMBOL,
+                'productType': config.PRODUCT_TYPE,
+                'holdSide': position.side
+            })
+
+            if result.get('code') == '00000':
+                order = result
+                logger.info(f"一键平仓成功: {position.side}")
+            else:
+                logger.error(f"一键平仓失败: {result}")
+                return False
+
+        except Exception as e:
+            logger.error(f"一键平仓API调用失败: {e}")
+            # 回退到传统方法
+            close_side = "sell" if position.side == 'long' else "buy"
+            order = self.create_market_order(
+                close_side,
+                position.amount,
+                reduce_only=True
+            )
+
         if order:
             ticker = self.get_ticker()
             close_price = ticker['last'] if ticker else 0

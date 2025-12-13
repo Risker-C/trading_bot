@@ -40,12 +40,12 @@ class TradingBot:
         logger.info("=" * 50)
         logger.info("🤖 量化交易机器人启动")
         logger.info("=" * 50)
-        
-        # 初始化交易所
-        if not self.trader.initialize():
+
+        # 检查交易所连接
+        if self.trader.exchange is None:
             logger.error("交易所初始化失败，退出")
             return
-        
+
         # 显示配置
         self._show_config()
         
@@ -89,12 +89,10 @@ class TradingBot:
         """显示账户信息"""
         balance = self.trader.get_balance()
         logger.info("\n💰 账户余额:")
-        logger.info(f"   可用: {balance['free']:.2f} USDT")
-        logger.info(f"   冻结: {balance['used']:.2f} USDT")
-        logger.info(f"   总计: {balance['total']:.2f} USDT")
-        
+        logger.info(f"   可用: {balance:.2f} USDT")
+
         # 记录余额快照
-        db.log_balance_snapshot(balance['total'], balance['free'], balance['used'])
+        db.log_balance_snapshot(balance, balance, 0)
     
     def _check_existing_positions(self):
         """检查现有持仓"""

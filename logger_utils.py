@@ -8,6 +8,9 @@ from typing import Optional, Dict, Any, List
 import json
 import os
 import requests
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 import config
 
@@ -754,6 +757,438 @@ class TelegramNotifier:
         self.send_message(message)
 
 
+class FeishuNotifier:
+    """飞书通知器"""
+
+    def __init__(self, webhook_url: str = None):
+        self.webhook_url = webhook_url or getattr(config, 'FEISHU_WEBHOOK_URL', '')
+        self.enabled = getattr(config, 'ENABLE_FEISHU', False) and self.webhook_url
+        self.logger = get_logger(__name__)
+
+    def send_message(self, message: str, msg_type: str = "text") -> bool:
+        """发送消息"""
+        if not self.enabled:
+            return False
+
+        try:
+            data = {
+                "msg_type": msg_type,
+                "content": {
+                    "text": message
+                }
+            }
+
+            response = requests.post(self.webhook_url, json=data, timeout=10)
+
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('code') == 0:
+                    return True
+                else:
+                    self.logger.warning(f"飞书发送失败: {result}")
+                    return False
+            else:
+                self.logger.warning(f"飞书发送失败: {response.text}")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"飞书发送异常: {e}")
+            return False
+
+    def notify_trade(
+        self,
+        action: str,
+        symbol: str,
+        side: str,
+        amount: float,
+        price: float,
+        pnl: float = None,
+        reason: str = ""
+    ):
+        """发送交易通知"""
+        emoji = {
+            'open_long': '🟢 开多',
+            'open_short': '🔴 开空',
+            'close_long': '📤 平多',
+            'close_short': '📤 平空',
+        }.get(f"{action}_{side}", f"{action} {side}")
+
+        message = f"{emoji}\n"
+        message += f"━━━━━━━━━━━━━━━\n"
+        message += f"📊 交易对: {symbol}\n"
+        message += f"📈 数量: {amount:.6f}\n"
+        message += f"💰 价格: {price:.2f}\n"
+
+        if pnl is not None:
+            pnl_emoji = "🟢" if pnl >= 0 else "🔴"
+            message += f"{pnl_emoji} 盈亏: {pnl:+.2f} USDT\n"
+
+        if reason:
+            message += f"📝 原因: {reason}\n"
+
+        message += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+        self.send_message(message)
+
+    def notify_error(self, error: str):
+        """发送错误通知"""
+        message = f"❌ 错误通知\n"
+        message += f"━━━━━━━━━━━━━━━\n"
+        message += f"📝 {error}\n"
+        message += f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+        self.send_message(message)
+
+    def notify_signal(
+        self,
+        strategy: str,
+        signal: str,
+        reason: str,
+        strength: float = None,
+        confidence: float = None
+    ):
+        """发送信号通知"""
+        emoji = {
+            'long': '🟢',
+            'short': '🔴',
+            'close_long': '📤',
+            'close_short': '📤',
+            'hold': '⏸️',
+        }.get(signal, '📊')
+
+        message = f"{emoji} 策略信号\n"
+        message += f"━━━━━━━━━━━━━━━\n"
+        message += f"📋 策略: {strategy}\n"
+        message += f"📊 信号: {signal}\n"
+
+        if strength is not None:
+            message += f"💪 强度: {strength:.0%}\n"
+        if confidence is not None:
+            message += f"🎯 置信度: {confidence:.0%}\n"
+
+        message += f"📝 原因: {reason}\n"
+        message += f"⏰ 时间: {datetime.now().strftime('%H:%M:%S')}"
+
+        self.send_message(message)
+
+    def notify_risk_event(self, event_type: str, description: str):
+        """发送风控事件通知"""
+        message = f"⚠️ 风控事件\n"
+        message += f"━━━━━━━━━━━━━━━\n"
+        message += f"📋 类型: {event_type}\n"
+        message += f"📝 描述: {description}\n"
+        message += f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+        self.send_message(message)
+
+    def notify_daily_summary(self, stats: Dict):
+        """发送每日总结"""
+        message = f"📊 每日交易总结\n"
+        message += f"━━━━━━━━━━━━━━━\n"
+        message += f"📈 总交易: {stats.get('total_trades', 0)} 笔\n"
+        message += f"✅ 盈利: {stats.get('winning_trades', 0)} 笔\n"
+        message += f"❌ 亏损: {stats.get('losing_trades', 0)} 笔\n"
+        message += f"📊 胜率: {stats.get('win_rate', 0):.1f}%\n"
+
+        pnl = stats.get('total_pnl', 0)
+        pnl_emoji = "🟢" if pnl >= 0 else "🔴"
+        message += f"{pnl_emoji} 总盈亏: {pnl:+.2f} USDT\n"
+
+        pf = stats.get('profit_factor', 0)
+        message += f"📈 盈亏比: {pf:.2f}\n"
+
+        message += f"⏰ {datetime.now().strftime('%Y-%m-%d')}"
+
+        self.send_message(message)
+
+
+class EmailNotifier:
+    """邮件通知器"""
+
+    def __init__(
+        self,
+        smtp_server: str = None,
+        smtp_port: int = None,
+        sender_email: str = None,
+        sender_password: str = None,
+        receiver_email: str = None
+    ):
+        self.smtp_server = smtp_server or getattr(config, 'EMAIL_SMTP_SERVER', 'smtp.gmail.com')
+        self.smtp_port = smtp_port or getattr(config, 'EMAIL_SMTP_PORT', 587)
+        self.sender_email = sender_email or getattr(config, 'EMAIL_SENDER', '')
+        self.sender_password = sender_password or getattr(config, 'EMAIL_PASSWORD', '')
+        self.receiver_email = receiver_email or getattr(config, 'EMAIL_RECEIVER', '')
+        self.enabled = getattr(config, 'ENABLE_EMAIL', False) and all([
+            self.sender_email, self.sender_password, self.receiver_email
+        ])
+        self.logger = get_logger(__name__)
+
+    def send_message(self, subject: str, body: str, html: bool = True) -> bool:
+        """发送邮件"""
+        if not self.enabled:
+            return False
+
+        try:
+            # 创建邮件
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = subject
+            msg['From'] = self.sender_email
+            msg['To'] = self.receiver_email
+
+            # 添加邮件内容
+            if html:
+                msg.attach(MIMEText(body, 'html', 'utf-8'))
+            else:
+                msg.attach(MIMEText(body, 'plain', 'utf-8'))
+
+            # 发送邮件
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.sender_email, self.sender_password)
+                server.send_message(msg)
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"邮件发送异常: {e}")
+            return False
+
+    def _format_html(self, title: str, content: str, emoji: str = "📊") -> str:
+        """格式化HTML邮件"""
+        html = f"""
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                          color: white; padding: 20px; border-radius: 10px 10px 0 0; }}
+                .content {{ background: #f9f9f9; padding: 20px; border-radius: 0 0 10px 10px; }}
+                .info-row {{ margin: 10px 0; padding: 10px; background: white; border-radius: 5px; }}
+                .label {{ font-weight: bold; color: #667eea; }}
+                .footer {{ margin-top: 20px; text-align: center; color: #999; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h2>{emoji} {title}</h2>
+                </div>
+                <div class="content">
+                    {content}
+                </div>
+                <div class="footer">
+                    <p>交易机器人自动通知 | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return html
+
+    def notify_trade(
+        self,
+        action: str,
+        symbol: str,
+        side: str,
+        amount: float,
+        price: float,
+        pnl: float = None,
+        reason: str = ""
+    ):
+        """发送交易通知"""
+        emoji_map = {
+            'open_long': '🟢',
+            'open_short': '🔴',
+            'close_long': '📤',
+            'close_short': '📤',
+        }
+        emoji = emoji_map.get(f"{action}_{side}", "📊")
+
+        title_map = {
+            'open_long': '开多通知',
+            'open_short': '开空通知',
+            'close_long': '平多通知',
+            'close_short': '平空通知',
+        }
+        title = title_map.get(f"{action}_{side}", "交易通知")
+
+        content = f"""
+        <div class="info-row">
+            <span class="label">交易对:</span> {symbol}
+        </div>
+        <div class="info-row">
+            <span class="label">方向:</span> {side.upper()}
+        </div>
+        <div class="info-row">
+            <span class="label">数量:</span> {amount:.6f}
+        </div>
+        <div class="info-row">
+            <span class="label">价格:</span> ${price:.2f}
+        </div>
+        """
+
+        if pnl is not None:
+            pnl_color = "#22c55e" if pnl >= 0 else "#ef4444"
+            content += f"""
+            <div class="info-row" style="background: {pnl_color}20;">
+                <span class="label">盈亏:</span>
+                <span style="color: {pnl_color}; font-weight: bold;">{pnl:+.2f} USDT</span>
+            </div>
+            """
+
+        if reason:
+            content += f"""
+            <div class="info-row">
+                <span class="label">原因:</span> {reason}
+            </div>
+            """
+
+        html = self._format_html(title, content, emoji)
+        self.send_message(f"{emoji} {title} - {symbol}", html)
+
+    def notify_error(self, error: str):
+        """发送错误通知"""
+        content = f"""
+        <div class="info-row" style="background: #fee; border-left: 4px solid #f00;">
+            <p style="color: #c00; margin: 0;">{error}</p>
+        </div>
+        """
+        html = self._format_html("错误通知", content, "❌")
+        self.send_message("❌ 交易机器人错误通知", html)
+
+    def notify_signal(
+        self,
+        strategy: str,
+        signal: str,
+        reason: str,
+        strength: float = None,
+        confidence: float = None
+    ):
+        """发送信号通知"""
+        emoji_map = {
+            'long': '🟢',
+            'short': '🔴',
+            'close_long': '📤',
+            'close_short': '📤',
+            'hold': '⏸️',
+        }
+        emoji = emoji_map.get(signal, '📊')
+
+        content = f"""
+        <div class="info-row">
+            <span class="label">策略:</span> {strategy}
+        </div>
+        <div class="info-row">
+            <span class="label">信号:</span> {signal}
+        </div>
+        """
+
+        if strength is not None:
+            content += f"""
+            <div class="info-row">
+                <span class="label">强度:</span> {strength:.0%}
+            </div>
+            """
+
+        if confidence is not None:
+            content += f"""
+            <div class="info-row">
+                <span class="label">置信度:</span> {confidence:.0%}
+            </div>
+            """
+
+        content += f"""
+        <div class="info-row">
+            <span class="label">原因:</span> {reason}
+        </div>
+        """
+
+        html = self._format_html("策略信号", content, emoji)
+        self.send_message(f"{emoji} 策略信号 - {strategy}", html)
+
+    def notify_risk_event(self, event_type: str, description: str):
+        """发送风控事件通知"""
+        content = f"""
+        <div class="info-row" style="background: #fff3cd; border-left: 4px solid #ffc107;">
+            <div><span class="label">类型:</span> {event_type}</div>
+            <div style="margin-top: 10px;"><span class="label">描述:</span> {description}</div>
+        </div>
+        """
+        html = self._format_html("风控事件", content, "⚠️")
+        self.send_message("⚠️ 风控事件通知", html)
+
+    def notify_daily_summary(self, stats: Dict):
+        """发送每日总结"""
+        pnl = stats.get('total_pnl', 0)
+        pnl_color = "#22c55e" if pnl >= 0 else "#ef4444"
+
+        content = f"""
+        <div class="info-row">
+            <span class="label">总交易:</span> {stats.get('total_trades', 0)} 笔
+        </div>
+        <div class="info-row">
+            <span class="label">盈利:</span> {stats.get('winning_trades', 0)} 笔
+        </div>
+        <div class="info-row">
+            <span class="label">亏损:</span> {stats.get('losing_trades', 0)} 笔
+        </div>
+        <div class="info-row">
+            <span class="label">胜率:</span> {stats.get('win_rate', 0):.1f}%
+        </div>
+        <div class="info-row" style="background: {pnl_color}20;">
+            <span class="label">总盈亏:</span>
+            <span style="color: {pnl_color}; font-weight: bold; font-size: 18px;">{pnl:+.2f} USDT</span>
+        </div>
+        <div class="info-row">
+            <span class="label">盈亏比:</span> {stats.get('profit_factor', 0):.2f}
+        </div>
+        """
+
+        html = self._format_html("每日交易总结", content, "📊")
+        self.send_message("📊 每日交易总结", html)
+
+
+class MultiNotifier:
+    """多渠道通知器"""
+
+    def __init__(self):
+        self.telegram = TelegramNotifier()
+        self.feishu = FeishuNotifier()
+        self.email = EmailNotifier()
+        self.logger = get_logger(__name__)
+
+    def notify_trade(self, *args, **kwargs):
+        """发送交易通知到所有渠道"""
+        self.telegram.notify_trade(*args, **kwargs)
+        self.feishu.notify_trade(*args, **kwargs)
+        self.email.notify_trade(*args, **kwargs)
+
+    def notify_error(self, error: str):
+        """发送错误通知到所有渠道"""
+        self.telegram.notify_error(error)
+        self.feishu.notify_error(error)
+        self.email.notify_error(error)
+
+    def notify_signal(self, *args, **kwargs):
+        """发送信号通知到所有渠道"""
+        self.telegram.notify_signal(*args, **kwargs)
+        self.feishu.notify_signal(*args, **kwargs)
+        self.email.notify_signal(*args, **kwargs)
+
+    def notify_risk_event(self, *args, **kwargs):
+        """发送风控事件通知到所有渠道"""
+        self.telegram.notify_risk_event(*args, **kwargs)
+        self.feishu.notify_risk_event(*args, **kwargs)
+        self.email.notify_risk_event(*args, **kwargs)
+
+    def notify_daily_summary(self, *args, **kwargs):
+        """发送每日总结到所有渠道"""
+        self.telegram.notify_daily_summary(*args, **kwargs)
+        self.feishu.notify_daily_summary(*args, **kwargs)
+        self.email.notify_daily_summary(*args, **kwargs)
+
+
 # 全局实例
 db = TradeDatabase()
-notifier = TelegramNotifier()
+notifier = MultiNotifier()

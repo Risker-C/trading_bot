@@ -36,7 +36,7 @@ MARGIN_MODE = "crossed"  # isolated / crossed
 
 # ==================== 仓位管理 ====================
 
-POSITION_SIZE_PERCENT = 0.1    # 基础仓位比例（10%）
+POSITION_SIZE_PERCENT = 0.1   # 基础仓位比例（10%）
 MIN_ORDER_USDT = 10            # 最小订单金额
 MAX_ORDER_USDT = 1000          # 最大订单金额
 
@@ -136,7 +136,7 @@ GRID_TYPE = "arithmetic"       # arithmetic / geometric
 
 # ==================== 运行时配置 ====================
 
-CHECK_INTERVAL = 60            # 检查间隔（秒）
+CHECK_INTERVAL = 5             # 检查间隔（秒）
 HEARTBEAT_INTERVAL = 300       # 心跳间隔（秒）
 HEALTH_CHECK_INTERVAL = 600    # 健康检查间隔（秒）
 
@@ -150,7 +150,7 @@ AUTO_RECONNECT = True          # 自动重连
 DB_PATH = "trading_bot.db"
 LOG_DIR = "logs"
 LOG_FILE = "trading_bot.log"       # 新增
-LOG_LEVEL = "INFO"
+LOG_LEVEL = "DEBUG"
 SAVE_EQUITY_CURVE = True
 
 # ==================== Telegram 通知（新增）====================
@@ -158,6 +158,20 @@ SAVE_EQUITY_CURVE = True
 ENABLE_TELEGRAM = False
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
+# ==================== 飞书通知 ====================
+
+ENABLE_FEISHU = True
+FEISHU_WEBHOOK_URL = os.getenv("FEISHU_WEBHOOK_URL", "")
+
+# ==================== 邮件通知 ====================
+
+ENABLE_EMAIL = True
+EMAIL_SMTP_SERVER = os.getenv("EMAIL_SMTP_SERVER", "smtp.gmail.com")
+EMAIL_SMTP_PORT = int(os.getenv("EMAIL_SMTP_PORT", "587"))
+EMAIL_SENDER = os.getenv("EMAIL_SENDER", "")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "")
+EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER", "")
 
 # ==================== 回测配置（新增）====================
 
