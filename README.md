@@ -6,15 +6,22 @@
 trading_bot/
 ├── config.py           # 配置文件
 ├── indicators.py       # 技术指标
-├── strategies.py       # 交易策略
+├── strategies.py       # 交易策略(含布林带双策略)
+├── market_regime.py    # 市场状态检测(新增)
 ├── risk_manager.py     # 风险管理
 ├── trader.py           # 交易执行
+├── bot.py              # 交易机器人主程序
 ├── backtest.py         # 回测模块
 ├── logger_utils.py     # 日志工具
 ├── main.py             # 主入口
 ├── requirements.txt    # 依赖
 ├── .env                # 环境变量（API密钥）
-└── logs/               # 日志目录
+├── logs/               # 日志目录
+└── scripts/            # 测试和诊断脚本
+    ├── test_dynamic_strategy.py    # 动态策略测试
+    ├── diagnose_bollinger.py       # 布林带诊断
+    ├── compare_data_sources.py     # 数据源对比
+    └── test_fix.py                 # 修复验证测试
 ```
 
 ---
@@ -372,7 +379,154 @@ docker-compose restart trading-bot
 
 ---
 
-## 11. 测试脚本
+## 11. 新功能: 市场状态感知与动态策略选择
+
+### 11.1 功能概述
+
+系统现在支持**市场状态感知**,能够自动识别市场处于震荡、过渡还是趋势状态,并根据市场状态动态选择最合适的交易策略。
+
+### 11.2 市场状态分类
+
+| 市场状态 | 判断条件 | 特征 |
+|---------|---------|------|
+| **震荡市 (RANGING)** | ADX < 20 或 布林带宽度 < 2% | 价格在区间内波动,无明确方向 |
+| **过渡市 (TRANSITIONING)** | 20 ≤ ADX < 30 | 市场状态不明确,可能变盘 |
+| **趋势市 (TRENDING)** | ADX ≥ 30 且 布林带宽度 > 3% | 单边上涨或下跌,方向明确 |
+
+### 11.3 动态策略选择
+
+系统根据市场状态自动选择策略组:
+
+**震荡市策略组** (均值回归):
+- `bollinger_breakthrough` - 布林带均值回归(突破下轨做多,突破上轨做空)
+- `rsi_divergence` - RSI背离策略
+- `kdj_cross` - KDJ交叉策略
+
+**过渡市策略组** (综合评分):
+- `composite_score` - 综合评分策略
+- `multi_timeframe` - 多时间周期策略
+
+**趋势市策略组** (趋势跟踪):
+- `bollinger_trend` - 布林带趋势突破(突破上轨做多,突破下轨做空)
+- `ema_cross` - EMA均线交叉
+- `macd_cross` - MACD交叉
+- `adx_trend` - ADX趋势跟踪
+- `volume_breakout` - 成交量突破
+
+### 11.4 布林带双策略
+
+系统现在支持两种布林带策略:
+
+**均值回归版** (`bollinger_breakthrough`):
+- 适用场景: 震荡市
+- 交易逻辑: 突破下轨→做多(超卖反弹), 突破上轨→做空(超买回落)
+- 理论依据: 价格偏离均值后大概率回归
+
+**趋势突破版** (`bollinger_trend`):
+- 适用场景: 趋势市
+- 交易逻辑: 突破上轨→做多(顺势追涨), 突破下轨→做空(顺势追跌)
+- 理论依据: 强势行情中价格沿布林带边缘运行
+
+### 11.5 配置选项
+
+在 `config.py` 中启用动态策略选择:
+
+```python
+# 动态策略选择配置
+USE_DYNAMIC_STRATEGY = True  # 启用市场状态感知的动态策略选择
+
+# 当启用时,系统会根据市场状态自动选择合适的策略
+# 当禁用时,使用 ENABLE_STRATEGIES 中的固定策略列表
+```
+
+### 11.6 运行示例
+
+启动机器人后,日志会显示市场状态和选择的策略:
+
+```
+2024-01-15 10:30:00 [INFO] 市场状态: TRENDING (ADX=34.5, 宽度=0.52%)
+                           → 策略: bollinger_trend, ema_cross, macd_cross, adx_trend, volume_breakout
+```
+
+---
+
+## 12. 测试与诊断脚本
+
+### 12.1 动态策略系统测试
+
+测试市场状态检测和动态策略选择功能:
+
+```bash
+python scripts/test_dynamic_strategy.py
+```
+
+输出示例:
+```
+测试1: 市场状态检测
+  当前市场状态: TRENDING
+  置信度: 100%
+  ADX: 34.6
+  布林带宽度: 0.57%
+  ✅ 市场状态检测测试通过
+
+测试2: 动态策略选择
+  市场状态: TRENDING
+  推荐策略: bollinger_trend, ema_cross, macd_cross, adx_trend, volume_breakout
+  ✅ 动态策略选择测试通过
+
+测试3: 布林带策略对比
+  均值回归: hold (突破下轨→做多, 突破上轨→做空)
+  趋势突破: hold (突破上轨→做多, 突破下轨→做空)
+  ✅ 布林带策略对比测试通过
+
+🎉 所有测试通过! 动态策略系统运行正常!
+```
+
+### 12.2 布林带宽度诊断
+
+诊断布林带计算是否正确:
+
+```bash
+python scripts/diagnose_bollinger.py
+```
+
+输出示例:
+```
+布林带数值 (最新):
+  上轨 (upper):  90463.01 USDT
+  中轨 (middle): 90206.49 USDT
+  下轨 (lower):  89949.97 USDT
+  收盘价:        90157.00 USDT
+
+计算明细:
+  上下轨距离: 513.05 USDT
+  距离/中轨:   0.0057 (0.57%)
+  带宽(公式):  (upper-lower)/middle*100 = 0.57%
+
+诊断结果:
+  ✅ 带宽计算正确
+  ℹ️  带宽 0.57% 很窄,市场处于低波动状态
+```
+
+### 12.3 数据源对比分析
+
+对比不同数据源的计算结果:
+
+```bash
+python scripts/compare_data_sources.py
+```
+
+### 12.4 数据库日志修复测试
+
+测试numpy类型转换修复:
+
+```bash
+python scripts/test_fix.py
+```
+
+---
+
+## 13. 测试脚本
 
 ### 11.1 test_all.py - 完整测试
 

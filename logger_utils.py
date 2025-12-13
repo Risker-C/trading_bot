@@ -11,6 +11,7 @@ import requests
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import numpy as np
 
 import config
 
@@ -245,9 +246,38 @@ class TradeDatabase:
         """记录策略信号（新增 confidence 参数）"""
         conn = self._get_conn()
         cursor = conn.cursor()
-        
-        indicators_json = json.dumps(indicators or {})
-        
+
+        # 转换 numpy 类型为 Python 类型
+        strength = float(strength) if strength is not None else 1.0
+        confidence = float(confidence) if confidence is not None else 1.0
+
+        # 转换 indicators 中的 numpy 类型为 Python 类型
+        def convert_numpy_types(obj):
+            """递归转换 numpy 类型为 Python 原生类型"""
+            if obj is None:
+                return None
+            elif isinstance(obj, dict):
+                return {k: convert_numpy_types(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_numpy_types(item) for item in obj]
+            elif isinstance(obj, np.ndarray):
+                # numpy 数组转为列表
+                return obj.tolist()
+            elif isinstance(obj, (np.integer, np.floating)):
+                # numpy 数值类型转为 Python 数值
+                return obj.item()
+            elif isinstance(obj, np.bool_):
+                # numpy 布尔类型转为 Python 布尔
+                return bool(obj)
+            elif hasattr(obj, 'item') and hasattr(obj, 'dtype'):
+                # 其他 numpy 标量类型
+                return obj.item()
+            else:
+                return obj
+
+        indicators_clean = convert_numpy_types(indicators or {})
+        indicators_json = json.dumps(indicators_clean)
+
         cursor.execute('''
             INSERT INTO signals (strategy, signal, reason, strength, confidence, indicators)
             VALUES (?, ?, ?, ?, ?, ?)

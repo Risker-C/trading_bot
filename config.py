@@ -88,6 +88,11 @@ MIN_STRATEGY_AGREEMENT = 0.6       # 最小策略一致性
 MIN_SIGNAL_STRENGTH = 0.5          # 最小信号强度
 MIN_SIGNAL_CONFIDENCE = 0.5        # 最小置信度
 
+# 动态策略选择配置（新增）
+USE_DYNAMIC_STRATEGY = True        # 启用市场状态感知的动态策略选择
+# 当启用时,系统会根据市场状态(震荡/过渡/趋势)自动选择合适的策略
+# 当禁用时,使用上面 ENABLE_STRATEGIES 中的固定策略列表
+
 # ==================== 技术指标参数 ====================
 
 # RSI

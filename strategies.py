@@ -170,6 +170,121 @@ class BollingerBreakthroughStrategy(BaseStrategy):
         return TradeSignal(Signal.HOLD, self.name)
 
 
+# ==================== 布林带趋势突破策略(新增)====================
+
+class BollingerTrendStrategy(BaseStrategy):
+    """布林带趋势突破策略 - 顺势交易版本"""
+
+    name = "bollinger_trend"
+    description = "价格突破布林带上轨做多,突破下轨做空(趋势跟踪)"
+
+    def __init__(self, df: pd.DataFrame):
+        super().__init__(df)
+        self.bb = self.ind.bollinger_bands(
+            period=config.BB_PERIOD,
+            std_dev=config.BB_STD_DEV
+        )
+        self.breakthrough_count = config.BB_BREAKTHROUGH_COUNT
+
+    def analyze(self) -> TradeSignal:
+        close = self.df['close']
+        upper = self.bb['upper']
+        lower = self.bb['lower']
+        volume = self.df['volume']
+
+        recent_closes = close.tail(self.breakthrough_count)
+        recent_lowers = lower.tail(self.breakthrough_count)
+        recent_uppers = upper.tail(self.breakthrough_count)
+
+        # 检查是否连续突破上轨(做多信号 - 趋势突破)
+        breakthrough_upper = all(
+            recent_closes.iloc[i] > recent_uppers.iloc[i]
+            for i in range(len(recent_closes))
+        )
+
+        # 检查是否连续突破下轨(做空信号 - 趋势突破)
+        breakthrough_lower = all(
+            recent_closes.iloc[i] < recent_lowers.iloc[i]
+            for i in range(len(recent_closes))
+        )
+
+        # 计算信号强度(基于偏离程度和成交量)
+        current_close = close.iloc[-1]
+        middle = self.bb['middle'].iloc[-1]
+        bandwidth = self.bb['bandwidth'].iloc[-1]
+
+        deviation = abs(current_close - middle) / middle
+
+        # 成交量确认
+        avg_volume = volume.tail(20).mean()
+        volume_ratio = volume.iloc[-1] / avg_volume if avg_volume > 0 else 1.0
+        volume_factor = min(volume_ratio / 1.5, 1.2)  # 放量加强信号
+
+        strength = min(deviation * 10 * volume_factor, 1.0)
+
+        indicators = {
+            'close': current_close,
+            'upper': upper.iloc[-1],
+            'middle': middle,
+            'lower': lower.iloc[-1],
+            'bandwidth': bandwidth,
+            'volume_ratio': volume_ratio,
+        }
+
+        # 趋势突破: 突破上轨做多
+        if breakthrough_upper:
+            return TradeSignal(
+                Signal.LONG,
+                self.name,
+                f"价格突破布林带上轨,趋势向上(量比={volume_ratio:.2f})",
+                strength=strength,
+                confidence=min(volume_factor * 0.8, 1.0),
+                indicators=indicators
+            )
+
+        # 趋势突破: 突破下轨做空
+        if breakthrough_lower:
+            return TradeSignal(
+                Signal.SHORT,
+                self.name,
+                f"价格突破布林带下轨,趋势向下(量比={volume_ratio:.2f})",
+                strength=strength,
+                confidence=min(volume_factor * 0.8, 1.0),
+                indicators=indicators
+            )
+
+        return TradeSignal(Signal.HOLD, self.name, indicators=indicators)
+
+    def check_exit(self, position_side: str) -> TradeSignal:
+        close = self.df['close']
+        middle = self.bb['middle']
+        upper = self.bb['upper']
+        lower = self.bb['lower']
+
+        current_close = close.iloc[-1]
+        current_middle = middle.iloc[-1]
+
+        if position_side == 'long':
+            # 多仓: 价格回落到中轨或跌破下轨
+            if current_close < current_middle:
+                return TradeSignal(
+                    Signal.CLOSE_LONG,
+                    self.name,
+                    "价格回落至布林带中轨下方"
+                )
+
+        elif position_side == 'short':
+            # 空仓: 价格反弹到中轨或突破上轨
+            if current_close > current_middle:
+                return TradeSignal(
+                    Signal.CLOSE_SHORT,
+                    self.name,
+                    "价格反弹至布林带中轨上方"
+                )
+
+        return TradeSignal(Signal.HOLD, self.name)
+
+
 # ==================== RSI 背离策略 ====================
 
 class RSIDivergenceStrategy(BaseStrategy):
@@ -1062,6 +1177,7 @@ class CompositeScoreStrategy(BaseStrategy):
 
 STRATEGY_MAP: Dict[str, type] = {
     "bollinger_breakthrough": BollingerBreakthroughStrategy,
+    "bollinger_trend": BollingerTrendStrategy,  # 新增: 趋势突破版本
     "rsi_divergence": RSIDivergenceStrategy,
     "macd_cross": MACDCrossStrategy,
     "ema_cross": EMACrossStrategy,

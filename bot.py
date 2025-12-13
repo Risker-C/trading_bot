@@ -11,6 +11,7 @@ from strategies import (
     Signal, TradeSignal,
     get_strategy, analyze_all_strategies, STRATEGY_MAP
 )
+from market_regime import MarketRegimeDetector
 from logger_utils import get_logger, db, notifier
 
 logger = get_logger("bot")
@@ -150,16 +151,39 @@ class TradingBot:
     
     def _check_entry_conditions(self, df, current_price: float):
         """检查开仓条件"""
-        
+
         # 风控检查
         can_open, reason = self.risk_manager.can_open_position()
         if not can_open:
             logger.debug(f"风控限制: {reason}")
             return
-        
-        # 运行所有启用的策略
-        signals = analyze_all_strategies(df, config.ENABLE_STRATEGIES)
-        
+
+        # 市场状态检测
+        detector = MarketRegimeDetector(df)
+        regime_info = detector.detect()
+
+        # 检查是否适合交易
+        can_trade, trade_reason = detector.should_trade(regime_info)
+        if not can_trade:
+            logger.debug(f"市场状态不适合交易: {trade_reason}")
+            return
+
+        # 根据市场状态动态选择策略
+        if hasattr(config, 'USE_DYNAMIC_STRATEGY') and config.USE_DYNAMIC_STRATEGY:
+            # 动态策略选择
+            selected_strategies = detector.get_suitable_strategies(regime_info)
+            logger.info(
+                f"市场状态: {regime_info.regime.value.upper()} "
+                f"(ADX={regime_info.adx:.1f}, 宽度={regime_info.bb_width:.2f}%) "
+                f"→ 策略: {', '.join(selected_strategies)}"
+            )
+        else:
+            # 使用配置文件中的固定策略
+            selected_strategies = config.ENABLE_STRATEGIES
+
+        # 运行选定的策略
+        signals = analyze_all_strategies(df, selected_strategies)
+
         # 找到第一个有效的开仓信号
         for trade_signal in signals:
             if trade_signal.signal == Signal.LONG:
@@ -168,7 +192,7 @@ class TradingBot:
             elif trade_signal.signal == Signal.SHORT:
                 self._execute_open_short(trade_signal, current_price)
                 return
-        
+
         # 无信号
         logger.debug(f"当前价格: {current_price:.2f} - 无开仓信号")
     
@@ -210,7 +234,7 @@ class TradingBot:
         # 记录信号
         db.log_signal(
             signal.strategy, signal.signal.value,
-            signal.reason, signal.strength, signal.indicators
+            signal.reason, signal.strength, signal.confidence, signal.indicators
         )
         
         # 执行开仓
@@ -255,7 +279,7 @@ class TradingBot:
         # 记录信号
         db.log_signal(
             signal.strategy, signal.signal.value,
-            signal.reason, signal.strength, signal.indicators
+            signal.reason, signal.strength, signal.confidence, signal.indicators
         )
         
         # 执行开仓
