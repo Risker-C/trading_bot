@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  trading-bot:
+    build: .
+    container_name: trading_bot
+    restart: unless-stopped
+    environment:
+      - BITGET_API_KEY=${BITGET_API_KEY}
+      - BITGET_SECRET=${BITGET_SECRET}
+      - BITGET_PASSWORD=${BITGET_PASSWORD}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    volumes:
+      - ./logs:/app/logs
+      - ./trading_bot.db:/app/trading_bot.db
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  monitor:
+    build: .
+    container_name: trading_monitor
+    restart: unless-stopped
+    command: python monitor.py --interval 300
+    environment:
+      - BITGET_API_KEY=${BITGET_API_KEY}
+      - BITGET_SECRET=${BITGET_SECRET}
+      - BITGET_PASSWORD=${BITGET_PASSWORD}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    volumes:
+      - ./logs:/app/logs
+      - ./trading_bot.db:/app/trading_bot.db
+    depends_on:
+      - trading-bot

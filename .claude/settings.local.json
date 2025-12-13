@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(python3 -m py_compile:*)",
+      "Bash(for file in /root/trading_bot/*.py)",
+      "Bash(done)",
+      "Bash(sort:*)",
+      "Bash(python3:*)",
+      "Bash(find:*)",
+      "Bash(python:*)"
+    ]
+  }
+}

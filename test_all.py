@@ -1,0 +1,322 @@
+"""
+完整测试脚本
+"""
+import sys
+import traceback
+
+def test_imports():
+    """测试模块导入"""
+    print("测试模块导入...")
+    
+    try:
+        import config
+        print("  ✅ config")
+    except Exception as e:
+        print(f"  ❌ config: {e}")
+        return False
+    
+    try:
+        import indicators
+        print("  ✅ indicators")
+    except Exception as e:
+        print(f"  ❌ indicators: {e}")
+        return False
+    
+    try:
+        import strategies
+        print("  ✅ strategies")
+    except Exception as e:
+        print(f"  ❌ strategies: {e}")
+        return False
+    
+    try:
+        import risk_manager
+        print("  ✅ risk_manager")
+    except Exception as e:
+        print(f"  ❌ risk_manager: {e}")
+        return False
+    
+    try:
+        import trader
+        print("  ✅ trader")
+    except Exception as e:
+        print(f"  ❌ trader: {e}")
+        return False
+    
+    try:
+        import backtest
+        print("  ✅ backtest")
+    except Exception as e:
+        print(f"  ❌ backtest: {e}")
+        return False
+    
+    try:
+        import logger_utils
+        print("  ✅ logger_utils")
+    except Exception as e:
+        print(f"  ❌ logger_utils: {e}")
+        return False
+    
+    return True
+
+
+def test_config():
+    """测试配置"""
+    print("\n测试配置...")
+    
+    import config
+    errors = config.validate_config()
+    
+    if errors:
+        print("  ❌ 配置错误:")
+        for e in errors:
+            print(f"    - {e}")
+        return False
+    else:
+        print("  ✅ 配置有效")
+        return True
+
+
+def test_indicators():
+    """测试指标计算"""
+    print("\n测试指标计算...")
+    
+    import pandas as pd
+    import numpy as np
+    from indicators import IndicatorCalculator
+    
+    # 创建测试数据
+    np.random.seed(42)
+    n = 200
+    
+    df = pd.DataFrame({
+        'open': 100 + np.cumsum(np.random.randn(n) * 0.5),
+        'high': 0,
+        'low': 0,
+        'close': 0,
+        'volume': np.random.randint(1000, 10000, n)
+    })
+    
+    df['close'] = df['open'] + np.random.randn(n) * 0.3
+    df['high'] = df[['open', 'close']].max(axis=1) + abs(np.random.randn(n) * 0.2)
+    df['low'] = df[['open', 'close']].min(axis=1) - abs(np.random.randn(n) * 0.2)
+    
+    try:
+        calc = IndicatorCalculator(df)
+        result = calc.calculate_all()
+        
+        # 检查必要的列
+        required = ['rsi', 'macd', 'macd_signal', 'bb_upper', 'bb_lower', 'atr']
+        missing = [col for col in required if col not in result.columns]
+        
+        if missing:
+            print(f"  ❌ 缺少指标列: {missing}")
+            return False
+        
+        print(f"  ✅ 指标计算成功 ({len(result.columns)} 列)")
+        return True
+        
+    except Exception as e:
+        print(f"  ❌ 指标计算失败: {e}")
+        traceback.print_exc()
+        return False
+
+
+def test_strategies():
+    """测试策略"""
+    print("\n测试策略...")
+    
+    import pandas as pd
+    import numpy as np
+    from indicators import IndicatorCalculator
+    from strategies import analyze_all_strategies, STRATEGY_MAP
+    
+    # 创建测试数据
+    np.random.seed(42)
+    n = 200
+    
+    df = pd.DataFrame({
+        'open': 100 + np.cumsum(np.random.randn(n) * 0.5),
+        'high': 0,
+        'low': 0,
+        'close': 0,
+        'volume': np.random.randint(1000, 10000, n)
+    })
+    
+    df['close'] = df['open'] + np.random.randn(n) * 0.3
+    df['high'] = df[['open', 'close']].max(axis=1) + abs(np.random.randn(n) * 0.2)
+    df['low'] = df[['open', 'close']].min(axis=1) - abs(np.random.randn(n) * 0.2)
+    
+    calc = IndicatorCalculator(df)
+    df = calc.calculate_all()
+    
+    try:
+        # 测试每个策略
+        for name in STRATEGY_MAP.keys():
+            try:
+                signals = analyze_all_strategies(df, [name])
+                print(f"  ✅ {name}")
+            except Exception as e:
+                print(f"  ❌ {name}: {e}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"  ❌ 策略测试失败: {e}")
+        return False
+
+
+def test_risk_manager():
+    """测试风险管理"""
+    print("\n测试风险管理...")
+    
+    from risk_manager import RiskManager, Position
+    
+    try:
+        rm = RiskManager()
+        
+        # 测试仓位计算
+        size = rm.calculate_position_size(1000, 50000, None)
+        print(f"  ✅ 仓位计算: {size:.6f}")
+        
+        # 测试开仓
+        rm.open_position('long', 0.001, 50000)
+        print(f"  ✅ 开仓记录")
+        
+        # 测试止损检查
+        from risk_manager import StopLossResult
+        result = rm.check_stop_loss(48000, rm.position, None)
+        print(f"  ✅ 止损检查: should_stop={result.should_stop}")
+        
+        # 测试平仓
+        rm.close_position(51000)
+        print(f"  ✅ 平仓记录")
+        
+        return True
+        
+    except Exception as e:
+        print(f"  ❌ 风险管理测试失败: {e}")
+        traceback.print_exc()
+        return False
+
+
+def test_database():
+    """测试数据库"""
+    print("\n测试数据库...")
+    
+    from logger_utils import TradeDatabase
+    import os
+    
+    test_db = "test_trading.db"
+    
+    try:
+        db = TradeDatabase(test_db)
+        
+        # 测试写入
+        trade_id = db.log_trade(
+            symbol="BTCUSDT",
+            side="long",
+            action="open",
+            amount=0.001,
+            price=50000,
+            strategy="test"
+        )
+        print(f"  ✅ 写入交易记录: ID={trade_id}")
+        
+        # 测试读取
+        trades = db.get_trades(limit=1)
+        print(f"  ✅ 读取交易记录: {len(trades)} 条")
+        
+        # 测试统计
+        stats = db.get_statistics()
+        print(f"  ✅ 统计查询: {stats['total_trades']} 笔交易")
+        
+        # 清理
+        os.remove(test_db)
+        print(f"  ✅ 清理测试数据库")
+        
+        return True
+        
+    except Exception as e:
+        print(f"  ❌ 数据库测试失败: {e}")
+        if os.path.exists(test_db):
+            os.remove(test_db)
+        return False
+
+
+def test_api_connection():
+    """测试 API 连接（可选）"""
+    print("\n测试 API 连接...")
+
+    import config
+
+    # 检查是否配置了完整的API凭证
+    if not config.EXCHANGE_CONFIG['apiKey'] or \
+       not config.EXCHANGE_CONFIG['secret'] or \
+       not config.EXCHANGE_CONFIG['password']:
+        print("  ⏭️ 跳过（API凭证未完整配置）")
+        return True
+
+    try:
+        import ccxt
+
+        exchange = ccxt.bitget({
+            'apiKey': config.EXCHANGE_CONFIG['apiKey'],
+            'secret': config.EXCHANGE_CONFIG['secret'],
+            'password': config.EXCHANGE_CONFIG['password'],
+        })
+
+        # 测试公共 API
+        ticker = exchange.fetch_ticker('BTC/USDT:USDT')
+        print(f"  ✅ 公共 API: BTC = {ticker['last']}")
+
+        # 测试私有 API
+        balance = exchange.fetch_balance({'type': 'swap'})
+        usdt = balance.get('USDT', {}).get('free', 0)
+        print(f"  ✅ 私有 API: USDT = {usdt}")
+
+        return True
+
+    except Exception as e:
+        print(f"  ❌ API 连接失败: {e}")
+        return False
+
+
+def main():
+    """运行所有测试"""
+    print("=" * 50)
+    print("交易机器人测试")
+    print("=" * 50)
+    
+    results = {
+        '模块导入': test_imports(),
+        '配置验证': test_config(),
+        '指标计算': test_indicators(),
+        '策略测试': test_strategies(),
+        '风险管理': test_risk_manager(),
+        '数据库': test_database(),
+        'API连接': test_api_connection(),
+    }
+    
+    print("\n" + "=" * 50)
+    print("测试结果汇总")
+    print("=" * 50)
+    
+    for name, passed in results.items():
+        status = "✅ 通过" if passed else "❌ 失败"
+        print(f"  {name}: {status}")
+    
+    all_passed = all(results.values())
+    
+    print("\n" + "=" * 50)
+    if all_passed:
+        print("✅ 所有测试通过！可以启动交易机器人。")
+    else:
+        print("❌ 部分测试失败，请检查错误信息。")
+    print("=" * 50)
+    
+    return 0 if all_passed else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
