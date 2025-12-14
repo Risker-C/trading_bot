@@ -64,7 +64,9 @@ class TradingBot:
             try:
                 self._main_loop()
             except Exception as e:
+                import traceback
                 logger.error(f"主循环异常: {e}")
+                logger.error(traceback.format_exc())
                 notifier.notify_error(str(e))
             
             # 等待下一次检查
@@ -236,24 +238,35 @@ class TradingBot:
         """执行开多"""
         logger.info(f"📈 开多信号 [{signal.strategy}]: {signal.reason}")
 
-        # 记录信号
-        db.log_signal(
-            signal.strategy, signal.signal.value,
-            signal.reason, signal.strength, signal.confidence, signal.indicators
-        )
+        try:
+            # 记录信号
+            db.log_signal(
+                signal.strategy, signal.signal.value,
+                signal.reason, signal.strength, signal.confidence, signal.indicators
+            )
+        except Exception as e:
+            logger.error(f"记录信号失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
 
-        # 计算仓位大小
-        balance = self.trader.get_balance()
-        amount = self.risk_manager.calculate_position_size(
-            balance, current_price, df, signal.strength
-        )
+        try:
+            # 计算仓位大小
+            balance = self.trader.get_balance()
+            amount = self.risk_manager.calculate_position_size(
+                balance, current_price, df, signal.strength
+            )
 
-        if amount <= 0:
-            logger.warning(f"计算的仓位大小无效: {amount}")
-            return
+            if amount <= 0:
+                logger.warning(f"计算的仓位大小无效: {amount}")
+                return
 
-        # 执行开仓
-        result = self.trader.open_long(amount, df)
+            # 执行开仓
+            result = self.trader.open_long(amount, df)
+        except Exception as e:
+            logger.error(f"执行开多失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            raise
 
         if result:
             self.current_position_side = 'long'
@@ -263,7 +276,7 @@ class TradingBot:
             positions = self.trader.get_positions()
             entry_price = current_price
             if positions:
-                entry_price = positions[0].entry_price
+                entry_price = positions[0]['entry_price']
 
             # 发送通知
             notifier.notify_trade(
@@ -280,24 +293,35 @@ class TradingBot:
         """执行开空"""
         logger.info(f"📉 开空信号 [{signal.strategy}]: {signal.reason}")
 
-        # 记录信号
-        db.log_signal(
-            signal.strategy, signal.signal.value,
-            signal.reason, signal.strength, signal.confidence, signal.indicators
-        )
+        try:
+            # 记录信号
+            db.log_signal(
+                signal.strategy, signal.signal.value,
+                signal.reason, signal.strength, signal.confidence, signal.indicators
+            )
+        except Exception as e:
+            logger.error(f"记录信号失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
 
-        # 计算仓位大小
-        balance = self.trader.get_balance()
-        amount = self.risk_manager.calculate_position_size(
-            balance, current_price, df, signal.strength
-        )
+        try:
+            # 计算仓位大小
+            balance = self.trader.get_balance()
+            amount = self.risk_manager.calculate_position_size(
+                balance, current_price, df, signal.strength
+            )
 
-        if amount <= 0:
-            logger.warning(f"计算的仓位大小无效: {amount}")
-            return
+            if amount <= 0:
+                logger.warning(f"计算的仓位大小无效: {amount}")
+                return
 
-        # 执行开仓
-        result = self.trader.open_short(amount, df)
+            # 执行开仓
+            result = self.trader.open_short(amount, df)
+        except Exception as e:
+            logger.error(f"执行开空失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            raise
 
         if result:
             self.current_position_side = 'short'
@@ -307,7 +331,7 @@ class TradingBot:
             positions = self.trader.get_positions()
             entry_price = current_price
             if positions:
-                entry_price = positions[0].entry_price
+                entry_price = positions[0]['entry_price']
 
             # 发送通知
             notifier.notify_trade(
@@ -323,20 +347,20 @@ class TradingBot:
     def _execute_close_position(self, position, reason: str, trigger_type: str):
         """执行平仓"""
         logger.info(f"📤 平仓触发 [{trigger_type}]: {reason}")
-        
+
         # 计算盈亏
-        entry_price = position.entry_price
-        current_price = position.current_price
-        amount = position.amount
-        
-        if position.side == 'long':
+        entry_price = position['entry_price']
+        current_price = position['current_price']
+        amount = position['amount']
+
+        if position['side'] == 'long':
             pnl = (current_price - entry_price) * amount
             result = self.trader.close_long(amount)
         else:
             pnl = (entry_price - current_price) * amount
             result = self.trader.close_short(amount)
-        
-        pnl_percent = position.pnl_percent
+
+        pnl_percent = position['pnl_percent']
         
         if result.success:
             # 更新风控状态
