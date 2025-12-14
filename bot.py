@@ -98,26 +98,26 @@ class TradingBot:
     def _check_existing_positions(self):
         """检查现有持仓"""
         positions = self.trader.get_positions()
-        
+
         if positions:
             logger.info("\n📊 现有持仓:")
             for pos in positions:
-                logger.info(f"   {pos.side.upper()}: {pos.amount} @ {pos.entry_price:.2f}")
-                logger.info(f"   未实现盈亏: {pos.unrealized_pnl:.2f} USDT ({pos.pnl_percent:.2f}%)")
-                
+                # 获取当前价格
+                ticker = self.trader.get_ticker()
+                current_price = ticker['last'] if ticker else pos['entry_price']
+
+                # 计算盈亏百分比
+                pnl_percent = (pos['unrealized_pnl'] / (pos['entry_price'] * pos['amount'])) * 100 if pos['amount'] > 0 else 0
+
+                logger.info(f"   {pos['side'].upper()}: {pos['amount']} @ {pos['entry_price']:.2f}")
+                logger.info(f"   未实现盈亏: {pos['unrealized_pnl']:.2f} USDT ({pnl_percent:.2f}%)")
+
                 # 初始化风控状态
-                self.current_position_side = pos.side
-                self.risk_manager.on_position_opened(
-                    pos.side, 
-                    pos.amount, 
-                    pos.entry_price
-                )
-                
-                # 记录持仓快照
-                db.log_position_snapshot(
-                    pos.symbol, pos.side, pos.amount,
-                    pos.entry_price, pos.current_price,
-                    pos.unrealized_pnl, pos.leverage
+                self.current_position_side = pos['side']
+                self.risk_manager.set_position(
+                    side=pos['side'],
+                    amount=pos['amount'],
+                    entry_price=pos['entry_price']
                 )
         else:
             logger.info("\n📊 当前无持仓")
@@ -187,10 +187,10 @@ class TradingBot:
         # 找到第一个有效的开仓信号
         for trade_signal in signals:
             if trade_signal.signal == Signal.LONG:
-                self._execute_open_long(trade_signal, current_price)
+                self._execute_open_long(trade_signal, current_price, df)
                 return
             elif trade_signal.signal == Signal.SHORT:
-                self._execute_open_short(trade_signal, current_price)
+                self._execute_open_short(trade_signal, current_price, df)
                 return
 
         # 无信号
@@ -198,126 +198,127 @@ class TradingBot:
     
     def _check_exit_conditions(self, df, current_price: float, position):
         """检查退出条件"""
-        
-        # 1. 检查风控止损止盈
-        should_close, reason = self.risk_manager.check_risk(current_price)
-        if should_close:
-            logger.warning(f"风控触发: {reason}")
-            self._execute_close_position(position, reason, "risk")
+
+        # 使用 RiskManager 的 position 对象进行风控检查
+        if not self.risk_manager.position:
+            logger.warning("风控管理器中没有持仓信息")
             return
-        
+
+        # 1. 检查风控止损止盈
+        result = self.risk_manager.check_stop_loss(current_price, self.risk_manager.position, df)
+        if result.should_stop:
+            logger.warning(f"风控触发: {result.reason}")
+            self._execute_close_position(position, result.reason, "risk")
+            return
+
         # 2. 检查策略退出信号
         if self.current_strategy and self.current_strategy in STRATEGY_MAP:
             strategy = get_strategy(self.current_strategy, df)
-            exit_signal = strategy.check_exit(position.side)
-            
+            exit_signal = strategy.check_exit(position['side'])
+
             if exit_signal.signal in [Signal.CLOSE_LONG, Signal.CLOSE_SHORT]:
                 logger.info(f"策略退出信号: {exit_signal.reason}")
                 self._execute_close_position(position, exit_signal.reason, "strategy")
                 return
-        
+
         # 3. 显示持仓状态
-        pnl_pct = position.pnl_percent
+        pnl_pct = result.pnl_percent
         pnl_emoji = "🟢" if pnl_pct >= 0 else "🔴"
-        
+
         logger.info(
-            f"持仓中 | {position.side.upper()} | "
-            f"入场: {position.entry_price:.2f} | "
+            f"持仓中 | {position['side'].upper()} | "
+            f"入场: {position['entry_price']:.2f} | "
             f"现价: {current_price:.2f} | "
             f"{pnl_emoji} {pnl_pct:+.2f}%"
         )
     
-    def _execute_open_long(self, signal: TradeSignal, current_price: float):
+    def _execute_open_long(self, signal: TradeSignal, current_price: float, df):
         """执行开多"""
         logger.info(f"📈 开多信号 [{signal.strategy}]: {signal.reason}")
-        
+
         # 记录信号
         db.log_signal(
             signal.strategy, signal.signal.value,
             signal.reason, signal.strength, signal.confidence, signal.indicators
         )
-        
+
+        # 计算仓位大小
+        balance = self.trader.get_balance()
+        amount = self.risk_manager.calculate_position_size(
+            balance, current_price, df, signal.strength
+        )
+
+        if amount <= 0:
+            logger.warning(f"计算的仓位大小无效: {amount}")
+            return
+
         # 执行开仓
-        result = self.trader.open_long()
-        
-        if result.success:
+        result = self.trader.open_long(amount, df)
+
+        if result:
             self.current_position_side = 'long'
             self.current_strategy = signal.strategy
-            
+
             # 获取实际成交价格
             positions = self.trader.get_positions()
             entry_price = current_price
             if positions:
                 entry_price = positions[0].entry_price
-            
-            # 初始化风控
-            self.risk_manager.on_position_opened('long', result.amount, entry_price)
-            
-            # 记录交易
-            db.log_trade(
-                config.SYMBOL, 'long', 'open',
-                result.amount, entry_price,
-                order_id=result.order_id,
-                value_usdt=result.amount * entry_price,
-                strategy=signal.strategy, reason=signal.reason
-            )
-            
+
             # 发送通知
             notifier.notify_trade(
                 'open', config.SYMBOL, 'long',
-                result.amount, entry_price, reason=signal.reason
+                amount, entry_price, reason=signal.reason
             )
-            
-            logger.info(f"✅ 开多成功: {result.amount} @ {entry_price:.2f}")
+
+            logger.info(f"✅ 开多成功: {amount} @ {entry_price:.2f}")
         else:
-            logger.error(f"❌ 开多失败: {result.error}")
-            notifier.notify_error(f"开多失败: {result.error}")
+            logger.error(f"❌ 开多失败")
+            notifier.notify_error(f"开多失败")
     
-    def _execute_open_short(self, signal: TradeSignal, current_price: float):
+    def _execute_open_short(self, signal: TradeSignal, current_price: float, df):
         """执行开空"""
         logger.info(f"📉 开空信号 [{signal.strategy}]: {signal.reason}")
-        
+
         # 记录信号
         db.log_signal(
             signal.strategy, signal.signal.value,
             signal.reason, signal.strength, signal.confidence, signal.indicators
         )
-        
+
+        # 计算仓位大小
+        balance = self.trader.get_balance()
+        amount = self.risk_manager.calculate_position_size(
+            balance, current_price, df, signal.strength
+        )
+
+        if amount <= 0:
+            logger.warning(f"计算的仓位大小无效: {amount}")
+            return
+
         # 执行开仓
-        result = self.trader.open_short()
-        
-        if result.success:
+        result = self.trader.open_short(amount, df)
+
+        if result:
             self.current_position_side = 'short'
             self.current_strategy = signal.strategy
-            
+
             # 获取实际成交价格
             positions = self.trader.get_positions()
             entry_price = current_price
             if positions:
                 entry_price = positions[0].entry_price
-            
-            # 初始化风控
-            self.risk_manager.on_position_opened('short', result.amount, entry_price)
-            
-            # 记录交易
-            db.log_trade(
-                config.SYMBOL, 'short', 'open',
-                result.amount, entry_price,
-                order_id=result.order_id,
-                value_usdt=result.amount * entry_price,
-                strategy=signal.strategy, reason=signal.reason
-            )
-            
+
             # 发送通知
             notifier.notify_trade(
                 'open', config.SYMBOL, 'short',
-                result.amount, entry_price, reason=signal.reason
+                amount, entry_price, reason=signal.reason
             )
-            
-            logger.info(f"✅ 开空成功: {result.amount} @ {entry_price:.2f}")
+
+            logger.info(f"✅ 开空成功: {amount} @ {entry_price:.2f}")
         else:
-            logger.error(f"❌ 开空失败: {result.error}")
-            notifier.notify_error(f"开空失败: {result.error}")
+            logger.error(f"❌ 开空失败")
+            notifier.notify_error(f"开空失败")
     
     def _execute_close_position(self, position, reason: str, trigger_type: str):
         """执行平仓"""

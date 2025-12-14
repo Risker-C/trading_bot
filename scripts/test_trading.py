@@ -48,6 +48,12 @@ def test_trading_flow():
     current_price = ticker['last']
     print(f"\n💰 当前BTC价格: {current_price:.2f} USDT")
 
+    # 3.5 获取K线数据
+    df = trader.get_klines()
+    if df.empty:
+        print("❌ 获取K线数据失败")
+        return
+
     # 4. 测试开仓
     print("\n" + "=" * 60)
     print("📈 测试1: 开多仓")
@@ -55,8 +61,13 @@ def test_trading_flow():
 
     input("\n⚠️  按Enter键继续开仓测试（这将使用真实资金）...")
 
+    # 计算测试仓位大小（使用1%余额进行测试）
+    test_usdt = balance * 0.01
+    test_amount = test_usdt / current_price
+    print(f"测试仓位: {test_amount:.6f} BTC (~{test_usdt:.2f} USDT)")
+
     print("正在开多仓...")
-    result = trader.open_long()
+    result = trader.open_long(test_amount, df)
 
     if result.success:
         print(f"✅ 开仓成功!")
