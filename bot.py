@@ -255,8 +255,9 @@ class TradingBot:
             
             # 记录交易
             db.log_trade(
-                result.order_id, config.SYMBOL, 'long', 'open',
+                config.SYMBOL, 'long', 'open',
                 result.amount, entry_price,
+                order_id=result.order_id,
                 value_usdt=result.amount * entry_price,
                 strategy=signal.strategy, reason=signal.reason
             )
@@ -300,8 +301,9 @@ class TradingBot:
             
             # 记录交易
             db.log_trade(
-                result.order_id, config.SYMBOL, 'short', 'open',
+                config.SYMBOL, 'short', 'open',
                 result.amount, entry_price,
+                order_id=result.order_id,
                 value_usdt=result.amount * entry_price,
                 strategy=signal.strategy, reason=signal.reason
             )
@@ -345,8 +347,9 @@ class TradingBot:
             
             # 记录交易
             db.log_trade(
-                result.order_id, config.SYMBOL, position.side, 'close',
+                config.SYMBOL, position.side, 'close',
                 amount, current_price,
+                order_id=result.order_id,
                 value_usdt=amount * current_price,
                 pnl=pnl, pnl_percent=pnl_percent,
                 strategy=self.current_strategy or "", reason=reason

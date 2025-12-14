@@ -78,6 +78,44 @@ python scripts/check_all_positions.py
 python scripts/close_raw_api.py
 ```
 
+## 数据库修复验证测试
+
+### test_database_fix.py
+验证数据库参数修复的有效性，测试所有数据库操作功能。
+
+**用法:**
+```bash
+python scripts/test_database_fix.py
+```
+
+**测试内容:**
+- 开多仓记录保存
+- 开空仓记录保存
+- 平仓记录保存（含盈亏）
+- 信号记录保存
+- 数据库完整性检查
+- 查询和统计功能
+
+**测试结果:** 8/8 通过 (100%)
+
+**相关文档:**
+- [修复日志_2025-12-14_数据库参数错误.md](../docs/修复日志_2025-12-14_数据库参数错误.md)
+- [测试报告_2025-12-14_数据库修复验证.md](../docs/测试报告_2025-12-14_数据库修复验证.md)
+
+## 策略和市场分析
+
+### test_dynamic_strategy.py
+测试动态策略选择功能，根据市场状态自动选择合适的交易策略。
+
+### diagnose_bollinger.py
+诊断布林带策略，分析布林带指标和信号生成。
+
+### compare_data_sources.py
+对比不同数据源的K线数据，验证数据一致性。
+
+### test_fix.py
+修复验证测试（旧版本，已被 test_database_fix.py 替代）。
+
 ## 注意事项
 
 1. **安全性:** 所有脚本都从环境变量或config.py读取配置,不包含硬编码的敏感信息。
@@ -88,3 +126,9 @@ python scripts/close_raw_api.py
 ## 开发历史
 
 这些脚本是在解决双向持仓模式平仓问题时创建的,用于测试不同的API调用方法和参数组合。最终发现使用Bitget的一键平仓API(`close_positions`)是最可靠的方法。
+
+### 最近更新 (2025-12-14)
+
+- 添加 `test_database_fix.py` - 数据库修复验证测试
+- 修复了数据库参数绑定错误（Error binding parameter 4）
+- 所有测试通过，修复验证成功
