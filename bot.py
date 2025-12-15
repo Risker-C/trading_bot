@@ -23,10 +23,12 @@ class TradingBot:
     def __init__(self):
         self.trader = BitgetTrader()
         self.risk_manager = RiskManager(self.trader)
+        # 确保trader使用同一个RiskManager实例，避免持仓状态不同步
+        self.trader.risk_manager = self.risk_manager
         self.running = False
         self.current_position_side: Optional[str] = None
         self.current_strategy: Optional[str] = None
-        
+
         # 注册信号处理
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
