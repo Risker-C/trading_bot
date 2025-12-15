@@ -214,6 +214,29 @@ PERIODIC_REPORT_MODULES = {
     'trade_stats': True,      # 交易统计
 }
 
+# ==================== 状态监控配置（新增）====================
+
+# 是否启用状态监控推送
+ENABLE_STATUS_MONITOR = True
+
+# 状态推送间隔（分钟）
+STATUS_MONITOR_INTERVAL = 5  # 默认5分钟
+
+# 是否启用AI分析（预留功能）
+STATUS_MONITOR_ENABLE_AI = False
+
+# 飞书推送失败时是否发送邮件预警
+STATUS_MONITOR_EMAIL_ON_FAILURE = True
+
+# 状态监控包含的模块
+STATUS_MONITOR_MODULES = {
+    'market_change': True,    # 最近N分钟行情变化
+    'trade_activity': True,   # 开单情况
+    'trend_analysis': True,   # 趋势分析
+    'service_status': True,   # 服务状态
+    'account_info': True,     # 账户信息
+}
+
 # ==================== 回测配置（新增）====================
 
 BACKTEST_START_DATE = "2024-01-01"
@@ -270,6 +293,28 @@ def validate_config():
             errors.append("启用定期报告需要启用飞书通知 (ENABLE_FEISHU=True)")
         elif not FEISHU_WEBHOOK_URL:
             errors.append("启用定期报告需要配置飞书 Webhook URL")
+
+    # 验证状态监控配置
+    if ENABLE_STATUS_MONITOR:
+        if not isinstance(STATUS_MONITOR_INTERVAL, int):
+            errors.append("STATUS_MONITOR_INTERVAL 必须是整数")
+        elif STATUS_MONITOR_INTERVAL < 1:
+            errors.append("STATUS_MONITOR_INTERVAL 不能小于1分钟")
+        elif STATUS_MONITOR_INTERVAL > 60:
+            errors.append("STATUS_MONITOR_INTERVAL 不能大于60分钟")
+
+        # 检查飞书配置
+        if not ENABLE_FEISHU:
+            errors.append("启用状态监控需要启用飞书通知 (ENABLE_FEISHU=True)")
+        elif not FEISHU_WEBHOOK_URL:
+            errors.append("启用状态监控需要配置飞书 Webhook URL")
+
+        # 检查邮件配置（如果启用了邮件预警）
+        if STATUS_MONITOR_EMAIL_ON_FAILURE:
+            if not ENABLE_EMAIL:
+                errors.append("启用邮件预警需要启用邮件通知 (ENABLE_EMAIL=True)")
+            elif not EMAIL_SENDER or not EMAIL_RECEIVER:
+                errors.append("启用邮件预警需要配置邮件发送者和接收者")
 
     return errors
 

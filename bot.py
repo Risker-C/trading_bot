@@ -13,6 +13,7 @@ from strategies import (
 )
 from market_regime import MarketRegimeDetector
 from logger_utils import get_logger, db, notifier
+from status_monitor import StatusMonitorScheduler
 
 logger = get_logger("bot")
 
@@ -28,6 +29,15 @@ class TradingBot:
         self.running = False
         self.current_position_side: Optional[str] = None
         self.current_strategy: Optional[str] = None
+
+        # 初始化状态监控调度器
+        if hasattr(config, 'ENABLE_STATUS_MONITOR') and config.ENABLE_STATUS_MONITOR:
+            self.status_monitor = StatusMonitorScheduler(
+                interval_minutes=config.STATUS_MONITOR_INTERVAL,
+                enabled=True
+            )
+        else:
+            self.status_monitor = None
 
         # 注册信号处理
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -130,22 +140,33 @@ class TradingBot:
         """主循环逻辑"""
         # 获取K线数据
         df = self.trader.get_klines()
-        if df.empty:
+        if df is None or df.empty:
             logger.warning("获取K线数据失败")
             return
-        
+
         # 获取当前价格
         ticker = self.trader.get_ticker()
         if not ticker:
             logger.warning("获取行情失败")
             return
-        
+
         current_price = ticker['last']
-        
+
+        # 更新状态监控的价格历史
+        if self.status_monitor:
+            self.status_monitor.update_price(current_price)
+
+        # 检查并推送状态监控
+        if self.status_monitor:
+            try:
+                self.status_monitor.check_and_push(self.trader, self.risk_manager)
+            except Exception as e:
+                logger.error(f"状态监控推送失败: {e}")
+
         # 获取当前持仓
         positions = self.trader.get_positions()
         has_position = len(positions) > 0
-        
+
         if has_position:
             # 有持仓：检查风控和退出信号
             self._check_exit_conditions(df, current_price, positions[0])
