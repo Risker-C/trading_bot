@@ -369,7 +369,7 @@ class TradingBot:
 
         if success:
             # 更新风控状态
-            self.risk_manager.on_position_closed(pnl)
+            self.risk_manager.record_trade_result(pnl)
 
             # 重置当前持仓信息
             self.current_position_side = None

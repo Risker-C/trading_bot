@@ -1,5 +1,50 @@
 # 更新日志
 
+## [2025-12-15] 修复平仓方法调用错误
+
+### 问题描述
+
+修复了平仓操作中的方法调用错误，该错误导致机器人在执行平仓后主循环崩溃。
+
+**错误信息**:
+```
+AttributeError: 'RiskManager' object has no attribute 'on_position_closed'
+```
+
+**触发场景**: 当触发止损、止盈或移动止损时，平仓操作成功但更新风控状态时发生错误。
+
+### 修复内容
+
+**修改文件**: `bot.py:372`
+
+```python
+# 修改前
+self.risk_manager.on_position_closed(pnl)
+
+# 修改后
+self.risk_manager.record_trade_result(pnl)
+```
+
+**原因**: `RiskManager` 类中不存在 `on_position_closed()` 方法，正确的方法名是 `record_trade_result()`。
+
+### 影响范围
+
+- **修复前**: 平仓后主循环崩溃，交易统计未更新，机器人停止运行
+- **修复后**: 平仓操作正常完成，交易统计正确更新，机器人持续运行
+
+### 测试验证
+
+- ✅ 创建单元测试脚本 `test_risk_manager_record_trade.py`
+- ✅ 测试8个场景：盈利/亏损记录、连续统计、平均盈亏、Kelly公式等
+- ✅ 所有测试通过
+- ✅ 实际运行验证：机器人成功启动并正常运行
+
+### 相关文档
+
+详细修复日志: `docs/修复日志_2025-12-15_平仓方法调用错误.md`
+
+---
+
 ## [2025-12-15] 市场状态判断逻辑优化
 
 ### 优化背景
