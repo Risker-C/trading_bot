@@ -32,14 +32,32 @@ class RegimeInfo:
     trend_direction: int  # 1=上涨, -1=下跌, 0=中性
     volatility: float
     details: Dict
+    prev_regime: Optional[MarketRegime] = None  # 上一次的市场状态（用于滞回机制）
 
 
 class MarketRegimeDetector:
     """市场状态检测器"""
 
-    def __init__(self, df: pd.DataFrame):
+    def __init__(self, df: pd.DataFrame, prev_regime: Optional[MarketRegime] = None):
         self.df = df
         self.ind = IndicatorCalculator(df)
+        self.prev_regime = prev_regime  # 上一次的市场状态（用于滞回机制）
+
+    @staticmethod
+    def _score_adx(adx: float) -> float:
+        """
+        计算ADX对置信度的贡献
+        ADX从25到50线性映射到0-1
+        """
+        return max(0.0, min(1.0, (adx - 25.0) / (50.0 - 25.0)))
+
+    @staticmethod
+    def _score_bb(bb_width_pct: float) -> float:
+        """
+        计算布林带宽度对置信度的贡献
+        宽度从1%到4%线性映射到0-1
+        """
+        return max(0.0, min(1.0, (bb_width_pct - 1.0) / (4.0 - 1.0)))
 
     def detect(self) -> RegimeInfo:
         """
@@ -102,9 +120,22 @@ class MarketRegimeDetector:
         volatility: float
     ) -> tuple[MarketRegime, float]:
         """
-        分类市场状态
+        分类市场状态（优化版）
         返回: (状态, 置信度)
+
+        改进点:
+        1. 强趋势豁免: ADX > 35时放宽布林带要求
+        2. 滞回机制: 避免频繁切换状态
+        3. 优化置信度计算: ADX和布林带分别计算贡献
         """
+        # 滞回机制: 如果上一次是趋势市,允许稍微"变差"也继续保持
+        if self.prev_regime == MarketRegime.TRENDING:
+            if adx >= config.TREND_EXIT_ADX and bb_width_pct >= config.TREND_EXIT_BB:
+                # 使用优化的置信度计算
+                confidence = 0.7 * self._score_adx(adx) + 0.3 * self._score_bb(bb_width_pct)
+                confidence = max(0.5, min(1.0, confidence))
+                return MarketRegime.TRENDING, confidence
+
         # 震荡市判断
         if adx < 20 or bb_width_pct < 2.0:
             # 置信度: ADX越低,布林带越窄,置信度越高
@@ -112,20 +143,26 @@ class MarketRegimeDetector:
             confidence = max(0.5, min(1.0, confidence))
             return MarketRegime.RANGING, confidence
 
-        # 趋势市判断
+        # 趋势市判断 - 标准条件
         if adx >= 30 and bb_width_pct > 3.0:
-            # 置信度: ADX越高,布林带越宽,置信度越高
-            confidence = 0.5 + (adx - 30) / 40 * 0.3 + (bb_width_pct - 3) / 5 * 0.2
+            # 使用优化的置信度计算: 70% ADX权重, 30%布林带权重
+            confidence = 0.7 * self._score_adx(adx) + 0.3 * self._score_bb(bb_width_pct)
             confidence = max(0.5, min(1.0, confidence))
             return MarketRegime.TRENDING, confidence
 
+        # 强趋势豁免: 当ADX > 35时,即使布林带宽度不够也判定为趋势市
+        if adx >= config.STRONG_TREND_ADX and bb_width_pct > config.STRONG_TREND_BB:
+            # 使用优化的置信度计算
+            confidence = 0.7 * self._score_adx(adx) + 0.3 * self._score_bb(bb_width_pct)
+            confidence = max(0.5, min(1.0, confidence))
+            logger.info(f"强趋势豁免触发: ADX={adx:.1f} > {config.STRONG_TREND_ADX}, BB={bb_width_pct:.2f}% > {config.STRONG_TREND_BB}%")
+            return MarketRegime.TRENDING, confidence
+
         # 过渡市(默认)
-        # 置信度: 越接近边界,置信度越低
-        if adx < 25:
-            confidence = 0.5 + (adx - 20) / 10 * 0.2
-        else:
-            confidence = 0.5 + (30 - adx) / 10 * 0.2
-        confidence = max(0.4, min(0.7, confidence))
+        # 使用优化的置信度计算,但整体降低置信度
+        confidence = 0.7 * self._score_adx(adx) + 0.3 * self._score_bb(bb_width_pct)
+        confidence = confidence * 0.6  # 过渡市置信度打折
+        confidence = max(0.3, min(0.7, confidence))
 
         return MarketRegime.TRANSITIONING, confidence
 
@@ -173,16 +210,16 @@ class MarketRegimeDetector:
 
     def should_trade(self, regime_info: RegimeInfo) -> tuple[bool, str]:
         """
-        判断当前市场状态是否适合交易
+        判断当前市场状态是否适合交易（优化版）
         返回: (是否交易, 原因)
         """
         # 极端波动时不交易
         if regime_info.volatility > config.HIGH_VOLATILITY_THRESHOLD * 1.5:
             return False, f"波动率过高({regime_info.volatility:.2%})"
 
-        # 过渡市且置信度低时谨慎交易
-        if regime_info.regime == MarketRegime.TRANSITIONING and regime_info.confidence < 0.5:
-            return False, "市场状态不明确"
+        # 过渡市且置信度低时谨慎交易（阈值从0.5降低到0.4）
+        if regime_info.regime == MarketRegime.TRANSITIONING and regime_info.confidence < config.TRANSITIONING_CONFIDENCE_THRESHOLD:
+            return False, f"市场状态不明确(置信度{regime_info.confidence:.0%} < {config.TRANSITIONING_CONFIDENCE_THRESHOLD:.0%})"
 
         return True, "市场状态正常"
 

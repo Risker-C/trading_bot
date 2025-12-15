@@ -133,6 +133,13 @@ KDJ_OVERBOUGHT = 80
 ADX_PERIOD = 14
 ADX_TREND_THRESHOLD = 25
 
+# 市场状态判断阈值（优化版）
+STRONG_TREND_ADX = 35.0           # 强趋势ADX阈值（超过此值时放宽布林带要求）
+STRONG_TREND_BB = 2.0             # 强趋势时的布林带宽度阈值（%）
+TREND_EXIT_ADX = 27.0             # 趋势退出ADX阈值（滞回机制）
+TREND_EXIT_BB = 2.5               # 趋势退出布林带宽度阈值（%）
+TRANSITIONING_CONFIDENCE_THRESHOLD = 0.4  # 过渡市置信度阈值
+
 # ATR
 ATR_PERIOD = 14
 
