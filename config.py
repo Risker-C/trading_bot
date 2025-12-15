@@ -182,6 +182,31 @@ EMAIL_SENDER = os.getenv("EMAIL_SENDER", "")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "")
 EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER", "")
 
+# ==================== 定期市场报告配置（新增）====================
+
+# 是否启用定期市场报告
+ENABLE_PERIODIC_REPORT = True
+
+# 报告发送间隔（分钟）
+PERIODIC_REPORT_INTERVAL = 120  # 默认2小时
+
+# 报告详细程度: 'simple', 'standard', 'detailed'
+PERIODIC_REPORT_DETAIL_LEVEL = 'standard'
+
+# 是否在启动时立即发送一次报告
+SEND_REPORT_ON_STARTUP = True
+
+# 报告包含的模块（可选配置）
+PERIODIC_REPORT_MODULES = {
+    'system_info': True,      # 系统信息
+    'market_info': True,      # 市场信息
+    'market_state': True,     # 市场状态
+    'strategy_info': True,    # 策略信息
+    'position_info': True,    # 持仓信息
+    'account_info': True,     # 账户信息
+    'trade_stats': True,      # 交易统计
+}
+
 # ==================== 回测配置（新增）====================
 
 BACKTEST_START_DATE = "2024-01-01"
@@ -220,7 +245,25 @@ def validate_config():
         ]
         if strategy not in valid_strategies:
             errors.append(f"未知策略: {strategy}")
-    
+
+    # 验证定期报告配置
+    if ENABLE_PERIODIC_REPORT:
+        if not isinstance(PERIODIC_REPORT_INTERVAL, int):
+            errors.append("PERIODIC_REPORT_INTERVAL 必须是整数")
+        elif PERIODIC_REPORT_INTERVAL < 30:
+            errors.append("PERIODIC_REPORT_INTERVAL 不能小于30分钟")
+        elif PERIODIC_REPORT_INTERVAL > 720:
+            errors.append("PERIODIC_REPORT_INTERVAL 不能大于720分钟（12小时）")
+
+        if PERIODIC_REPORT_DETAIL_LEVEL not in ['simple', 'standard', 'detailed']:
+            errors.append("PERIODIC_REPORT_DETAIL_LEVEL 必须是 'simple', 'standard' 或 'detailed'")
+
+        # 检查飞书配置
+        if not ENABLE_FEISHU:
+            errors.append("启用定期报告需要启用飞书通知 (ENABLE_FEISHU=True)")
+        elif not FEISHU_WEBHOOK_URL:
+            errors.append("启用定期报告需要配置飞书 Webhook URL")
+
     return errors
 
 
