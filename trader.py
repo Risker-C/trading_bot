@@ -387,24 +387,50 @@ class BitgetTrader:
         
         return False
     
-    def close_position(self, reason: str = "") -> bool:
-        """平仓"""
-        position = self.risk_manager.position
-        if not position:
-            logger.warning("无持仓可平")
-            return False
+    def close_position(self, reason: str = "", position_data: dict = None) -> bool:
+        """
+        平仓
+
+        Args:
+            reason: 平仓原因
+            position_data: 可选的持仓数据字典（从get_positions()获取），如果不提供则使用risk_manager.position
+
+        Returns:
+            bool: 平仓是否成功
+        """
+        # 优先使用传入的持仓数据，否则使用风控管理器的持仓
+        if position_data:
+            # 使用传入的持仓数据（字典格式）
+            position_side = position_data['side']
+            position_amount = position_data['amount']
+            position_entry_price = position_data['entry_price']
+        elif self.risk_manager.position:
+            # 使用风控管理器的持仓（对象格式）
+            position_side = self.risk_manager.position.side
+            position_amount = self.risk_manager.position.amount
+            position_entry_price = self.risk_manager.position.entry_price
+        else:
+            # 如果都没有，尝试从交易所获取
+            positions = self.get_positions()
+            if not positions:
+                logger.warning("无持仓可平")
+                return False
+            position_data = positions[0]
+            position_side = position_data['side']
+            position_amount = position_data['amount']
+            position_entry_price = position_data['entry_price']
 
         # 使用 Bitget 一键平仓 API（双向持仓模式）
         try:
             result = self.exchange.private_mix_post_v2_mix_order_close_positions({
                 'symbol': config.SYMBOL,
                 'productType': config.PRODUCT_TYPE,
-                'holdSide': position.side
+                'holdSide': position_side
             })
 
             if result.get('code') == '00000':
                 order = result
-                logger.info(f"一键平仓成功: {position.side}")
+                logger.info(f"一键平仓成功: {position_side}")
             else:
                 logger.error(f"一键平仓失败: {result}")
                 return False
@@ -412,32 +438,32 @@ class BitgetTrader:
         except Exception as e:
             logger.error(f"一键平仓API调用失败: {e}")
             # 回退到传统方法
-            close_side = "sell" if position.side == 'long' else "buy"
+            close_side = "sell" if position_side == 'long' else "buy"
             order = self.create_market_order(
                 close_side,
-                position.amount,
+                position_amount,
                 reduce_only=True
             )
 
         if order:
             ticker = self.get_ticker()
             close_price = ticker['last'] if ticker else 0
-            
+
             # 计算盈亏
-            if position.side == 'long':
-                pnl = (close_price - position.entry_price) * position.amount
+            if position_side == 'long':
+                pnl = (close_price - position_entry_price) * position_amount
             else:
-                pnl = (position.entry_price - close_price) * position.amount
-            
+                pnl = (position_entry_price - close_price) * position_amount
+
             # 记录交易结果
             self.risk_manager.record_trade_result(pnl)
-            
+
             # 记录到数据库
             db.log_trade(
                 symbol=config.SYMBOL,
-                side=position.side,
+                side=position_side,
                 action='close',
-                amount=position.amount,
+                amount=position_amount,
                 price=close_price,
                 pnl=pnl,
                 reason=reason

@@ -203,7 +203,9 @@ class TradingBot:
 
         # 使用 RiskManager 的 position 对象进行风控检查
         if not self.risk_manager.position:
-            logger.warning("风控管理器中没有持仓信息")
+            # 如果风控管理器中没有持仓，但交易所有持仓，说明状态不同步
+            logger.warning(f"检测到持仓状态不同步: 交易所有持仓({position['side']} {position['amount']})但风控管理器未记录")
+            logger.warning("建议手动平仓或重启机器人以同步状态")
             return
 
         # 1. 检查风控止损止盈
@@ -354,15 +356,16 @@ class TradingBot:
 
         if position['side'] == 'long':
             pnl = (current_price - entry_price) * amount
-            result = self.trader.close_long(amount)
         else:
             pnl = (entry_price - current_price) * amount
-            result = self.trader.close_short(amount)
+
+        # 执行平仓（使用统一的 close_position 方法，传递持仓数据）
+        success = self.trader.close_position(reason, position_data=position)
 
         # 计算盈亏百分比
         pnl_percent = (pnl / (entry_price * amount)) * 100 * config.LEVERAGE
 
-        if result.success:
+        if success:
             # 更新风控状态
             self.risk_manager.on_position_closed(pnl)
 
@@ -374,7 +377,7 @@ class TradingBot:
             db.log_trade(
                 config.SYMBOL, position['side'], 'close',
                 amount, current_price,
-                order_id=result.order_id,
+                order_id="",  # close_position 方法返回布尔值，没有order_id
                 value_usdt=amount * current_price,
                 pnl=pnl, pnl_percent=pnl_percent,
                 strategy=self.current_strategy or "", reason=reason
@@ -395,8 +398,14 @@ class TradingBot:
             pnl_emoji = "🟢" if pnl >= 0 else "🔴"
             logger.info(f"✅ 平仓成功: {amount} @ {current_price:.2f} | {pnl_emoji} {pnl:+.2f} USDT ({pnl_percent:+.2f}%)")
         else:
-            logger.error(f"❌ 平仓失败: {result.error}")
-            notifier.notify_error(f"平仓失败: {result.error}")
+            logger.error(f"❌ 平仓失败")
+            # 如果平仓失败（可能是交易所已经没有持仓），清除风控管理器的持仓状态
+            if self.risk_manager.position:
+                logger.warning("检测到平仓失败，清除风控管理器的持仓状态以避免重复尝试")
+                self.risk_manager.position = None
+                self.current_position_side = None
+                self.current_strategy = None
+            notifier.notify_error(f"平仓失败")
     
     def get_status(self) -> dict:
         """获取机器人状态"""
