@@ -9,8 +9,8 @@ import config
 from trader import BitgetTrader
 from bot import TradingBot
 from logger_utils import db, notifier, get_logger
-from backtest import run_backtest_from_exchange
-from monitor import run_monitor
+# from backtest import run_backtest_from_exchange  # 暂时注释，函数不存在
+# from monitor import run_monitor  # 暂时注释，函数不存在
 
 logger = get_logger("cli")
 
@@ -18,16 +18,21 @@ logger = get_logger("cli")
 def cmd_status():
     """查看状态"""
     trader = BitgetTrader()
-    if not trader.initialize():
-        print("❌ 初始化失败")
+    if trader.exchange is None:
+        print("❌ 交易所连接失败")
         return
     
     # 余额
-    balance = trader.get_balance()
-    print("\n💰 账户余额:")
-    print(f"   可用: {balance['free']:.2f} USDT")
-    print(f"   冻结: {balance['used']:.2f} USDT")
-    print(f"   总计: {balance['total']:.2f} USDT")
+    try:
+        balance_data = trader.exchange.fetch_balance(params={"productType": config.PRODUCT_TYPE})
+        usdt = balance_data.get('USDT', {})
+        print("\n💰 账户余额:")
+        print(f"   可用: {usdt.get('free', 0):.2f} USDT")
+        print(f"   冻结: {usdt.get('used', 0):.2f} USDT")
+        print(f"   总计: {usdt.get('total', 0):.2f} USDT")
+    except Exception as e:
+        print(f"\n💰 账户余额: {trader.get_balance():.2f} USDT (可用)")
+        print(f"   ⚠️  无法获取详细余额信息: {e}")
     
     # 持仓
     positions = trader.get_positions()
@@ -157,12 +162,14 @@ def cmd_stats():
 def cmd_backtest():
     """运行回测"""
     print("🔄 开始回测...")
-    run_backtest_from_exchange()
+    print("⚠️  回测功能暂时不可用，请使用 python3 backtest.py 直接运行")
+    # run_backtest_from_exchange()  # 暂时注释，函数不存在
 
 
 def cmd_monitor():
     """运行监控面板"""
-    run_monitor()
+    print("⚠️  监控面板功能暂时不可用，请使用 python3 monitor.py 直接运行")
+    # run_monitor()  # 暂时注释，函数不存在
 
 
 def cmd_run():
