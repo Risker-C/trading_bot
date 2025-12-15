@@ -33,11 +33,18 @@ def cmd_status():
     positions = trader.get_positions()
     print("\n📊 当前持仓:")
     if positions:
+        # 获取当前价格
+        ticker = trader.get_ticker()
+        current_price = ticker['last'] if ticker else 0
+
         for pos in positions:
-            emoji = "🟢" if pos.side == 'long' else "🔴"
-            print(f"   {emoji} {pos.side.upper()}: {pos.amount} @ {pos.entry_price:.2f}")
-            print(f"      当前价: {pos.current_price:.2f}")
-            print(f"      盈亏: {pos.unrealized_pnl:+.2f} USDT ({pos.pnl_percent:+.2f}%)")
+            emoji = "🟢" if pos['side'] == 'long' else "🔴"
+            # 计算盈亏百分比
+            pnl_percent = (pos['unrealized_pnl'] / (pos['entry_price'] * pos['amount']) * 100 * config.LEVERAGE) if pos['entry_price'] > 0 and pos['amount'] > 0 else 0
+
+            print(f"   {emoji} {pos['side'].upper()}: {pos['amount']} @ {pos['entry_price']:.2f}")
+            print(f"      当前价: {current_price:.2f}")
+            print(f"      盈亏: {pos['unrealized_pnl']:+.2f} USDT ({pnl_percent:+.2f}%)")
     else:
         print("   无持仓")
     

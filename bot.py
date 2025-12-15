@@ -210,7 +210,7 @@ class TradingBot:
         result = self.risk_manager.check_stop_loss(current_price, self.risk_manager.position, df)
         if result.should_stop:
             logger.warning(f"风控触发: {result.reason}")
-            self._execute_close_position(position, result.reason, "risk")
+            self._execute_close_position(position, result.reason, "risk", current_price)
             return
 
         # 2. 检查策略退出信号
@@ -220,7 +220,7 @@ class TradingBot:
 
             if exit_signal.signal in [Signal.CLOSE_LONG, Signal.CLOSE_SHORT]:
                 logger.info(f"策略退出信号: {exit_signal.reason}")
-                self._execute_close_position(position, exit_signal.reason, "strategy")
+                self._execute_close_position(position, exit_signal.reason, "strategy", current_price)
                 return
 
         # 3. 显示持仓状态
@@ -344,13 +344,12 @@ class TradingBot:
             logger.error(f"❌ 开空失败")
             notifier.notify_error(f"开空失败")
     
-    def _execute_close_position(self, position, reason: str, trigger_type: str):
+    def _execute_close_position(self, position, reason: str, trigger_type: str, current_price: float):
         """执行平仓"""
         logger.info(f"📤 平仓触发 [{trigger_type}]: {reason}")
 
         # 计算盈亏
         entry_price = position['entry_price']
-        current_price = position['current_price']
         amount = position['amount']
 
         if position['side'] == 'long':
@@ -360,38 +359,39 @@ class TradingBot:
             pnl = (entry_price - current_price) * amount
             result = self.trader.close_short(amount)
 
-        pnl_percent = position['pnl_percent']
-        
+        # 计算盈亏百分比
+        pnl_percent = (pnl / (entry_price * amount)) * 100 * config.LEVERAGE
+
         if result.success:
             # 更新风控状态
             self.risk_manager.on_position_closed(pnl)
-            
+
             # 重置当前持仓信息
             self.current_position_side = None
             self.current_strategy = None
-            
+
             # 记录交易
             db.log_trade(
-                config.SYMBOL, position.side, 'close',
+                config.SYMBOL, position['side'], 'close',
                 amount, current_price,
                 order_id=result.order_id,
                 value_usdt=amount * current_price,
                 pnl=pnl, pnl_percent=pnl_percent,
                 strategy=self.current_strategy or "", reason=reason
             )
-            
+
             # 记录风控事件
             db.log_risk_event(
                 trigger_type, reason,
-                current_price, entry_price, position.side
+                current_price, entry_price, position['side']
             )
-            
+
             # 发送通知
             notifier.notify_trade(
-                'close', config.SYMBOL, position.side,
+                'close', config.SYMBOL, position['side'],
                 amount, current_price, pnl=pnl, reason=reason
             )
-            
+
             pnl_emoji = "🟢" if pnl >= 0 else "🔴"
             logger.info(f"✅ 平仓成功: {amount} @ {current_price:.2f} | {pnl_emoji} {pnl:+.2f} USDT ({pnl_percent:+.2f}%)")
         else:
@@ -403,18 +403,22 @@ class TradingBot:
         balance = self.trader.get_balance()
         positions = self.trader.get_positions()
         risk_status = self.risk_manager.get_status()
-        
+
+        # 获取当前价格用于计算盈亏百分比
+        ticker = self.trader.get_ticker()
+        current_price = ticker['last'] if ticker else 0
+
         return {
             'running': self.running,
             'balance': balance,
             'positions': [
                 {
-                    'side': p.side,
-                    'amount': p.amount,
-                    'entry_price': p.entry_price,
-                    'current_price': p.current_price,
-                    'pnl': p.unrealized_pnl,
-                    'pnl_percent': p.pnl_percent,
+                    'side': p['side'],
+                    'amount': p['amount'],
+                    'entry_price': p['entry_price'],
+                    'current_price': current_price,
+                    'pnl': p['unrealized_pnl'],
+                    'pnl_percent': (p['unrealized_pnl'] / (p['entry_price'] * p['amount']) * 100 * config.LEVERAGE) if p['entry_price'] > 0 and p['amount'] > 0 else 0,
                 }
                 for p in positions
             ],
