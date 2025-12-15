@@ -447,9 +447,20 @@ class RiskManager:
         返回止损结果
         """
         result = StopLossResult(current_price=current_price)
-        
+
         # 更新持仓价格信息
         position.update_price(current_price)
+
+        # ===== 调试日志：打印关键变量 =====
+        logger.info("=" * 60)
+        logger.info(f"[止损检查] 当前价: {current_price:.2f}")
+        logger.info(f"[止损检查] 开仓价: {position.entry_price:.2f}")
+        logger.info(f"[止损检查] 持仓方向: {position.side}")
+        logger.info(f"[止损检查] 持仓数量: {position.amount:.8f}")
+        logger.info(f"[止损检查] 最高价: {position.highest_price:.2f}")
+        logger.info(f"[止损检查] 最低价: {position.lowest_price:.2f}")
+        logger.info(f"[止损检查] ATR止损价: {position.stop_loss_price:.2f}")
+        logger.info(f"[止损检查] 固定止盈价: {position.take_profit_price:.2f}")
         
         # 计算当前盈亏比例
         if position.side == 'long':
@@ -495,24 +506,46 @@ class RiskManager:
         
         # 4. 检查移动止损
         trailing_stop = self.calculate_trailing_stop(current_price, position)
-        
+
+        # ===== 调试日志：移动止损详情 =====
+        logger.info(f"[移动止损] 计算结果: {trailing_stop:.2f}")
+        logger.info(f"[移动止损] TRAILING_STOP_PERCENT: {config.TRAILING_STOP_PERCENT}")
+        if position.side == 'long':
+            expected_trailing = position.highest_price * (1 - config.TRAILING_STOP_PERCENT)
+            logger.info(f"[移动止损] 预期值(多仓): {position.highest_price:.2f} × {1-config.TRAILING_STOP_PERCENT} = {expected_trailing:.2f}")
+            logger.info(f"[移动止损] 是否高于开仓价: {expected_trailing:.2f} > {position.entry_price:.2f} = {expected_trailing > position.entry_price}")
+            logger.info(f"[移动止损] 当前价是否触发: {current_price:.2f} <= {trailing_stop:.2f} = {current_price <= trailing_stop if trailing_stop > 0 else False}")
+        else:
+            expected_trailing = position.lowest_price * (1 + config.TRAILING_STOP_PERCENT)
+            logger.info(f"[移动止损] 预期值(空仓): {position.lowest_price:.2f} × {1+config.TRAILING_STOP_PERCENT} = {expected_trailing:.2f}")
+            logger.info(f"[移动止损] 是否低于开仓价: {expected_trailing:.2f} < {position.entry_price:.2f} = {expected_trailing < position.entry_price}")
+            logger.info(f"[移动止损] 当前价是否触发: {current_price:.2f} >= {trailing_stop:.2f} = {current_price >= trailing_stop if trailing_stop > 0 else False}")
+        logger.info("=" * 60)
+
         if trailing_stop > 0:
             position.trailing_stop_price = trailing_stop
-            
+
             if position.side == 'long' and current_price <= trailing_stop:
                 result.should_stop = True
                 result.stop_type = "trailing_stop"
                 result.reason = f"触发移动止损: 从最高点 {position.highest_price:.2f} 回撤"
                 result.stop_price = trailing_stop
+                logger.warning(f"!!! 触发移动止损 !!! 当前价 {current_price:.2f} <= 止损价 {trailing_stop:.2f}")
                 return result
-            
+
             if position.side == 'short' and current_price >= trailing_stop:
                 result.should_stop = True
                 result.stop_type = "trailing_stop"
                 result.reason = f"触发移动止损: 从最低点 {position.lowest_price:.2f} 反弹"
                 result.stop_price = trailing_stop
+                logger.warning(f"!!! 触发移动止损 !!! 当前价 {current_price:.2f} >= 止损价 {trailing_stop:.2f}")
                 return result
-        
+        else:
+            logger.info(f"[移动止损] 未启用 (trailing_stop = {trailing_stop})")
+
+        # 保存更新后的持仓状态到数据库（包括更新的highest_price和lowest_price）
+        self._save_position_to_db()
+
         return result
     
     # ==================== 开仓控制 ====================
@@ -522,17 +555,28 @@ class RiskManager:
         side: str,
         amount: float,
         entry_price: float,
-        df: pd.DataFrame = None
+        df: pd.DataFrame = None,
+        highest_price: float = None,
+        lowest_price: float = None,
+        entry_time: datetime = None
     ):
         """设置新持仓"""
+        # 如果没有提供历史价格，使用开仓价作为默认值
+        if highest_price is None:
+            highest_price = entry_price
+        if lowest_price is None:
+            lowest_price = entry_price
+        if entry_time is None:
+            entry_time = datetime.now()
+
         self.position = PositionInfo(
             side=side,
             amount=amount,
             entry_price=entry_price,
-            entry_time=datetime.now(),
+            entry_time=entry_time,
             current_price=entry_price,
-            highest_price=entry_price,
-            lowest_price=entry_price,
+            highest_price=highest_price,
+            lowest_price=lowest_price,
         )
         
         # 计算止损止盈价格
@@ -541,7 +585,10 @@ class RiskManager:
         
         self.last_trade_time = datetime.now()
         self.daily_trades += 1
-        
+
+        # 保存持仓状态到数据库
+        self._save_position_to_db()
+
         logger.info(f"新建持仓: {side} {amount:.6f} @ {entry_price:.2f}")
         logger.info(f"止损: {self.position.stop_loss_price:.2f}, "
                    f"止盈: {self.position.take_profit_price:.2f}")
@@ -773,6 +820,30 @@ class RiskManager:
         self.daily_trades = 0
         self.daily_pnl = 0
     
+    def _save_position_to_db(self):
+        """保存持仓状态到数据库"""
+        if not self.position:
+            return
+
+        try:
+            db.log_position_snapshot(
+                symbol=config.SYMBOL,
+                side=self.position.side,
+                amount=self.position.amount,
+                entry_price=self.position.entry_price,
+                current_price=self.position.current_price,
+                unrealized_pnl=self.position.unrealized_pnl,
+                leverage=config.LEVERAGE,
+                highest_price=self.position.highest_price,
+                lowest_price=self.position.lowest_price,
+                entry_time=self.position.entry_time.isoformat() if self.position.entry_time else None
+            )
+            logger.debug(f"💾 持仓状态已保存: highest={self.position.highest_price:.2f}, "
+                        f"lowest={self.position.lowest_price:.2f}, "
+                        f"current={self.position.current_price:.2f}")
+        except Exception as e:
+            logger.error(f"❌ 保存持仓状态失败: {e}")
+
     def get_risk_report(self) -> Dict:
         """获取风险报告"""
         return {

@@ -297,21 +297,58 @@ class TradeDatabase:
         entry_price: float,
         current_price: float,
         unrealized_pnl: float,
-        leverage: int
+        leverage: int,
+        highest_price: float = 0,
+        lowest_price: float = 0,
+        entry_time: str = None
     ):
         """记录持仓快照"""
         conn = self._get_conn()
         cursor = conn.cursor()
-        
+
         cursor.execute('''
             INSERT INTO position_snapshots (
                 symbol, side, amount, entry_price, current_price,
-                unrealized_pnl, leverage
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (symbol, side, amount, entry_price, current_price, unrealized_pnl, leverage))
-        
+                unrealized_pnl, leverage, highest_price, lowest_price, entry_time
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (symbol, side, amount, entry_price, current_price, unrealized_pnl, leverage,
+              highest_price, lowest_price, entry_time))
+
         conn.commit()
         conn.close()
+
+    def get_latest_position_snapshot(self, symbol: str) -> dict:
+        """获取最新的持仓快照"""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT symbol, side, amount, entry_price, current_price,
+                   unrealized_pnl, leverage, highest_price, lowest_price, entry_time, created_at
+            FROM position_snapshots
+            WHERE symbol = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+        ''', (symbol,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return {
+                'symbol': row[0],
+                'side': row[1],
+                'amount': row[2],
+                'entry_price': row[3],
+                'current_price': row[4],
+                'unrealized_pnl': row[5],
+                'leverage': row[6],
+                'highest_price': row[7] or 0,
+                'lowest_price': row[8] or 0,
+                'entry_time': row[9],
+                'created_at': row[10]
+            }
+        return None
     
     def log_balance_snapshot(self, total: float, free: float, used: float):
         """记录余额快照"""

@@ -274,15 +274,47 @@ class BitgetTrader:
     def sync_position(self):
         """同步持仓状态"""
         exchange_pos = self.get_position()
-        
+
         if exchange_pos:
             if self.risk_manager.position is None:
                 # 有持仓但本地没有记录，同步
                 logger.info(f"同步持仓: {exchange_pos}")
+
+                # 尝试从数据库恢复历史价格信息
+                snapshot = db.get_latest_position_snapshot(config.SYMBOL)
+                highest_price = None
+                lowest_price = None
+                entry_time = None
+
+                if snapshot:
+                    # 验证快照是否与当前持仓匹配
+                    if (snapshot['side'] == exchange_pos['side'] and
+                        abs(snapshot['entry_price'] - exchange_pos['entry_price']) < 1.0):
+                        highest_price = snapshot['highest_price']
+                        lowest_price = snapshot['lowest_price']
+                        if snapshot['entry_time']:
+                            from dateutil import parser
+                            entry_time = parser.parse(snapshot['entry_time'])
+                        logger.info(f"✅ 从数据库恢复历史价格:")
+                        logger.info(f"   开仓价: {exchange_pos['entry_price']:.2f}")
+                        logger.info(f"   最高价: {highest_price:.2f} (涨幅: {(highest_price/exchange_pos['entry_price']-1)*100:+.2f}%)")
+                        logger.info(f"   最低价: {lowest_price:.2f} (跌幅: {(lowest_price/exchange_pos['entry_price']-1)*100:+.2f}%)")
+                        logger.info(f"   开仓时间: {entry_time if entry_time else 'N/A'}")
+                    else:
+                        logger.warning(f"⚠️  数据库快照与交易所持仓不匹配:")
+                        logger.warning(f"   数据库: {snapshot['side']} @ {snapshot['entry_price']:.2f}")
+                        logger.warning(f"   交易所: {exchange_pos['side']} @ {exchange_pos['entry_price']:.2f}")
+                        logger.warning(f"   使用默认值（开仓价作为历史价格）")
+                else:
+                    logger.info(f"📝 数据库中无历史快照，使用默认值")
+
                 self.risk_manager.set_position(
                     side=exchange_pos['side'],
                     amount=exchange_pos['amount'],
-                    entry_price=exchange_pos['entry_price']
+                    entry_price=exchange_pos['entry_price'],
+                    highest_price=highest_price,
+                    lowest_price=lowest_price,
+                    entry_time=entry_time
                 )
             else:
                 # 更新价格信息
