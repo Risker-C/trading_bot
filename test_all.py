@@ -282,12 +282,54 @@ def test_api_connection():
         return False
 
 
+def test_claude_periodic_analysis():
+    """测试 Claude 定时分析功能"""
+    print("\n测试 Claude 定时分析...")
+
+    try:
+        # 导入测试模块
+        from scripts.test_claude_periodic_analysis import (
+            test_config_validation,
+            test_analyzer_initialization,
+            test_market_data_formatting,
+            test_timing_mechanism
+        )
+
+        # 运行关键测试
+        tests = [
+            ("配置验证", test_config_validation),
+            ("分析器初始化", test_analyzer_initialization),
+            ("数据格式化", test_market_data_formatting),
+            ("定时机制", test_timing_mechanism),
+        ]
+
+        passed = 0
+        failed = 0
+
+        for name, test_func in tests:
+            try:
+                test_func()
+                print(f"  ✅ {name}")
+                passed += 1
+            except Exception as e:
+                print(f"  ❌ {name}: {e}")
+                failed += 1
+
+        print(f"  总计: {passed}/{len(tests)} 通过")
+        return failed == 0
+
+    except Exception as e:
+        print(f"  ❌ Claude定时分析测试失败: {e}")
+        traceback.print_exc()
+        return False
+
+
 def main():
     """运行所有测试"""
     print("=" * 50)
     print("交易机器人测试")
     print("=" * 50)
-    
+
     results = {
         '模块导入': test_imports(),
         '配置验证': test_config(),
@@ -296,6 +338,7 @@ def main():
         '风险管理': test_risk_manager(),
         '数据库': test_database(),
         'API连接': test_api_connection(),
+        'Claude定时分析': test_claude_periodic_analysis(),
     }
     
     print("\n" + "=" * 50)

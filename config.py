@@ -277,6 +277,32 @@ CLAUDE_MAX_DAILY_CALLS = 500
 # Claude日成本上限（美元）
 CLAUDE_MAX_DAILY_COST = 10.0
 
+# ==================== Claude定时分析配置（新增）====================
+
+# 是否启用Claude定时分析
+ENABLE_CLAUDE_PERIODIC_ANALYSIS = True
+
+# 定时分析间隔（分钟）
+CLAUDE_PERIODIC_INTERVAL = 30  # 默认30分钟
+
+# 分析详细程度: 'simple', 'standard', 'detailed'
+CLAUDE_ANALYSIS_DETAIL_LEVEL = 'standard'
+
+# 是否在启动时立即分析一次
+CLAUDE_ANALYZE_ON_STARTUP = True
+
+# 是否通过飞书推送分析结果
+CLAUDE_PUSH_TO_FEISHU = True
+
+# 分析包含的模块
+CLAUDE_ANALYSIS_MODULES = {
+    'market_trend': True,      # 市场趋势分析
+    'risk_assessment': True,   # 风险评估
+    'entry_opportunities': True,  # 入场机会
+    'position_advice': True,   # 持仓建议
+    'market_sentiment': True,  # 市场情绪
+}
+
 # ==================== 执行层风控配置（新增）====================
 
 # 是否启用执行层风控
@@ -384,6 +410,31 @@ def validate_config():
                 errors.append("启用邮件预警需要启用邮件通知 (ENABLE_EMAIL=True)")
             elif not EMAIL_SENDER or not EMAIL_RECEIVER:
                 errors.append("启用邮件预警需要配置邮件发送者和接收者")
+
+    # 验证Claude定时分析配置
+    if ENABLE_CLAUDE_PERIODIC_ANALYSIS:
+        if not isinstance(CLAUDE_PERIODIC_INTERVAL, int):
+            errors.append("CLAUDE_PERIODIC_INTERVAL 必须是整数")
+        elif CLAUDE_PERIODIC_INTERVAL < 10:
+            errors.append("CLAUDE_PERIODIC_INTERVAL 不能小于10分钟")
+        elif CLAUDE_PERIODIC_INTERVAL > 360:
+            errors.append("CLAUDE_PERIODIC_INTERVAL 不能大于360分钟（6小时）")
+
+        if CLAUDE_ANALYSIS_DETAIL_LEVEL not in ['simple', 'standard', 'detailed']:
+            errors.append("CLAUDE_ANALYSIS_DETAIL_LEVEL 必须是 'simple', 'standard' 或 'detailed'")
+
+        # 检查Claude配置
+        if not ENABLE_CLAUDE_ANALYSIS:
+            errors.append("启用Claude定时分析需要启用Claude分析 (ENABLE_CLAUDE_ANALYSIS=True)")
+        elif not CLAUDE_API_KEY:
+            errors.append("启用Claude定时分析需要配置Claude API Key")
+
+        # 检查飞书配置（如果启用了飞书推送）
+        if CLAUDE_PUSH_TO_FEISHU:
+            if not ENABLE_FEISHU:
+                errors.append("Claude分析推送到飞书需要启用飞书通知 (ENABLE_FEISHU=True)")
+            elif not FEISHU_WEBHOOK_URL:
+                errors.append("Claude分析推送到飞书需要配置飞书 Webhook URL")
 
     return errors
 

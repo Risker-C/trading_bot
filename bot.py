@@ -15,6 +15,7 @@ from market_regime import MarketRegimeDetector
 from logger_utils import get_logger, db, notifier
 from status_monitor import StatusMonitorScheduler
 from claude_analyzer import get_claude_analyzer
+from claude_periodic_analyzer import get_claude_periodic_analyzer
 from trend_filter import get_trend_filter
 from indicators import IndicatorCalculator
 from shadow_mode import get_shadow_tracker
@@ -44,6 +45,9 @@ class TradingBot:
             )
         else:
             self.status_monitor = None
+
+        # 初始化 Claude 定时分析器
+        self.claude_periodic_analyzer = get_claude_periodic_analyzer()
 
         # 初始化 Claude 分析器和趋势过滤器
         self.claude_analyzer = get_claude_analyzer()
@@ -180,6 +184,33 @@ class TradingBot:
         # 获取当前持仓
         positions = self.trader.get_positions()
         has_position = len(positions) > 0
+
+        # 检查并执行Claude定时分析
+        if self.claude_periodic_analyzer:
+            try:
+                # 计算技术指标
+                indicator_calc = IndicatorCalculator(df)
+                indicators = indicator_calc.calculate_all()
+
+                # 准备持仓信息
+                position_info = None
+                if has_position:
+                    pos = positions[0]
+                    pnl_percent = (pos['unrealized_pnl'] / (pos['entry_price'] * pos['amount'])) * 100 if pos['amount'] > 0 else 0
+                    position_info = {
+                        'side': pos['side'],
+                        'amount': pos['amount'],
+                        'entry_price': pos['entry_price'],
+                        'unrealized_pnl': pos['unrealized_pnl'],
+                        'pnl_percent': pnl_percent
+                    }
+
+                # 执行定时分析
+                self.claude_periodic_analyzer.check_and_analyze(
+                    df, current_price, indicators, position_info
+                )
+            except Exception as e:
+                logger.error(f"Claude定时分析失败: {e}")
 
         if has_position:
             # 有持仓：检查风控和退出信号
