@@ -254,7 +254,7 @@ CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
 CLAUDE_MIN_SIGNAL_STRENGTH = 0.3
 
 # Claude 分析超时时间（秒）
-CLAUDE_TIMEOUT = 10
+CLAUDE_TIMEOUT = 30  # 增加到30秒,避免API调用阻塞
 
 # Claude 分析失败时的默认行为
 # "pass": 分析失败时默认通过信号

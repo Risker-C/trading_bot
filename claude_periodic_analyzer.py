@@ -48,6 +48,7 @@ class ClaudePeriodicAnalyzer:
         self.base_url = getattr(config, 'CLAUDE_BASE_URL', None)
         self.model = getattr(config, 'CLAUDE_MODEL', 'claude-sonnet-4-5-20250929')
         self.push_to_feishu = getattr(config, 'CLAUDE_PUSH_TO_FEISHU', True)
+        self.timeout = getattr(config, 'CLAUDE_TIMEOUT', 30)  # 默认30秒超时
 
         # 分析模块配置
         self.modules = getattr(config, 'CLAUDE_ANALYSIS_MODULES', {
@@ -329,15 +330,26 @@ class ClaudePeriodicAnalyzer:
             has_position = position_info is not None
             prompt = self._build_analysis_prompt(market_data, has_position)
 
-            # 调用 Claude API
+            # 调用 Claude API (添加超时控制)
             logger.info("正在调用 Claude API 进行定期市场分析...")
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=3000,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            )
+
+            try:
+                response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=3000,
+                    timeout=self.timeout,  # 添加超时控制
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+            except Exception as api_error:
+                # 捕获API调用异常（包括超时）
+                error_msg = str(api_error)
+                if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                    logger.error(f"Claude API 调用超时 (超时设置: {self.timeout}秒): {error_msg}")
+                else:
+                    logger.error(f"Claude API 调用失败: {error_msg}")
+                return None
 
             # 解析响应
             response_text = response.content[0].text
@@ -360,6 +372,8 @@ class ClaudePeriodicAnalyzer:
 
         except Exception as e:
             logger.error(f"Claude 市场分析失败: {e}")
+            import traceback
+            logger.debug(f"详细错误信息: {traceback.format_exc()}")
             return None
 
     def _parse_response(self, response_text: str) -> Optional[Dict]:
