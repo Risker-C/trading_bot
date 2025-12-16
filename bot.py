@@ -2,7 +2,7 @@ import time
 import signal
 import sys
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict
 
 import config
 from trader import BitgetTrader
@@ -205,10 +205,21 @@ class TradingBot:
                         'pnl_percent': pnl_percent
                     }
 
-                # 执行定时分析
+                # 场景2：执行30分钟定时分析
                 self.claude_periodic_analyzer.check_and_analyze(
                     df, current_price, indicators, position_info
                 )
+
+                # 场景3：检查是否需要生成每日报告（每天早上8点）
+                if self.claude_periodic_analyzer.should_generate_daily_report():
+                    # 获取昨日交易历史
+                    trades_history = self._get_yesterday_trades()
+
+                    # 生成每日报告
+                    self.claude_periodic_analyzer.generate_daily_report(
+                        df, current_price, indicators, position_info, trades_history
+                    )
+
             except Exception as e:
                 logger.error(f"Claude定时分析失败: {e}")
 
@@ -218,7 +229,38 @@ class TradingBot:
         else:
             # 无持仓：检查开仓信号
             self._check_entry_conditions(df, current_price)
-    
+
+    def _get_yesterday_trades(self) -> List[Dict]:
+        """
+        获取昨日交易历史
+
+        Returns:
+            昨日交易列表
+        """
+        try:
+            from datetime import datetime, timedelta
+            import pytz
+
+            # 获取昨日日期范围
+            tz = pytz.timezone('Asia/Shanghai')
+            now = datetime.now(tz)
+            yesterday_start = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            yesterday_end = (now - timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=999999)
+
+            # 从交易历史中筛选昨日交易
+            # 注意：这里需要从实际的交易记录中获取，目前返回空列表
+            # 如果有交易数据库或日志，可以在这里查询
+            trades = []
+
+            # TODO: 从交易记录中查询昨日交易
+            # 可能需要从self.trader或其他模块获取交易历史
+
+            return trades
+
+        except Exception as e:
+            logger.error(f"获取昨日交易历史失败: {e}")
+            return []
+
     def _check_entry_conditions(self, df, current_price: float):
         """检查开仓条件"""
 

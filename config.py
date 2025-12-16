@@ -282,14 +282,14 @@ CLAUDE_MAX_DAILY_COST = 10.0
 # 是否启用Claude定时分析
 ENABLE_CLAUDE_PERIODIC_ANALYSIS = True
 
-# 定时分析间隔（分钟）
+# 定时分析间隔（分钟）- 用于场景2：30分钟定时分析
 CLAUDE_PERIODIC_INTERVAL = 30  # 默认30分钟
 
 # 分析详细程度: 'simple', 'standard', 'detailed'
 CLAUDE_ANALYSIS_DETAIL_LEVEL = 'standard'
 
 # 是否在启动时立即分析一次
-CLAUDE_ANALYZE_ON_STARTUP = True
+CLAUDE_ANALYZE_ON_STARTUP = False  # 改为False，避免启动时不必要的调用
 
 # 是否通过飞书推送分析结果
 CLAUDE_PUSH_TO_FEISHU = True
@@ -302,6 +302,26 @@ CLAUDE_ANALYSIS_MODULES = {
     'position_advice': True,   # 持仓建议
     'market_sentiment': True,  # 市场情绪
 }
+
+# ==================== Claude每日报告配置（新增）====================
+
+# 是否启用Claude每日报告 - 场景3：每天早上8点的报告
+ENABLE_CLAUDE_DAILY_REPORT = True
+
+# 每日报告时间（小时，24小时制）
+CLAUDE_DAILY_REPORT_HOUR = 8  # 早上8点
+
+# 每日报告时区
+CLAUDE_DAILY_REPORT_TIMEZONE = 'Asia/Shanghai'  # 东八区
+
+# 是否包含交易历史回顾（需要网络检索）
+CLAUDE_DAILY_INCLUDE_TRADE_REVIEW = True
+
+# 是否包含实时网络信息分析
+CLAUDE_DAILY_INCLUDE_WEB_SEARCH = True
+
+# 回顾天数（昨日交易）
+CLAUDE_DAILY_REVIEW_DAYS = 1
 
 # ==================== 执行层风控配置（新增）====================
 

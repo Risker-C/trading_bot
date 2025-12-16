@@ -40,8 +40,12 @@ class ClaudePeriodicAnalyzer:
         self.interval_minutes = interval_minutes
         self.enabled = enabled
         self.detail_level = detail_level
-        self.last_analysis_time = None
+        # 初始化为当前时间，避免启动时立即分析
+        self.last_analysis_time = datetime.now()
         self.analysis_count = 0
+
+        # 每日报告相关状态
+        self.last_daily_report_date = None  # 记录上次生成每日报告的日期
 
         # Claude API 配置
         self.api_key = getattr(config, 'CLAUDE_API_KEY', None)
@@ -592,6 +596,9 @@ class ClaudePeriodicAnalyzer:
 
             if not analysis:
                 logger.error("Claude 市场分析失败")
+                # 即使失败也更新时间，避免无限重试
+                # 等待下一个30分钟周期再尝试
+                self.last_analysis_time = datetime.now()
                 return False
 
             # 更新状态
@@ -615,6 +622,455 @@ class ClaudePeriodicAnalyzer:
         except Exception as e:
             logger.error(f"Claude 定期分析执行失败: {e}")
             return False
+
+    def should_generate_daily_report(self) -> bool:
+        """
+        判断是否应该生成每日报告
+
+        Returns:
+            是否应该生成每日报告
+        """
+        if not self.enabled:
+            return False
+
+        # 检查是否启用每日报告
+        if not getattr(config, 'ENABLE_CLAUDE_DAILY_REPORT', False):
+            return False
+
+        from datetime import timezone
+        import pytz
+
+        # 获取配置的时区和报告时间
+        report_hour = getattr(config, 'CLAUDE_DAILY_REPORT_HOUR', 8)
+        tz_name = getattr(config, 'CLAUDE_DAILY_REPORT_TIMEZONE', 'Asia/Shanghai')
+
+        try:
+            tz = pytz.timezone(tz_name)
+        except Exception as e:
+            logger.error(f"时区配置错误: {e}")
+            tz = pytz.timezone('Asia/Shanghai')
+
+        now = datetime.now(tz)
+        today_date = now.date()
+
+        # 如果今天已经生成过报告，跳过
+        if self.last_daily_report_date == today_date:
+            return False
+
+        # 只在报告时间点的时间窗口内生成（例如8:00-8:10）
+        # 这样避免了在过了报告时间后每次循环都尝试生成
+        if now.hour == report_hour and now.minute < 10:
+            return True
+
+        return False
+
+    def generate_daily_report(
+        self,
+        df: pd.DataFrame,
+        current_price: float,
+        indicators: Dict,
+        position_info: Optional[Dict] = None,
+        trades_history: Optional[List[Dict]] = None
+    ) -> bool:
+        """
+        生成每日报告
+
+        Args:
+            df: K线数据
+            current_price: 当前价格
+            indicators: 技术指标
+            position_info: 当前持仓信息
+            trades_history: 昨日交易历史
+
+        Returns:
+            是否成功
+        """
+        try:
+            from datetime import timezone
+            import pytz
+
+            logger.info("开始生成 Claude 每日市场报告...")
+
+            # 获取时区
+            tz_name = getattr(config, 'CLAUDE_DAILY_REPORT_TIMEZONE', 'Asia/Shanghai')
+            try:
+                tz = pytz.timezone(tz_name)
+            except:
+                tz = pytz.timezone('Asia/Shanghai')
+
+            now = datetime.now(tz)
+
+            # 执行每日分析
+            analysis = self._analyze_daily_report(
+                df, current_price, indicators, position_info, trades_history
+            )
+
+            if not analysis:
+                logger.error("Claude 每日报告生成失败")
+                # 即使失败也更新日期，避免在时间窗口内无限重试
+                # 等待明天的时间窗口再尝试
+                self.last_daily_report_date = now.date()
+                return False
+
+            # 更新状态
+            self.last_daily_report_date = now.date()
+
+            # 推送到飞书
+            if self.push_to_feishu:
+                message = self._format_daily_report_message(analysis, now)
+                success = notifier.feishu.send_message(message)
+
+                if success:
+                    logger.info("Claude 每日报告已推送到飞书")
+                else:
+                    logger.error("推送每日报告到飞书失败")
+                    return False
+
+            logger.info("Claude 每日报告生成完成")
+            return True
+
+        except Exception as e:
+            logger.error(f"Claude 每日报告生成失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # 即使发生异常也更新日期，避免无限重试
+            try:
+                import pytz
+                tz_name = getattr(config, 'CLAUDE_DAILY_REPORT_TIMEZONE', 'Asia/Shanghai')
+                tz = pytz.timezone(tz_name)
+                self.last_daily_report_date = datetime.now(tz).date()
+            except:
+                pass
+            return False
+
+    def _analyze_daily_report(
+        self,
+        df: pd.DataFrame,
+        current_price: float,
+        indicators: Dict,
+        position_info: Optional[Dict],
+        trades_history: Optional[List[Dict]]
+    ) -> Optional[Dict]:
+        """
+        执行每日报告分析（包含网络检索）
+
+        Args:
+            df: K线数据
+            current_price: 当前价格
+            indicators: 技术指标
+            position_info: 当前持仓
+            trades_history: 昨日交易历史
+
+        Returns:
+            分析结果字典
+        """
+        try:
+            # 格式化市场数据
+            market_data = self._format_market_data(df, current_price, indicators, position_info)
+
+            # 格式化交易历史
+            trade_review = self._format_trade_history(trades_history) if trades_history else "昨日无交易记录"
+
+            # 构建每日报告提示词
+            prompt = self._build_daily_report_prompt(market_data, trade_review)
+
+            # 调用 Claude API
+            logger.info(f"调用 Claude API 生成每日报告 (模型: {self.model})")
+
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=4000,  # 每日报告可能更长
+                timeout=self.timeout,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+
+            # 提取文本内容
+            if not response.content:
+                logger.error("Claude API 返回空内容")
+                return None
+
+            content = response.content[0].text
+            logger.debug(f"Claude 返回内容长度: {len(content)}")
+
+            # 解析JSON响应
+            analysis = self._parse_json_response(content)
+
+            if not analysis:
+                logger.error("无法解析 Claude 返回的 JSON")
+                return None
+
+            logger.info("Claude 每日报告分析完成")
+            return analysis
+
+        except Exception as e:
+            error_msg = str(e)
+            if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                logger.error(f"Claude API 调用超时 (超时设置: {self.timeout}秒): {error_msg}")
+            else:
+                logger.error(f"Claude API 调用失败: {error_msg}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None
+
+    def _format_trade_history(self, trades: List[Dict]) -> str:
+        """
+        格式化交易历史记录
+
+        Args:
+            trades: 交易历史列表
+
+        Returns:
+            格式化的交易历史文本
+        """
+        if not trades:
+            return "昨日无交易记录"
+
+        review_text = f"昨日共执行 {len(trades)} 笔交易：\n\n"
+
+        for i, trade in enumerate(trades, 1):
+            review_text += f"{i}. {trade.get('side', 'N/A').upper()} "
+            review_text += f"@ ${trade.get('price', 0):.2f}, "
+            review_text += f"数量: {trade.get('amount', 0):.4f}, "
+
+            pnl = trade.get('pnl', 0)
+            pnl_pct = trade.get('pnl_percent', 0)
+            if pnl > 0:
+                review_text += f"盈利: ${pnl:.2f} (+{pnl_pct:.2f}%)"
+            elif pnl < 0:
+                review_text += f"亏损: ${pnl:.2f} ({pnl_pct:.2f}%)"
+            else:
+                review_text += "盈亏: $0.00 (0.00%)"
+
+            review_text += f", 策略: {trade.get('strategy', 'N/A')}\n"
+
+        # 计算总盈亏
+        total_pnl = sum(t.get('pnl', 0) for t in trades)
+        win_trades = len([t for t in trades if t.get('pnl', 0) > 0])
+        lose_trades = len([t for t in trades if t.get('pnl', 0) < 0])
+
+        review_text += f"\n总结：\n"
+        review_text += f"- 总盈亏: ${total_pnl:.2f}\n"
+        review_text += f"- 胜率: {win_trades}/{len(trades)} ({win_trades/len(trades)*100:.1f}%)\n"
+
+        return review_text
+
+    def _build_daily_report_prompt(self, market_data: str, trade_review: str) -> str:
+        """
+        构建每日报告分析提示词
+
+        Args:
+            market_data: 市场数据
+            trade_review: 交易回顾
+
+        Returns:
+            提示词
+        """
+        prompt = f"""你是一位专业的加密货币交易分析师。请基于以下信息生成一份详细的每日市场报告：
+
+## 当前市场数据
+{market_data}
+
+## 昨日交易回顾
+{trade_review}
+
+## 分析要求
+
+请结合**实时网络信息**（如加密货币新闻、市场动态、重大事件等），完成以下分析：
+
+1. **昨日市场回顾**
+   - 分析昨日市场整体走势
+   - 评价昨日交易决策的合理性
+   - 指出昨日交易中的优点和不足
+
+2. **当前市场状态**
+   - 当前价格走势和技术指标分析
+   - 市场趋势和强度评估
+   - 关键支撑位和阻力位
+
+3. **今日行情预测**
+   - 结合实时网络信息，预测今日可能的走势
+   - 分析可能影响价格的因素（新闻、事件等）
+   - 给出多头/空头倾向和理由
+
+4. **交易建议**
+   - 今日的交易策略建议
+   - 建议的入场位置和方向
+   - 风险提示和止损建议
+
+5. **风险因素**
+   - 需要关注的风险点
+   - 可能的黑天鹅事件
+   - 建议的风险控制措施
+
+## 输出格式
+
+请以JSON格式输出，包含以下字段：
+{{
+    "yesterday_review": {{
+        "market_summary": "昨日市场概况",
+        "trade_evaluation": "交易评价（优点、不足）",
+        "lessons_learned": "经验教训"
+    }},
+    "current_status": {{
+        "price_trend": "当前价格走势",
+        "technical_analysis": "技术指标分析",
+        "key_levels": "关键价位"
+    }},
+    "today_forecast": {{
+        "trend_prediction": "今日走势预测",
+        "influencing_factors": "影响因素（含网络信息）",
+        "bias": "多空倾向（bullish/bearish/neutral）",
+        "confidence": 0.0-1.0
+    }},
+    "trading_advice": {{
+        "strategy": "交易策略",
+        "entry_suggestions": "入场建议",
+        "stop_loss": "止损建议",
+        "risk_reward": "风险回报比"
+    }},
+    "risk_factors": {{
+        "risks": ["风险1", "风险2", ...],
+        "black_swan_events": ["可能的黑天鹅事件"],
+        "risk_control": "风险控制建议"
+    }},
+    "web_search_insights": "从网络检索到的重要信息和见解",
+    "overall_sentiment": "整体市场情绪（fearful/neutral/greedy）",
+    "confidence_level": 0.0-1.0
+}}
+
+请确保分析全面、客观、可操作。"""
+
+        return prompt
+
+    def _format_daily_report_message(self, analysis: Dict, report_time: datetime) -> str:
+        """
+        格式化每日报告飞书消息
+
+        Args:
+            analysis: 分析结果
+            report_time: 报告时间
+
+        Returns:
+            格式化的飞书消息
+        """
+        time_str = report_time.strftime('%Y-%m-%d %H:%M')
+
+        # 提取分析内容
+        yesterday = analysis.get('yesterday_review', {})
+        current = analysis.get('current_status', {})
+        forecast = analysis.get('today_forecast', {})
+        advice = analysis.get('trading_advice', {})
+        risks = analysis.get('risk_factors', {})
+        web_insights = analysis.get('web_search_insights', 'N/A')
+        sentiment = analysis.get('overall_sentiment', 'neutral')
+        confidence = analysis.get('confidence_level', 0.5)
+
+        # 情绪表情
+        sentiment_emoji = {
+            'fearful': '😨',
+            'neutral': '😐',
+            'greedy': '🤑'
+        }.get(sentiment, '😐')
+
+        # 趋势表情
+        bias = forecast.get('bias', 'neutral')
+        bias_emoji = {
+            'bullish': '📈',
+            'bearish': '📉',
+            'neutral': '➡️'
+        }.get(bias, '➡️')
+
+        message = f"""📊 **Claude AI 每日市场报告**
+
+⏰ 报告时间：{time_str}
+{sentiment_emoji} 市场情绪：{sentiment.upper()}
+📊 置信度：{confidence*100:.0f}%
+
+---
+
+## 📅 昨日市场回顾
+
+**市场概况**
+{yesterday.get('market_summary', 'N/A')}
+
+**交易评价**
+{yesterday.get('trade_evaluation', 'N/A')}
+
+**经验教训**
+{yesterday.get('lessons_learned', 'N/A')}
+
+---
+
+## 📍 当前市场状态
+
+**价格走势**
+{current.get('price_trend', 'N/A')}
+
+**技术分析**
+{current.get('technical_analysis', 'N/A')}
+
+**关键价位**
+{current.get('key_levels', 'N/A')}
+
+---
+
+## 🔮 今日行情预测
+
+{bias_emoji} **趋势预测**
+{forecast.get('trend_prediction', 'N/A')}
+
+**影响因素**
+{forecast.get('influencing_factors', 'N/A')}
+
+**多空倾向**
+{bias.upper()} (置信度: {forecast.get('confidence', 0)*100:.0f}%)
+
+---
+
+## 💡 交易建议
+
+**策略**
+{advice.get('strategy', 'N/A')}
+
+**入场建议**
+{advice.get('entry_suggestions', 'N/A')}
+
+**止损建议**
+{advice.get('stop_loss', 'N/A')}
+
+**风险回报比**
+{advice.get('risk_reward', 'N/A')}
+
+---
+
+## ⚠️ 风险提示
+
+**主要风险**
+"""
+        risk_list = risks.get('risks', [])
+        if risk_list:
+            for risk in risk_list:
+                message += f"• {risk}\n"
+        else:
+            message += "无特别风险\n"
+
+        message += f"\n**可能的黑天鹅事件**\n"
+        black_swan = risks.get('black_swan_events', [])
+        if black_swan:
+            for event in black_swan:
+                message += f"• {event}\n"
+        else:
+            message += "暂无\n"
+
+        message += f"\n**风险控制**\n{risks.get('risk_control', 'N/A')}"
+
+        message += f"\n\n---\n\n## 🌐 网络信息洞察\n\n{web_insights}"
+
+        message += "\n\n---\n\n*本报告由 Claude AI 自动生成，仅供参考，不构成投资建议。*"
+
+        return message
 
 
 # 全局实例
