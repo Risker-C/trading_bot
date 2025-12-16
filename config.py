@@ -240,10 +240,11 @@ STATUS_MONITOR_MODULES = {
 # ==================== Claude AI 分析配置（新增）====================
 
 # 是否启用 Claude AI 分析
-ENABLE_CLAUDE_ANALYSIS = False  # 默认关闭，需要配置 API Key 后手动开启
+ENABLE_CLAUDE_ANALYSIS = True  # 已启用
 
-# Claude API Key（从环境变量读取）
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
+# Claude API配置（从环境变量读取）
+CLAUDE_API_KEY = os.getenv("ANTHROPIC_AUTH_TOKEN", "")  # 使用ANTHROPIC_AUTH_TOKEN
+CLAUDE_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "")  # 自定义API端点
 
 # Claude 模型选择
 # 可选: claude-opus-4-5-20251101 (最强), claude-sonnet-4-5-20250929 (平衡), claude-haiku-4-20250514 (快速)

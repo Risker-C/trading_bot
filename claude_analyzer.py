@@ -33,6 +33,7 @@ class ClaudeAnalyzer:
             api_key: Claude API Key，如果不提供则从 config 读取
         """
         self.api_key = api_key or getattr(config, 'CLAUDE_API_KEY', None)
+        self.base_url = getattr(config, 'CLAUDE_BASE_URL', None)
         self.enabled = getattr(config, 'ENABLE_CLAUDE_ANALYSIS', False)
         self.model = getattr(config, 'CLAUDE_MODEL', 'claude-sonnet-4-5-20250929')
 
@@ -48,8 +49,16 @@ class ClaudeAnalyzer:
 
         if self.enabled:
             try:
-                self.client = anthropic.Anthropic(api_key=self.api_key)
-                logger.info(f"Claude 分析器初始化成功 (模型: {self.model})")
+                # 如果配置了自定义base_url，使用自定义端点
+                if self.base_url:
+                    self.client = anthropic.Anthropic(
+                        api_key=self.api_key,
+                        base_url=self.base_url
+                    )
+                    logger.info(f"Claude 分析器初始化成功 (模型: {self.model}, 自定义端点: {self.base_url})")
+                else:
+                    self.client = anthropic.Anthropic(api_key=self.api_key)
+                    logger.info(f"Claude 分析器初始化成功 (模型: {self.model})")
             except Exception as e:
                 self.enabled = False
                 logger.error(f"Claude 客户端初始化失败: {e}")
