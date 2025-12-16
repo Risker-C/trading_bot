@@ -14,6 +14,11 @@ from strategies import (
 from market_regime import MarketRegimeDetector
 from logger_utils import get_logger, db, notifier
 from status_monitor import StatusMonitorScheduler
+from claude_analyzer import get_claude_analyzer
+from trend_filter import get_trend_filter
+from indicators import IndicatorCalculator
+from shadow_mode import get_shadow_tracker
+from claude_guardrails import get_guardrails
 
 logger = get_logger("bot")
 
@@ -29,6 +34,7 @@ class TradingBot:
         self.running = False
         self.current_position_side: Optional[str] = None
         self.current_strategy: Optional[str] = None
+        self.current_trade_id: Optional[str] = None  # 用于影子模式追踪
 
         # 初始化状态监控调度器
         if hasattr(config, 'ENABLE_STATUS_MONITOR') and config.ENABLE_STATUS_MONITOR:
@@ -38,6 +44,14 @@ class TradingBot:
             )
         else:
             self.status_monitor = None
+
+        # 初始化 Claude 分析器和趋势过滤器
+        self.claude_analyzer = get_claude_analyzer()
+        self.trend_filter = get_trend_filter()
+
+        # 初始化 P0 模块（影子模式、Claude护栏）
+        self.shadow_tracker = get_shadow_tracker()
+        self.guardrails = get_guardrails()
 
         # 注册信号处理
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -209,17 +223,233 @@ class TradingBot:
         # 运行选定的策略
         signals = analyze_all_strategies(df, selected_strategies)
 
+        # 计算技术指标（用于趋势过滤和 Claude 分析）
+        ind = IndicatorCalculator(df)
+        indicators = {
+            'rsi': ind.rsi().iloc[-1] if len(df) >= 14 else 50,
+            'macd': ind.macd()['macd'].iloc[-1] if len(df) >= 26 else 0,
+            'macd_signal': ind.macd()['signal'].iloc[-1] if len(df) >= 26 else 0,
+            'macd_histogram': ind.macd()['histogram'].iloc[-1] if len(df) >= 26 else 0,
+            'ema_short': ind.ema(config.EMA_SHORT).iloc[-1] if len(df) >= config.EMA_SHORT else current_price,
+            'ema_long': ind.ema(config.EMA_LONG).iloc[-1] if len(df) >= config.EMA_LONG else current_price,
+            'bb_upper': ind.bollinger_bands()['upper'].iloc[-1] if len(df) >= 20 else current_price * 1.02,
+            'bb_middle': ind.bollinger_bands()['middle'].iloc[-1] if len(df) >= 20 else current_price,
+            'bb_lower': ind.bollinger_bands()['lower'].iloc[-1] if len(df) >= 20 else current_price * 0.98,
+            'bb_percent_b': ind.bollinger_bands()['percent_b'].iloc[-1] if len(df) >= 20 else 0.5,
+            'adx': ind.adx()['adx'].iloc[-1] if len(df) >= 14 else 20,
+            'plus_di': ind.adx()['plus_di'].iloc[-1] if len(df) >= 14 else 25,
+            'minus_di': ind.adx()['minus_di'].iloc[-1] if len(df) >= 14 else 25,
+            'volume_ratio': ind.volume_ratio().iloc[-1] if len(df) >= 20 else 1.0,
+            'trend_direction': ind.trend_direction().iloc[-1] if len(df) >= 21 else 0,
+            'trend_strength': ind.trend_strength().iloc[-1] if len(df) >= 21 else 0,
+        }
+
         # 找到第一个有效的开仓信号
         for trade_signal in signals:
             if trade_signal.signal == Signal.LONG:
+                # 生成唯一的trade_id用于影子模式追踪
+                from datetime import datetime
+                trade_id = f"{trade_signal.strategy}_{datetime.now().isoformat()}"
+
+                # 趋势过滤检查
+                trend_pass, trend_reason = self.trend_filter.check_signal(df, trade_signal, indicators)
+                if not trend_pass:
+                    logger.warning(f"❌ 趋势过滤拒绝: {trend_reason}")
+                    # 影子模式：记录被趋势过滤拒绝的信号
+                    self.shadow_tracker.record_decision(
+                        trade_id=trade_id,
+                        price=current_price,
+                        market_regime=regime_info.regime.value,
+                        volatility=regime_info.volatility,
+                        signal=trade_signal,
+                        would_execute_strategy=True,
+                        would_execute_after_trend=False,
+                        would_execute_after_claude=False,
+                        would_execute_after_exec=False,
+                        final_would_execute=False,
+                        rejection_stage="trend_filter",
+                        rejection_reason=trend_reason,
+                        trend_details={'pass': False, 'reason': trend_reason}
+                    )
+                    continue
+
+                # Claude护栏：预算和缓存检查
+                can_call_claude, budget_reason = self.guardrails.check_budget()
+                if not can_call_claude:
+                    logger.warning(f"❌ Claude护栏拒绝: {budget_reason}")
+                    # 影子模式：记录被护栏拒绝的信号
+                    self.shadow_tracker.record_decision(
+                        trade_id=trade_id,
+                        price=current_price,
+                        market_regime=regime_info.regime.value,
+                        volatility=regime_info.volatility,
+                        signal=trade_signal,
+                        would_execute_strategy=True,
+                        would_execute_after_trend=True,
+                        would_execute_after_claude=False,
+                        would_execute_after_exec=False,
+                        final_would_execute=False,
+                        rejection_stage="claude_guardrails",
+                        rejection_reason=budget_reason,
+                        trend_details={'pass': True, 'reason': trend_reason}
+                    )
+                    continue
+
+                # Claude AI 分析
+                claude_pass, claude_reason, claude_details = self.claude_analyzer.analyze_signal(
+                    df, current_price, trade_signal, indicators
+                )
+                if not claude_pass:
+                    logger.warning(f"❌ Claude 分析拒绝: {claude_reason}")
+                    if claude_details.get('warnings'):
+                        for warning in claude_details['warnings']:
+                            logger.warning(f"   ⚠️  {warning}")
+                    # 影子模式：记录被Claude拒绝的信号
+                    self.shadow_tracker.record_decision(
+                        trade_id=trade_id,
+                        price=current_price,
+                        market_regime=regime_info.regime.value,
+                        volatility=regime_info.volatility,
+                        signal=trade_signal,
+                        would_execute_strategy=True,
+                        would_execute_after_trend=True,
+                        would_execute_after_claude=False,
+                        would_execute_after_exec=False,
+                        final_would_execute=False,
+                        rejection_stage="claude",
+                        rejection_reason=claude_reason,
+                        trend_details={'pass': True, 'reason': trend_reason},
+                        claude_details=claude_details
+                    )
+                    continue
+
+                # 通过所有检查，执行开多
+                logger.info(f"✅ 信号通过所有检查 (趋势过滤 + Claude AI)")
+                # 保存trade_id用于后续平仓时更新影子模式
+                self.current_trade_id = trade_id
+                # 影子模式：记录通过所有检查的信号
+                self.shadow_tracker.record_decision(
+                    trade_id=trade_id,
+                    price=current_price,
+                    market_regime=regime_info.regime.value,
+                    volatility=regime_info.volatility,
+                    signal=trade_signal,
+                    would_execute_strategy=True,
+                    would_execute_after_trend=True,
+                    would_execute_after_claude=True,
+                    would_execute_after_exec=True,
+                    final_would_execute=True,
+                    trend_details={'pass': True, 'reason': trend_reason},
+                    claude_details=claude_details,
+                    actually_executed=True,
+                    actual_entry_price=current_price
+                )
                 self._execute_open_long(trade_signal, current_price, df)
                 return
+
             elif trade_signal.signal == Signal.SHORT:
+                # 生成唯一的trade_id用于影子模式追踪
+                from datetime import datetime
+                trade_id = f"{trade_signal.strategy}_{datetime.now().isoformat()}"
+
+                # 趋势过滤检查
+                trend_pass, trend_reason = self.trend_filter.check_signal(df, trade_signal, indicators)
+                if not trend_pass:
+                    logger.warning(f"❌ 趋势过滤拒绝: {trend_reason}")
+                    # 影子模式：记录被趋势过滤拒绝的信号
+                    self.shadow_tracker.record_decision(
+                        trade_id=trade_id,
+                        price=current_price,
+                        market_regime=regime_info.regime.value,
+                        volatility=regime_info.volatility,
+                        signal=trade_signal,
+                        would_execute_strategy=True,
+                        would_execute_after_trend=False,
+                        would_execute_after_claude=False,
+                        would_execute_after_exec=False,
+                        final_would_execute=False,
+                        rejection_stage="trend_filter",
+                        rejection_reason=trend_reason,
+                        trend_details={'pass': False, 'reason': trend_reason}
+                    )
+                    continue
+
+                # Claude护栏：预算和缓存检查
+                can_call_claude, budget_reason = self.guardrails.check_budget()
+                if not can_call_claude:
+                    logger.warning(f"❌ Claude护栏拒绝: {budget_reason}")
+                    # 影子模式：记录被护栏拒绝的信号
+                    self.shadow_tracker.record_decision(
+                        trade_id=trade_id,
+                        price=current_price,
+                        market_regime=regime_info.regime.value,
+                        volatility=regime_info.volatility,
+                        signal=trade_signal,
+                        would_execute_strategy=True,
+                        would_execute_after_trend=True,
+                        would_execute_after_claude=False,
+                        would_execute_after_exec=False,
+                        final_would_execute=False,
+                        rejection_stage="claude_guardrails",
+                        rejection_reason=budget_reason,
+                        trend_details={'pass': True, 'reason': trend_reason}
+                    )
+                    continue
+
+                # Claude AI 分析
+                claude_pass, claude_reason, claude_details = self.claude_analyzer.analyze_signal(
+                    df, current_price, trade_signal, indicators
+                )
+                if not claude_pass:
+                    logger.warning(f"❌ Claude 分析拒绝: {claude_reason}")
+                    if claude_details.get('warnings'):
+                        for warning in claude_details['warnings']:
+                            logger.warning(f"   ⚠️  {warning}")
+                    # 影子模式：记录被Claude拒绝的信号
+                    self.shadow_tracker.record_decision(
+                        trade_id=trade_id,
+                        price=current_price,
+                        market_regime=regime_info.regime.value,
+                        volatility=regime_info.volatility,
+                        signal=trade_signal,
+                        would_execute_strategy=True,
+                        would_execute_after_trend=True,
+                        would_execute_after_claude=False,
+                        would_execute_after_exec=False,
+                        final_would_execute=False,
+                        rejection_stage="claude",
+                        rejection_reason=claude_reason,
+                        trend_details={'pass': True, 'reason': trend_reason},
+                        claude_details=claude_details
+                    )
+                    continue
+
+                # 通过所有检查，执行开空
+                logger.info(f"✅ 信号通过所有检查 (趋势过滤 + Claude AI)")
+                # 保存trade_id用于后续平仓时更新影子模式
+                self.current_trade_id = trade_id
+                # 影子模式：记录通过所有检查的信号
+                self.shadow_tracker.record_decision(
+                    trade_id=trade_id,
+                    price=current_price,
+                    market_regime=regime_info.regime.value,
+                    volatility=regime_info.volatility,
+                    signal=trade_signal,
+                    would_execute_strategy=True,
+                    would_execute_after_trend=True,
+                    would_execute_after_claude=True,
+                    would_execute_after_exec=True,
+                    final_would_execute=True,
+                    trend_details={'pass': True, 'reason': trend_reason},
+                    claude_details=claude_details,
+                    actually_executed=True,
+                    actual_entry_price=current_price
+                )
                 self._execute_open_short(trade_signal, current_price, df)
                 return
 
-        # 无信号
-        logger.debug(f"当前价格: {current_price:.2f} - 无开仓信号")
+        # 无信号或所有信号被过滤
+        logger.debug(f"当前价格: {current_price:.2f} - 无有效开仓信号")
     
     def _check_exit_conditions(self, df, current_price: float, position):
         """检查退出条件"""
@@ -392,9 +622,19 @@ class TradingBot:
             # 更新风控状态
             self.risk_manager.record_trade_result(pnl)
 
+            # 影子模式：更新实际交易结果
+            if self.current_trade_id:
+                self.shadow_tracker.update_actual_result(
+                    trade_id=self.current_trade_id,
+                    exit_price=current_price,
+                    pnl=pnl,
+                    pnl_pct=pnl_percent
+                )
+
             # 重置当前持仓信息
             self.current_position_side = None
             self.current_strategy = None
+            self.current_trade_id = None  # 重置trade_id
 
             # 记录交易
             db.log_trade(
@@ -427,6 +667,7 @@ class TradingBot:
                 logger.warning("检测到平仓失败，清除风控管理器的持仓状态以避免重复尝试")
                 self.risk_manager.position = None
                 self.current_position_side = None
+                self.current_trade_id = None  # 重置trade_id
                 self.current_strategy = None
             notifier.notify_error(f"平仓失败")
     

@@ -237,6 +237,74 @@ STATUS_MONITOR_MODULES = {
     'account_info': True,     # 账户信息
 }
 
+# ==================== Claude AI 分析配置（新增）====================
+
+# 是否启用 Claude AI 分析
+ENABLE_CLAUDE_ANALYSIS = False  # 默认关闭，需要配置 API Key 后手动开启
+
+# Claude API Key（从环境变量读取）
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
+
+# Claude 模型选择
+# 可选: claude-opus-4-5-20251101 (最强), claude-sonnet-4-5-20250929 (平衡), claude-haiku-4-20250514 (快速)
+CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
+
+# Claude 分析的最小信号强度阈值（低于此值不调用 Claude）
+CLAUDE_MIN_SIGNAL_STRENGTH = 0.3
+
+# Claude 分析超时时间（秒）
+CLAUDE_TIMEOUT = 10
+
+# Claude 分析失败时的默认行为
+# "pass": 分析失败时默认通过信号
+# "reject": 分析失败时默认拒绝信号
+CLAUDE_FAILURE_MODE = "pass"
+
+# ==================== 影子模式配置（新增）====================
+
+# 是否启用影子模式（记录所有决策但不影响执行）
+ENABLE_SHADOW_MODE = False  # 默认关闭，建议先观察1-2天再启用
+
+# ==================== Claude护栏配置（新增）====================
+
+# Claude缓存时间（秒）
+CLAUDE_CACHE_TTL = 300  # 5分钟
+
+# Claude日调用上限
+CLAUDE_MAX_DAILY_CALLS = 500
+
+# Claude日成本上限（美元）
+CLAUDE_MAX_DAILY_COST = 10.0
+
+# ==================== 执行层风控配置（新增）====================
+
+# 是否启用执行层风控
+ENABLE_EXECUTION_FILTER = True
+
+# 点差阈值（超过此值拒绝交易）
+MAX_SPREAD_PCT = 0.001  # 0.1%
+
+# 滑点阈值
+MAX_SLIPPAGE_PCT = 0.002  # 0.2%
+
+# 最小成交量比率（低于此值拒绝交易）
+MIN_VOLUME_RATIO = 0.5  # 50%
+
+# ATR突增阈值（超过此倍数延迟进场）
+ATR_SPIKE_THRESHOLD = 1.5  # 1.5倍
+
+# ==================== 仓位管理配置（增强）====================
+
+# 目标波动率（用于波动率调整仓位）
+TARGET_VOLATILITY = 0.02  # 2%
+
+# 仓位调整倍数范围
+MAX_POSITION_MULTIPLIER = 2.0  # 最大2倍
+MIN_POSITION_MULTIPLIER = 0.5  # 最小0.5倍
+
+# 单日最大亏损比例（触发熔断）
+MAX_DAILY_LOSS_PCT = 0.05  # 5%
+
 # ==================== 回测配置（新增）====================
 
 BACKTEST_START_DATE = "2024-01-01"

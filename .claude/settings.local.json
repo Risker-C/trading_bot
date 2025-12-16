@@ -11,7 +11,29 @@
       "Bash(python3:*)",
       "Bash(find:*)",
       "Bash(python:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: 完成交易机器人核心功能开发和完整测试\n\n## 主要功能\n- 实现10+种交易策略（布林带、RSI、MACD、EMA、KDJ等）\n- 集成50+种技术指标计算\n- 完整的风险管理系统（Kelly公式、动态止损、仓位管理）\n- 回测引擎支持策略验证和参数优化\n- SQLite数据库持久化交易记录\n- Bitget交易所API集成\n- Telegram通知支持\n- Docker容器化部署\n\n## 测试结果\n- ✅ 所有测试100%通过（56项测试）\n- ✅ 代码质量达到生产级标准\n- ✅ 回测功能验证通过\n- ✅ 风险管理功能完整\n\n## 修复的问题\n- 修复backtest.py:161语法错误（缩进问题）\n- 替换5处裸异常为具体异常类型，添加日志\n- 添加IndicatorCalculator.calculate_all()方法\n- 补全config配置项（BB_STD_DEV、KDJ_PERIOD等）\n- 添加RiskManager向后兼容方法（open_position、close_position）\n- 修复TradeSignal属性名引用错误\n- 统一logger导入方式\n- 创建.gitignore和.env.example配置文件\n\n## 文件清单\n- 核心模块：12个Python文件（7051行代码）\n- 测试套件：test_all.py（7个测试模块）\n- 配置文件：.env.example, .gitignore\n- 文档：README.md, 测试报告\n- 部署支持：Dockerfile, docker-compose.yml\n\n## 部署准备\n项目已准备好部署，建议先使用小额资金测试。\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: 完成交易机器人核心功能开发和完整测试\n\n## 主要功能\n- 实现10+种交易策略（布林带、RSI、MACD、EMA、KDJ等）\n- 集成50+种技术指标计算\n- 完整的风险管理系统（Kelly公式、动态止损、仓位管理）\n- 回测引擎支持策略验证和参数优化\n- SQLite数据库持久化交易记录\n- Bitget交易所API集成\n- Telegram通知支持\n- Docker容器化部署\n\n## 测试结果\n- ✅ 所有测试100%通过（56项测试）\n- ✅ 代码质量达到生产级标准\n- ✅ 回测功能验证通过\n- ✅ 风险管理功能完整\n\n## 修复的问题\n- 修复backtest.py:161语法错误（缩进问题）\n- 替换5处裸异常为具体异常类型，添加日志\n- 添加IndicatorCalculator.calculate_all()方法\n- 补全config配置项（BB_STD_DEV、KDJ_PERIOD等）\n- 添加RiskManager向后兼容方法（open_position、close_position）\n- 修复TradeSignal属性名引用错误\n- 统一logger导入方式\n- 创建.gitignore和.env.example配置文件\n\n## 文件清单\n- 核心模块：12个Python文件（7051行代码）\n- 测试套件：test_all.py（7个测试模块）\n- 配置文件：.env.example, .gitignore\n- 文档：README.md, 测试报告\n- 部署支持：Dockerfile, docker-compose.yml\n\n## 部署准备\n项目已准备好部署，建议先使用小额资金测试。\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfix: 修复Bitget API环境变量名称不匹配问题\n\n- 支持BITGET_API_SECRET和BITGET_SECRET两种变量名\n- 支持BITGET_API_PASSWORD和BITGET_PASSWORD两种变量名\n- 向后兼容.env文件配置\n- 修复API连接失败问题\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)",
+      "Bash(timeout 30 tail:*)",
+      "Bash(cat:*)",
+      "Bash(pkill:*)",
+      "Bash(kill:*)",
+      "Bash(timeout 90 python3:*)",
+      "Bash(tee:*)",
+      "Bash(git commit:*)",
+      "Bash(python test_fix.py:*)",
+      "Bash(sqlite3:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: 添加市场状态感知与动态策略选择系统\n\n## 新增功能\n- 市场状态检测模块(market_regime.py): 自动识别震荡/过渡/趋势市\n- 动态策略选择: 根据市场状态自动切换策略组\n- 布林带趋势突破策略: 新增顺势交易版本(bollinger_trend)\n- 布林带双策略系统: 震荡市用均值回归,趋势市用趋势突破\n\n## Bug修复\n- 修复布林带宽度计算错误(重复乘以100导致100倍误差)\n- 修复numpy类型无法序列化到数据库的问题\n\n## 代码优化\n- 集成市场状态检测到交易机器人主循环\n- 添加动态策略配置开关(USE_DYNAMIC_STRATEGY)\n- 测试脚本统一移至scripts目录\n\n## 文档更新\n- 更新README添加新功能说明\n- 添加测试脚本使用文档\n- 更新项目结构说明\n\n🤖 Generated with Claude Code\nEOF\n)\")",
+      "Bash(pgrep:*)",
+      "Bash(./stop_bot.sh:*)",
+      "Bash(./start_bot.sh:*)",
+      "Bash(bash:*)",
+      "Bash(chmod:*)",
+      "Bash(python scripts/test_status_monitor.py:*)",
+      "Bash(tree:*)",
+      "Bash(du:*)",
+      "Bash(mv:*)"
     ]
   }
 }
