@@ -323,6 +323,43 @@ CLAUDE_DAILY_INCLUDE_WEB_SEARCH = True
 # 回顾天数（昨日交易）
 CLAUDE_DAILY_REVIEW_DAYS = 1
 
+# ==================== Policy Layer 配置（新增）====================
+
+# 是否启用 Policy Layer（策略治理层）
+ENABLE_POLICY_LAYER = True
+
+# Policy Layer 更新间隔（分钟）
+# Claude 会定期分析交易上下文并更新策略参数
+POLICY_UPDATE_INTERVAL = 30  # 默认30分钟
+
+# Policy Layer 模式
+# "shadow": 影子模式（只记录不生效，用于观察）
+# "active": 主动模式（真实影响交易参数）
+POLICY_LAYER_MODE = "shadow"  # 建议先用 "shadow" 观察1-2天
+
+# 是否在启动时立即执行一次 Policy 分析
+POLICY_ANALYZE_ON_STARTUP = True
+
+# Policy 决策的默认 TTL（分钟）
+POLICY_DEFAULT_TTL = 30
+
+# Policy Layer 参数边界（安全约束）
+POLICY_PARAM_BOUNDS = {
+    'stop_loss_pct': (0.005, 0.05),      # 0.5% - 5%
+    'take_profit_pct': (0.01, 0.10),     # 1% - 10%
+    'trailing_stop_pct': (0.005, 0.03),  # 0.5% - 3%
+    'position_multiplier': (0.3, 2.0),   # 0.3x - 2.0x
+}
+
+# 风控模式自动切换规则
+POLICY_AUTO_RISK_MODE = True  # 是否允许自动切换风控模式
+
+# 连续亏损触发防守模式的阈值
+POLICY_DEFENSIVE_LOSS_THRESHOLD = 3
+
+# 连续盈利触发激进模式的阈值
+POLICY_AGGRESSIVE_WIN_THRESHOLD = 5
+
 # ==================== 执行层风控配置（新增）====================
 
 # 是否启用执行层风控
