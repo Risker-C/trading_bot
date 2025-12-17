@@ -76,6 +76,37 @@ ATR_STOP_MULTIPLIER = 2.0      # ATR 倍数
 # 分批止盈（新增）
 USE_PARTIAL_TAKE_PROFIT = True # 是否分批止盈
 
+# ==================== 动态止盈配置 ====================
+
+# 是否启用动态止盈（基于浮动盈利门槛和回撤均值）
+ENABLE_TRAILING_TAKE_PROFIT = True
+
+# 最小盈利门槛（USDT）- 必须超过此值才算真正盈利
+# 计算公式：开仓手续费 + 平仓手续费
+# 对于10USDT订单，10倍杠杆：10 * 0.0006 * 2 = 0.012 USDT
+MIN_PROFIT_THRESHOLD_USDT = 0.012
+
+# 价格均值窗口大小（N次价格）
+# 建议：5-10次，平衡灵敏度和稳定性
+TRAILING_TP_PRICE_WINDOW = 5
+
+# 跌破均值的百分比阈值（例如：0.001 表示跌破0.1%）
+TRAILING_TP_FALLBACK_PERCENT = 0.001
+
+# 手续费率（Bitget 默认 0.06%）
+TRADING_FEE_RATE = 0.0006
+
+# ==================== 动态价格更新配置 ====================
+
+# 是否启用动态价格更新频率（开仓后提高更新频率）
+ENABLE_DYNAMIC_CHECK_INTERVAL = True
+
+# 默认检查间隔（秒）- 无持仓时
+DEFAULT_CHECK_INTERVAL = 5
+
+# 持仓时检查间隔（秒）- 有持仓时提高频率
+POSITION_CHECK_INTERVAL = 2
+
 # ==================== 策略配置 ====================
 
 ENABLE_STRATEGIES: List[str] = [
@@ -335,7 +366,7 @@ POLICY_UPDATE_INTERVAL = 30  # 默认30分钟
 # Policy Layer 模式
 # "shadow": 影子模式（只记录不生效，用于观察）
 # "active": 主动模式（真实影响交易参数）
-POLICY_LAYER_MODE = "shadow"  # 建议先用 "shadow" 观察1-2天
+POLICY_LAYER_MODE = "active"  # 已切换到主动模式
 
 # 是否在启动时立即执行一次 Policy 分析
 POLICY_ANALYZE_ON_STARTUP = True

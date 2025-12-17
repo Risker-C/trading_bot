@@ -105,8 +105,10 @@ class TradingBot:
         
         # 主循环
         self.running = True
-        logger.info(f"开始监控，检查间隔: {config.CHECK_INTERVAL} 秒")
-        
+        logger.info(f"开始监控，默认检查间隔: {config.DEFAULT_CHECK_INTERVAL} 秒")
+        if config.ENABLE_DYNAMIC_CHECK_INTERVAL:
+            logger.info(f"动态价格更新已启用，持仓时检查间隔: {config.POSITION_CHECK_INTERVAL} 秒")
+
         while self.running:
             try:
                 self._main_loop()
@@ -115,10 +117,16 @@ class TradingBot:
                 logger.error(f"主循环异常: {e}")
                 logger.error(traceback.format_exc())
                 notifier.notify_error(str(e))
-            
-            # 等待下一次检查
+
+            # 等待下一次检查 - 动态调整检查间隔
             if self.running:
-                time.sleep(config.CHECK_INTERVAL)
+                # 根据是否有持仓动态调整检查间隔
+                if config.ENABLE_DYNAMIC_CHECK_INTERVAL and self.risk_manager.has_position():
+                    check_interval = config.POSITION_CHECK_INTERVAL
+                else:
+                    check_interval = config.DEFAULT_CHECK_INTERVAL
+
+                time.sleep(check_interval)
         
         logger.info("机器人已停止")
     

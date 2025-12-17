@@ -35,6 +35,13 @@ class PositionInfo:
     stop_loss_price: float = 0         # 止损价
     take_profit_price: float = 0       # 止盈价
     trailing_stop_price: float = 0     # 移动止损价
+
+    # ===== 动态止盈相关字段 =====
+    entry_fee: float = 0                    # 开仓手续费（USDT）
+    recent_prices: List[float] = field(default_factory=list)  # 最近N次价格
+    max_profit: float = 0                   # 最大浮动盈利（USDT）
+    profit_threshold_reached: bool = False  # 是否达到盈利门槛
+    trailing_take_profit_price: float = 0   # 动态止盈价格
     
     def update_price(self, current_price: float):
         """更新当前价格和极值"""
@@ -57,6 +64,66 @@ class PositionInfo:
         else:
             self.unrealized_pnl = (self.entry_price - current_price) * self.amount
             self.unrealized_pnl_pct = (self.entry_price - current_price) / self.entry_price * 100
+
+    # ===== 动态止盈相关方法 =====
+
+    def calculate_entry_fee(self, entry_price: float, amount: float) -> float:
+        """
+        计算开仓手续费
+
+        Args:
+            entry_price: 开仓价格
+            amount: 持仓数量
+
+        Returns:
+            开仓手续费（USDT）
+        """
+        return entry_price * amount * config.TRADING_FEE_RATE
+
+    def calculate_net_profit(self, current_price: float) -> float:
+        """
+        计算扣除手续费后的净盈利
+
+        Args:
+            current_price: 当前价格
+
+        Returns:
+            净盈利（USDT）
+        """
+        # 计算毛盈利
+        if self.side == 'long':
+            gross_profit = (current_price - self.entry_price) * self.amount
+        else:
+            gross_profit = (self.entry_price - current_price) * self.amount
+
+        # 扣除开仓和平仓手续费
+        close_fee = current_price * self.amount * config.TRADING_FEE_RATE
+        net_profit = gross_profit - self.entry_fee - close_fee
+
+        return net_profit
+
+    def update_recent_prices(self, current_price: float):
+        """
+        更新最近N次价格
+
+        Args:
+            current_price: 当前价格
+        """
+        self.recent_prices.append(current_price)
+        # 保持窗口大小
+        if len(self.recent_prices) > config.TRAILING_TP_PRICE_WINDOW:
+            self.recent_prices.pop(0)
+
+    def get_price_average(self) -> float:
+        """
+        获取最近N次价格的均值
+
+        Returns:
+            价格均值，如果价格列表为空则返回0
+        """
+        if not self.recent_prices:
+            return 0
+        return sum(self.recent_prices) / len(self.recent_prices)
 
 
 @dataclass
@@ -551,7 +618,76 @@ class RiskManager:
             if trailing_price < position.entry_price:
                 return trailing_price
             return 0
-    
+
+    def calculate_trailing_take_profit(
+        self,
+        current_price: float,
+        position: PositionInfo
+    ) -> float:
+        """
+        计算动态止盈价格（基于浮动盈利门槛和回撤均值）
+
+        逻辑：
+        1. 计算净盈利（扣除手续费）
+        2. 检查是否超过最小盈利门槛
+        3. 更新最大盈利
+        4. 计算最近N次价格均值
+        5. 判断是否跌破均值触发止盈
+
+        Args:
+            current_price: 当前价格
+            position: 持仓信息
+
+        Returns:
+            止盈价格（0表示未触发）
+        """
+        # 1. 计算净盈利
+        net_profit = position.calculate_net_profit(current_price)
+
+        # 2. 检查是否超过最小盈利门槛
+        if net_profit > config.MIN_PROFIT_THRESHOLD_USDT:
+            position.profit_threshold_reached = True
+            # 3. 更新最大盈利
+            if net_profit > position.max_profit:
+                position.max_profit = net_profit
+                logger.info(f"[动态止盈] 更新最大盈利: {position.max_profit:.4f} USDT")
+
+        # 4. 只有达到盈利门槛后才启用动态止盈
+        if not position.profit_threshold_reached:
+            return 0
+
+        # 5. 更新最近N次价格
+        position.update_recent_prices(current_price)
+
+        # 6. 计算价格均值
+        if len(position.recent_prices) < config.TRAILING_TP_PRICE_WINDOW:
+            # 价格样本不足，不触发
+            return 0
+
+        price_avg = position.get_price_average()
+
+        # 7. 判断是否跌破均值
+        if position.side == 'long':
+            # 多仓：当前价格跌破均值
+            fallback_threshold = price_avg * (1 - config.TRAILING_TP_FALLBACK_PERCENT)
+            if current_price <= fallback_threshold:
+                logger.info(
+                    f"[动态止盈] 多仓触发: 当前价 {current_price:.2f} "
+                    f"<= 回撤阈值 {fallback_threshold:.2f} (均值 {price_avg:.2f})"
+                )
+                return current_price
+        else:
+            # 空仓：当前价格突破均值
+            fallback_threshold = price_avg * (1 + config.TRAILING_TP_FALLBACK_PERCENT)
+            if current_price >= fallback_threshold:
+                logger.info(
+                    f"[动态止盈] 空仓触发: 当前价 {current_price:.2f} "
+                    f">= 回撤阈值 {fallback_threshold:.2f} (均值 {price_avg:.2f})"
+                )
+                return current_price
+
+        return 0
+
     # ==================== 止损检查 ====================
     
     def check_stop_loss(
@@ -613,15 +749,52 @@ class RiskManager:
                 result.stop_price = position.stop_loss_price
                 return result
         
-        # 3. 检查止盈
+        # 3. 检查固定止盈
         take_profit_pct = config.TAKE_PROFIT_PERCENT * 100
         if pnl_pct >= take_profit_pct:
             result.should_stop = True
             result.stop_type = "take_profit"
-            result.reason = f"触发止盈: 盈利 {pnl_pct:.2f}%"
+            result.reason = f"触发固定止盈: 盈利 {pnl_pct:.2f}%"
             result.stop_price = position.take_profit_price
             return result
-        
+
+        # 3.5. 检查动态止盈（基于浮动盈利门槛和回撤均值）
+        if config.ENABLE_TRAILING_TAKE_PROFIT:
+            trailing_tp = self.calculate_trailing_take_profit(current_price, position)
+
+            # ===== 调试日志：动态止盈详情 =====
+            net_profit = position.calculate_net_profit(current_price)
+            logger.info(f"[动态止盈] 净盈利: {net_profit:.4f} USDT")
+            logger.info(f"[动态止盈] 最大盈利: {position.max_profit:.4f} USDT")
+            logger.info(f"[动态止盈] 盈利门槛: {config.MIN_PROFIT_THRESHOLD_USDT:.4f} USDT")
+            logger.info(f"[动态止盈] 门槛已达: {position.profit_threshold_reached}")
+            logger.info(f"[动态止盈] 价格窗口: {position.recent_prices}")
+            if len(position.recent_prices) >= config.TRAILING_TP_PRICE_WINDOW:
+                logger.info(f"[动态止盈] 价格均值: {position.get_price_average():.2f}")
+            logger.info(f"[动态止盈] 计算结果: {trailing_tp:.2f}")
+
+            if trailing_tp > 0:
+                position.trailing_take_profit_price = trailing_tp
+
+                # 计算净盈利百分比
+                net_profit_pct = (net_profit / (position.entry_price * position.amount)) * 100
+
+                result.should_stop = True
+                result.stop_type = "trailing_take_profit"
+                result.reason = (
+                    f"触发动态止盈: 价格跌破{config.TRAILING_TP_PRICE_WINDOW}次均值 "
+                    f"(均值: {position.get_price_average():.2f}, "
+                    f"最大盈利: {position.max_profit:.4f} USDT)"
+                )
+                result.stop_price = trailing_tp
+                result.pnl_percent = net_profit_pct
+
+                logger.warning(
+                    f"!!! 触发动态止盈 !!! "
+                    f"净盈利 {net_profit:.4f} USDT ({net_profit_pct:.2f}%)"
+                )
+                return result
+
         # 4. 检查移动止损
         trailing_stop = self.calculate_trailing_stop(current_price, position)
 
@@ -696,11 +869,15 @@ class RiskManager:
             highest_price=highest_price,
             lowest_price=lowest_price,
         )
-        
+
         # 计算止损止盈价格
         self.position.stop_loss_price = self.calculate_stop_loss(entry_price, side, df)
         self.position.take_profit_price = self.calculate_take_profit(entry_price, side)
-        
+
+        # ===== 初始化开仓手续费（动态止盈功能） =====
+        self.position.entry_fee = self.position.calculate_entry_fee(entry_price, amount)
+        logger.info(f"[持仓] 开仓手续费: {self.position.entry_fee:.4f} USDT")
+
         self.last_trade_time = datetime.now()
         self.daily_trades += 1
 
@@ -766,6 +943,15 @@ class RiskManager:
         """清除持仓"""
         self.position = None
         logger.info("持仓已清除")
+
+    def has_position(self) -> bool:
+        """
+        检查是否有持仓
+
+        Returns:
+            bool: True表示有持仓，False表示无持仓
+        """
+        return self.position is not None
 
     def open_position(self, side: str, amount: float, entry_price: float, df: pd.DataFrame = None):
         """开仓（向后兼容别名）"""
