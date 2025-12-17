@@ -20,6 +20,9 @@ from trend_filter import get_trend_filter
 from indicators import IndicatorCalculator
 from shadow_mode import get_shadow_tracker
 from claude_guardrails import get_guardrails
+from policy_layer import get_policy_layer
+from claude_policy_analyzer import get_claude_policy_analyzer
+from trading_context_builder import get_context_builder
 
 logger = get_logger("bot")
 
@@ -56,6 +59,20 @@ class TradingBot:
         # 初始化 P0 模块（影子模式、Claude护栏）
         self.shadow_tracker = get_shadow_tracker()
         self.guardrails = get_guardrails()
+
+        # 初始化 Policy Layer（策略治理层）
+        if getattr(config, 'ENABLE_POLICY_LAYER', False):
+            self.policy_layer = get_policy_layer()
+            self.policy_analyzer = get_claude_policy_analyzer()
+            self.context_builder = get_context_builder(self.risk_manager)
+            self.last_policy_update = None
+            policy_mode = getattr(config, 'POLICY_LAYER_MODE', 'shadow')
+            logger.info(f"✅ Policy Layer 已启用 (模式: {policy_mode})")
+        else:
+            self.policy_layer = None
+            self.policy_analyzer = None
+            self.context_builder = None
+            logger.info("⚠️ Policy Layer 未启用")
 
         # 注册信号处理
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -222,6 +239,20 @@ class TradingBot:
 
             except Exception as e:
                 logger.error(f"Claude定时分析失败: {e}")
+
+        # Policy Layer 定期更新（新增）
+        if self.policy_layer and self._should_update_policy():
+            try:
+                # 计算技术指标（如果还没有计算）
+                if 'indicators' not in locals():
+                    indicator_calc = IndicatorCalculator(df)
+                    indicators = indicator_calc.calculate_all()
+
+                self._update_policy_layer(df, current_price, indicators)
+            except Exception as e:
+                logger.error(f"Policy Layer 更新失败: {e}")
+                import traceback
+                logger.debug(traceback.format_exc())
 
         if has_position:
             # 有持仓：检查风控和退出信号
@@ -781,14 +812,113 @@ class TradingBot:
         """紧急平仓"""
         logger.warning("执行紧急平仓")
         results = self.trader.close_all_positions()
-        
+
         for result in results:
             if result.success:
                 logger.info(f"平仓成功: {result.order_id}")
             else:
                 logger.error(f"平仓失败: {result.error}")
-        
+
         return results
+
+    def _should_update_policy(self) -> bool:
+        """判断是否应该更新 Policy"""
+        if not self.last_policy_update:
+            # 首次运行，检查是否启用启动时分析
+            if getattr(config, 'POLICY_ANALYZE_ON_STARTUP', True):
+                return True
+            else:
+                # 不在启动时分析，设置初始时间
+                self.last_policy_update = datetime.now()
+                return False
+
+        interval = getattr(config, 'POLICY_UPDATE_INTERVAL', 30) * 60
+        elapsed = (datetime.now() - self.last_policy_update).total_seconds()
+        return elapsed >= interval
+
+    def _update_policy_layer(self, df, current_price, indicators):
+        """更新 Policy Layer"""
+        try:
+            logger.info("🔄 开始 Policy Layer 更新...")
+
+            # 1. 构建交易上下文
+            context = self.context_builder.build_context(df, current_price, indicators)
+
+            # 2. 调用 Claude 进行策略治理分析
+            decision = self.policy_analyzer.analyze_for_policy(context, df, indicators)
+
+            if not decision:
+                logger.warning("Policy 分析失败，保持当前参数")
+                self.last_policy_update = datetime.now()
+                return
+
+            # 3. 验证并应用决策
+            mode = getattr(config, 'POLICY_LAYER_MODE', 'active')
+
+            if mode == 'shadow':
+                # 影子模式：只记录不生效
+                logger.info(f"🔍 [Shadow Mode] Policy 决策: {decision.reason}")
+                logger.info(f"   市场制度: {decision.regime.value} (置信度: {decision.regime_confidence:.2f})")
+                if decision.suggested_risk_mode:
+                    logger.info(f"   风控模式建议: {decision.suggested_risk_mode.value}")
+                if decision.suggested_stop_loss_pct:
+                    logger.info(f"   止损建议: {decision.suggested_stop_loss_pct:.2%}")
+                if decision.suggested_take_profit_pct:
+                    logger.info(f"   止盈建议: {decision.suggested_take_profit_pct:.2%}")
+                if decision.suggested_position_multiplier:
+                    logger.info(f"   仓位倍数建议: {decision.suggested_position_multiplier:.2f}x")
+                logger.info(f"   [Shadow Mode] 决策已记录但未应用")
+            else:
+                # 主动模式：真实应用
+                success, reason, actions = self.policy_layer.validate_and_apply_decision(decision, context)
+
+                if success:
+                    logger.info(f"✅ Policy 决策已应用: {reason}")
+                    # 可选：推送到飞书
+                    if getattr(config, 'ENABLE_FEISHU', False) and getattr(config, 'CLAUDE_PUSH_TO_FEISHU', False):
+                        self._notify_policy_update(decision, actions)
+                else:
+                    logger.warning(f"⚠️ Policy 决策未应用: {reason}")
+
+            self.last_policy_update = datetime.now()
+
+        except Exception as e:
+            logger.error(f"Policy Layer 更新失败: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+
+    def _notify_policy_update(self, decision, actions):
+        """通知 Policy 更新（可选）"""
+        try:
+            message = f"""🤖 Policy Layer 参数更新
+
+市场制度: {decision.regime.value} (置信度: {decision.regime_confidence:.0%})
+"""
+            if decision.suggested_risk_mode:
+                message += f"风控模式: {decision.suggested_risk_mode.value}\n"
+
+            if actions:
+                message += f"\n应用的调整:\n"
+                for action in actions:
+                    action_name = action.value.replace('_', ' ').title()
+                    message += f"• {action_name}\n"
+
+            message += f"\n原因: {decision.reason}"
+
+            # 添加当前生效的参数
+            params = self.policy_layer.get_current_parameters()
+            message += f"\n\n当前参数:"
+            message += f"\n• 止损: {params.stop_loss_pct:.2%}"
+            message += f"\n• 止盈: {params.take_profit_pct:.2%}"
+            message += f"\n• 移动止损: {params.trailing_stop_pct:.2%}"
+            message += f"\n• 仓位倍数: {params.position_size_multiplier:.2f}x"
+            message += f"\n• 风控模式: {params.risk_mode.value}"
+
+            notifier.feishu.send_message(message)
+            logger.debug("Policy 更新通知已发送到飞书")
+
+        except Exception as e:
+            logger.error(f"发送 Policy 更新通知失败: {e}")
 
 
 def main():
