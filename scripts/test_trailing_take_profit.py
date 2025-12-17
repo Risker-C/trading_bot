@@ -260,13 +260,14 @@ def test_trailing_tp_trigger_long():
     price_avg = position.get_price_average()
     fallback_threshold = price_avg * (1 - config.TRAILING_TP_FALLBACK_PERCENT)
 
-    # 使用一个明显低于阈值的价格来触发
-    # 注意：这个价格会被添加到窗口，所以要确保即使添加后仍然触发
-    trigger_price = price_avg * 0.99  # 下跌1%，远大于0.1%的阈值
+    # 使用一个略低于均值的价格来触发
+    # 关键：价格需要保持在盈利区间内（高于开仓价），同时低于回撤阈值
+    # 策略：使用一个比均值低0.15%的价格，既能触发又能保持盈利
+    trigger_price = price_avg * 0.9985  # 比均值低0.15%，大于0.1%的阈值
 
     trailing_tp = risk_manager.calculate_trailing_take_profit(trigger_price, position)
 
-    assert trailing_tp > 0, f"应该触发止盈: {trailing_tp} (均值: {price_avg:.2f}, 阈值: {fallback_threshold:.2f}, 触发价: {trigger_price:.2f})"
+    assert trailing_tp > 0, f"应该触发止盈: {trailing_tp} (原均值: {price_avg:.2f}, 原阈值: {fallback_threshold:.2f}, 触发价: {trigger_price:.2f})"
     assert trailing_tp == trigger_price, f"止盈价格应该等于触发价格: {trailing_tp} != {trigger_price}"
 
     print(f"✓ 价格均值: {price_avg:.2f}")
@@ -304,13 +305,14 @@ def test_trailing_tp_trigger_short():
     price_avg = position.get_price_average()
     fallback_threshold = price_avg * (1 + config.TRAILING_TP_FALLBACK_PERCENT)
 
-    # 使用一个明显高于阈值的价格来触发
-    # 注意：这个价格会被添加到窗口，所以要确保即使添加后仍然触发
-    trigger_price = price_avg * 1.01  # 上涨1%，远大于0.1%的阈值
+    # 使用一个略高于均值的价格来触发
+    # 关键：价格需要保持在盈利区间内（低于开仓价），同时高于回撤阈值
+    # 策略：使用一个比均值高0.15%的价格，既能触发又能保持盈利
+    trigger_price = price_avg * 1.0015  # 比均值高0.15%，大于0.1%的阈值
 
     trailing_tp = risk_manager.calculate_trailing_take_profit(trigger_price, position)
 
-    assert trailing_tp > 0, f"应该触发止盈: {trailing_tp} (均值: {price_avg:.2f}, 阈值: {fallback_threshold:.2f}, 触发价: {trigger_price:.2f})"
+    assert trailing_tp > 0, f"应该触发止盈: {trailing_tp} (原均值: {price_avg:.2f}, 原阈值: {fallback_threshold:.2f}, 触发价: {trigger_price:.2f})"
     assert trailing_tp == trigger_price, f"止盈价格应该等于触发价格: {trailing_tp} != {trigger_price}"
 
     print(f"✓ 价格均值: {price_avg:.2f}")

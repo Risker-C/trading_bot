@@ -67,7 +67,7 @@ VOLATILITY_LOOKBACK = 20              # 波动率计算周期
 
 STOP_LOSS_PERCENT = 0.02       # 止损比例 2%
 TAKE_PROFIT_PERCENT = 0.04     # 止盈比例 4%
-TRAILING_STOP_PERCENT = 0.015  # 移动止损回撤比例 1.5%
+TRAILING_STOP_PERCENT = 0.025  # 移动止损回撤比例 2.5%（从1.5%提高，给趋势更多发展空间）
 
 # ATR 动态止损（新增）
 USE_ATR_STOP_LOSS = True       # 是否使用 ATR 止损
@@ -82,15 +82,17 @@ USE_PARTIAL_TAKE_PROFIT = True # 是否分批止盈
 ENABLE_TRAILING_TAKE_PROFIT = True
 
 # 最小盈利门槛（USDT）- 必须超过此值才算真正盈利
-# 计算公式：开仓手续费 + 平仓手续费
+# 计算公式：开仓手续费 + 平仓手续费 + 安全边际
 # 对于10USDT订单，10倍杠杆：10 * 0.0006 * 2 = 0.012 USDT
-MIN_PROFIT_THRESHOLD_USDT = 0.012
+# 增加安全边际到0.15 USDT，确保有足够的盈利空间
+MIN_PROFIT_THRESHOLD_USDT = 0.15
 
 # 价格均值窗口大小（N次价格）
 # 建议：5-10次，平衡灵敏度和稳定性
 TRAILING_TP_PRICE_WINDOW = 5
 
 # 跌破均值的百分比阈值（例如：0.001 表示跌破0.1%）
+# 优化说明：从0.5%降低到0.1%，提高对小仓位的敏感度，更及时地捕捉止盈机会
 TRAILING_TP_FALLBACK_PERCENT = 0.001
 
 # 手续费率（Bitget 默认 0.06%）
