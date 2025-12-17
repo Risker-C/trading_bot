@@ -167,12 +167,16 @@ def calc_adx(
     
     plus_dm = pd.Series(plus_dm, index=high.index)
     minus_dm = pd.Series(minus_dm, index=high.index)
-    
-    plus_di = 100 * (plus_dm.rolling(period).mean() / atr)
-    minus_di = 100 * (minus_dm.rolling(period).mean() / atr)
-    
-    # ADX
-    dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di)
+
+    # 避免除零：将 ATR 中的 0 替换为 NaN
+    atr_safe = atr.replace(0, np.nan)
+    plus_di = 100 * (plus_dm.rolling(period).mean() / atr_safe)
+    minus_di = 100 * (minus_dm.rolling(period).mean() / atr_safe)
+
+    # ADX - 避免除零：当分母为 0 时设为 NaN
+    di_sum = plus_di + minus_di
+    di_sum_safe = di_sum.replace(0, np.nan)
+    dx = 100 * abs(plus_di - minus_di) / di_sum_safe
     adx = dx.rolling(period).mean()
     
     return adx, plus_di, minus_di
@@ -456,8 +460,10 @@ def calc_mfi(
     
     positive_sum = positive_flow.rolling(period).sum()
     negative_sum = negative_flow.rolling(period).sum()
-    
-    mfi = 100 - (100 / (1 + positive_sum / negative_sum))
+
+    # 避免除零：将 negative_sum 中的 0 替换为 NaN
+    negative_sum_safe = negative_sum.replace(0, np.nan)
+    mfi = 100 - (100 / (1 + positive_sum / negative_sum_safe))
     return mfi
 
 

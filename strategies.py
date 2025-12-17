@@ -930,12 +930,20 @@ class GridStrategy(BaseStrategy):
         # 生成网格线
         if config.GRID_TYPE == "arithmetic":
             # 等差网格
-            step = (upper_price - lower_price) / config.GRID_NUM
-            self.grid_lines = [lower_price + i * step for i in range(config.GRID_NUM + 1)]
+            if config.GRID_NUM == 0:
+                logger.error("网格数量不能为0")
+                self.grid_lines = [lower_price, upper_price]
+            else:
+                step = (upper_price - lower_price) / config.GRID_NUM
+                self.grid_lines = [lower_price + i * step for i in range(config.GRID_NUM + 1)]
         else:
             # 等比网格
-            ratio = (upper_price / lower_price) ** (1 / config.GRID_NUM)
-            self.grid_lines = [lower_price * (ratio ** i) for i in range(config.GRID_NUM + 1)]
+            if config.GRID_NUM == 0 or lower_price == 0:
+                logger.error(f"网格数量不能为0且下界价格不能为0 (GRID_NUM={config.GRID_NUM}, lower_price={lower_price})")
+                self.grid_lines = [lower_price, upper_price]
+            else:
+                ratio = (upper_price / lower_price) ** (1 / config.GRID_NUM)
+                self.grid_lines = [lower_price * (ratio ** i) for i in range(config.GRID_NUM + 1)]
         
         self.grid_upper = upper_price
         self.grid_lower = lower_price
