@@ -63,10 +63,15 @@ class MarketRegimeDetector:
         """
         检测当前市场状态
 
-        判断逻辑:
-        1. 震荡市: ADX < 20 或 布林带宽度 < 2%
-        2. 过渡市: 20 <= ADX < 30
-        3. 趋势市: ADX >= 30 且 布林带宽度 > 3%
+        判断逻辑（已优化，ADX优先）:
+        1. 强趋势市: ADX >= 35 且 布林带宽度 > 2% (优先判定)
+        2. 标准趋势市: ADX >= 30 且 布林带宽度 > 3%
+        3. 震荡市: ADX < 20 且 布林带宽度 < 2% (必须同时满足)
+        4. 过渡市: 其他情况
+
+        修复说明:
+        - 强趋势判断提前，避免被布林带条件误判为震荡市
+        - 震荡市从"或"改为"且"，提高判定准确性
         """
         # 计算技术指标
         adx_data = self.ind.adx(config.ADX_PERIOD)
@@ -120,13 +125,17 @@ class MarketRegimeDetector:
         volatility: float
     ) -> tuple[MarketRegime, float]:
         """
-        分类市场状态（优化版）
+        分类市场状态（优化版 - 修复ADX优先级）
         返回: (状态, 置信度)
 
         改进点:
-        1. 强趋势豁免: ADX > 35时放宽布林带要求
+        1. ADX优先: 强趋势(ADX>35)优先判定,避免被布林带误判为震荡
         2. 滞回机制: 避免频繁切换状态
         3. 优化置信度计算: ADX和布林带分别计算贡献
+
+        修复说明:
+        - 原逻辑问题: 当ADX=55但BB宽度<2%时,会被误判为震荡市
+        - 修复方案: 将强趋势判断提前到震荡市判断之前
         """
         # 滞回机制: 如果上一次是趋势市,允许稍微"变差"也继续保持
         if self.prev_regime == MarketRegime.TRENDING:
@@ -136,12 +145,14 @@ class MarketRegimeDetector:
                 confidence = max(0.5, min(1.0, confidence))
                 return MarketRegime.TRENDING, confidence
 
-        # 震荡市判断
-        if adx < 20 or bb_width_pct < 2.0:
-            # 置信度: ADX越低,布林带越窄,置信度越高
-            confidence = 1.0 - (adx / 40) * 0.5 - (bb_width_pct / 4) * 0.5
+        # 【修复】强趋势优先判断: 当ADX > 35时,即使布林带宽度不够也判定为趋势市
+        # 这个判断必须在震荡市判断之前,否则会被布林带<2%的条件误判
+        if adx >= config.STRONG_TREND_ADX and bb_width_pct > config.STRONG_TREND_BB:
+            # 使用优化的置信度计算
+            confidence = 0.7 * self._score_adx(adx) + 0.3 * self._score_bb(bb_width_pct)
             confidence = max(0.5, min(1.0, confidence))
-            return MarketRegime.RANGING, confidence
+            logger.info(f"✅ 强趋势检测: ADX={adx:.1f} > {config.STRONG_TREND_ADX}, BB={bb_width_pct:.2f}% > {config.STRONG_TREND_BB}%")
+            return MarketRegime.TRENDING, confidence
 
         # 趋势市判断 - 标准条件
         if adx >= 30 and bb_width_pct > 3.0:
@@ -150,13 +161,13 @@ class MarketRegimeDetector:
             confidence = max(0.5, min(1.0, confidence))
             return MarketRegime.TRENDING, confidence
 
-        # 强趋势豁免: 当ADX > 35时,即使布林带宽度不够也判定为趋势市
-        if adx >= config.STRONG_TREND_ADX and bb_width_pct > config.STRONG_TREND_BB:
-            # 使用优化的置信度计算
-            confidence = 0.7 * self._score_adx(adx) + 0.3 * self._score_bb(bb_width_pct)
+        # 震荡市判断 - 必须同时满足ADX弱且布林带窄
+        # 修改逻辑: 从 "or" 改为 "and",避免强趋势被误判
+        if adx < 20 and bb_width_pct < 2.0:
+            # 置信度: ADX越低,布林带越窄,置信度越高
+            confidence = 1.0 - (adx / 40) * 0.5 - (bb_width_pct / 4) * 0.5
             confidence = max(0.5, min(1.0, confidence))
-            logger.info(f"强趋势豁免触发: ADX={adx:.1f} > {config.STRONG_TREND_ADX}, BB={bb_width_pct:.2f}% > {config.STRONG_TREND_BB}%")
-            return MarketRegime.TRENDING, confidence
+            return MarketRegime.RANGING, confidence
 
         # 过渡市(默认)
         # 使用优化的置信度计算,但整体降低置信度
