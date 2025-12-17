@@ -216,7 +216,93 @@ class RiskManager:
             
         except Exception as e:
             logger.error(f"加载历史数据失败: {e}")
-    
+
+    # ==================== Policy Layer 集成（新增）====================
+
+    def get_policy_adjusted_stop_loss(self, entry_price: float, side: str, df: pd.DataFrame = None) -> float:
+        """
+        获取 Policy Layer 调整后的止损价格
+
+        Args:
+            entry_price: 入场价
+            side: 方向 (long/short)
+            df: K线数据
+
+        Returns:
+            止损价格
+        """
+        try:
+            from policy_layer import get_policy_layer
+
+            policy = get_policy_layer()
+            stop_loss_pct = policy.get_stop_loss_percent()
+
+            if side == 'long':
+                return entry_price * (1 - stop_loss_pct / config.LEVERAGE)
+            else:
+                return entry_price * (1 + stop_loss_pct / config.LEVERAGE)
+
+        except Exception as e:
+            logger.error(f"获取 Policy 止损参数失败: {e}")
+            # 失败时使用默认参数
+            return self._calculate_fixed_stop_loss(entry_price, side)
+
+    def get_policy_adjusted_take_profit(self, entry_price: float, side: str) -> float:
+        """
+        获取 Policy Layer 调整后的止盈价格
+
+        Args:
+            entry_price: 入场价
+            side: 方向 (long/short)
+
+        Returns:
+            止盈价格
+        """
+        try:
+            from policy_layer import get_policy_layer
+
+            policy = get_policy_layer()
+            take_profit_pct = policy.get_take_profit_percent()
+
+            if side == 'long':
+                return entry_price * (1 + take_profit_pct / config.LEVERAGE)
+            else:
+                return entry_price * (1 - take_profit_pct / config.LEVERAGE)
+
+        except Exception as e:
+            logger.error(f"获取 Policy 止盈参数失败: {e}")
+            # 失败时使用默认参数
+            if side == 'long':
+                return entry_price * (1 + config.TAKE_PROFIT_PERCENT / config.LEVERAGE)
+            else:
+                return entry_price * (1 - config.TAKE_PROFIT_PERCENT / config.LEVERAGE)
+
+    def get_policy_adjusted_position_size(self, base_amount: float) -> float:
+        """
+        获取 Policy Layer 调整后的仓位大小
+
+        Args:
+            base_amount: 基础仓位数量
+
+        Returns:
+            调整后的仓位数量
+        """
+        try:
+            from policy_layer import get_policy_layer
+
+            policy = get_policy_layer()
+            multiplier = policy.get_position_size_multiplier()
+
+            adjusted_amount = base_amount * multiplier
+            logger.debug(f"Policy Layer 仓位调整: {base_amount:.6f} × {multiplier:.2f} = {adjusted_amount:.6f}")
+
+            return adjusted_amount
+
+        except Exception as e:
+            logger.error(f"获取 Policy 仓位倍数失败: {e}")
+            # 失败时返回原始仓位
+            return base_amount
+
     # ==================== 仓位管理 ====================
     
     def calculate_position_size(
@@ -284,10 +370,14 @@ class RiskManager:
         
         # 转换为合约数量
         amount = position_value / current_price
-        
+
+        # Policy Layer 仓位调整（新增）
+        if getattr(config, 'ENABLE_POLICY_LAYER', False):
+            amount = self.get_policy_adjusted_position_size(amount)
+
         logger.info(f"计算仓位: 余额={balance:.2f}, 比例={base_ratio:.2%}, "
                    f"价值={position_value:.2f}, 数量={amount:.6f}")
-        
+
         return amount
     
     def _calculate_current_volatility(self, df: pd.DataFrame) -> float:
@@ -333,7 +423,13 @@ class RiskManager:
         """
         计算止损价格
         支持固定止损和 ATR 动态止损
+        **现在会使用 Policy Layer 的参数**
         """
+        # 检查是否启用 Policy Layer
+        if getattr(config, 'ENABLE_POLICY_LAYER', False):
+            return self.get_policy_adjusted_stop_loss(entry_price, side, df)
+
+        # 原有逻辑保持不变
         if config.USE_ATR_STOP_LOSS and df is not None:
             return self._calculate_atr_stop_loss(entry_price, side, df)
         else:
@@ -391,26 +487,32 @@ class RiskManager:
         """
         计算止盈价格
         基于风险回报比
+        **现在会使用 Policy Layer 的参数**
         """
+        # 检查是否启用 Policy Layer
+        if getattr(config, 'ENABLE_POLICY_LAYER', False):
+            return self.get_policy_adjusted_take_profit(entry_price, side)
+
+        # 原有逻辑保持不变
         stop_loss = self.calculate_stop_loss(entry_price, side)
         risk = abs(entry_price - stop_loss)
         reward = risk * risk_reward_ratio
-        
+
         if side == 'long':
             take_profit = entry_price + reward
         else:
             take_profit = entry_price - reward
-        
+
         # 也可以使用固定比例
         fixed_tp = entry_price * (1 + config.TAKE_PROFIT_PERCENT / config.LEVERAGE) if side == 'long' \
                    else entry_price * (1 - config.TAKE_PROFIT_PERCENT / config.LEVERAGE)
-        
+
         # 取较大的止盈
         if side == 'long':
             take_profit = max(take_profit, fixed_tp)
         else:
             take_profit = min(take_profit, fixed_tp)
-        
+
         return take_profit
     
     def calculate_trailing_stop(
