@@ -375,6 +375,22 @@ class RiskManager:
         if getattr(config, 'ENABLE_POLICY_LAYER', False):
             amount = self.get_policy_adjusted_position_size(amount)
 
+        # 最小交易额保护（新增）
+        min_amount = config.MIN_ORDER_USDT / current_price
+        if amount < min_amount:
+            original_amount = amount
+            amount = min_amount
+            logger.warning(f"⚠️ 调整后仓位 {original_amount:.6f} ({original_amount * current_price:.2f} USDT) "
+                          f"低于最小交易额 {config.MIN_ORDER_USDT} USDT")
+            logger.warning(f"   自动提高到最小交易额: {amount:.6f} ({amount * current_price:.2f} USDT)")
+
+            # 检查是否超过账户余额的安全限制
+            max_safe_value = balance * 0.8  # 最多使用80%资金
+            if amount * current_price > max_safe_value:
+                logger.error(f"❌ 最小交易额 {config.MIN_ORDER_USDT} USDT 超过账户余额的80% ({max_safe_value:.2f} USDT)")
+                logger.error(f"   建议: 增加账户余额到至少 {config.MIN_ORDER_USDT / 0.1:.2f} USDT")
+                return 0  # 返回0表示无法开仓
+
         logger.info(f"计算仓位: 余额={balance:.2f}, 比例={base_ratio:.2%}, "
                    f"价值={position_value:.2f}, 数量={amount:.6f}")
 
