@@ -110,7 +110,7 @@ class TradingContextBuilder:
         bb_percent = self._get_indicator_value(indicators, 'bb_percent_b', 0.5)
 
         # 强趋势市
-        if adx > 25 and abs(ema_short - ema_long) / ema_long > 0.01:
+        if adx > 25 and ema_long != 0 and abs(ema_short - ema_long) / ema_long > 0.01:
             return MarketRegime.TREND
 
         # 震荡市
