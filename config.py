@@ -82,10 +82,10 @@ USE_PARTIAL_TAKE_PROFIT = True # 是否分批止盈
 ENABLE_TRAILING_TAKE_PROFIT = True
 
 # 最小盈利门槛（USDT）- 必须超过此值才算真正盈利
-# 计算公式：开仓手续费 + 平仓手续费 + 安全边际
+# 计算公式：开仓手续费 + 平仓手续费
 # 对于10USDT订单，10倍杠杆：10 * 0.0006 * 2 = 0.012 USDT
-# 增加安全边际到0.15 USDT，确保有足够的盈利空间
-MIN_PROFIT_THRESHOLD_USDT = 0.15
+# 优化说明：从0.15降低到0.012，仅覆盖手续费成本，让动态止盈更容易启用
+MIN_PROFIT_THRESHOLD_USDT = 0.012
 
 # 价格均值窗口大小（N次价格）
 # 建议：5-10次，平衡灵敏度和稳定性
