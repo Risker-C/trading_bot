@@ -150,7 +150,7 @@ class TradingBot:
         logger.info(f"   仓位比例: {config.POSITION_SIZE_PERCENT:.0%}")
         logger.info(f"   止损: {config.STOP_LOSS_PERCENT:.0%}")
         logger.info(f"   止盈: {config.TAKE_PROFIT_PERCENT:.0%}")
-        logger.info(f"   移动止损: {config.TRAILING_STOP_PERCENT:.0%}")
+        logger.info(f"   移动止损: {config.TRAILING_STOP_PERCENT:.1%}")
         logger.info(f"   K线周期: {config.TIMEFRAME}")
         logger.info(f"   启用策略: {', '.join(config.ENABLE_STRATEGIES)}")
     

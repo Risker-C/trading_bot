@@ -67,7 +67,7 @@ VOLATILITY_LOOKBACK = 20              # 波动率计算周期
 
 STOP_LOSS_PERCENT = 0.02       # 止损比例 2%
 TAKE_PROFIT_PERCENT = 0.04     # 止盈比例 4%
-TRAILING_STOP_PERCENT = 0.025  # 移动止损回撤比例 2.5%（从1.5%提高，给趋势更多发展空间）
+TRAILING_STOP_PERCENT = 0.005  # 移动止损回撤比例 0.5%（降低以便更容易启用移动止损保护）
 
 # ATR 动态止损（新增）
 USE_ATR_STOP_LOSS = True       # 是否使用 ATR 止损
@@ -171,7 +171,7 @@ STRONG_TREND_ADX = 35.0           # 强趋势ADX阈值（超过此值时放宽�
 STRONG_TREND_BB = 2.0             # 强趋势时的布林带宽度阈值（%）
 TREND_EXIT_ADX = 27.0             # 趋势退出ADX阈值（滞回机制）
 TREND_EXIT_BB = 2.5               # 趋势退出布林带宽度阈值（%）
-TRANSITIONING_CONFIDENCE_THRESHOLD = 0.4  # 过渡市置信度阈值
+TRANSITIONING_CONFIDENCE_THRESHOLD = 0.25  # 过渡市置信度阈值（降低以允许更多交易）
 
 # ATR
 ATR_PERIOD = 14
@@ -273,7 +273,7 @@ STATUS_MONITOR_MODULES = {
 # ==================== Claude AI 分析配置（新增）====================
 
 # 是否启用 Claude AI 分析
-ENABLE_CLAUDE_ANALYSIS = True  # 已启用
+ENABLE_CLAUDE_ANALYSIS = False  # 禁用以避免 Claude API 使用策略违规
 
 # Claude API配置（从环境变量读取）
 CLAUDE_API_KEY = os.getenv("ANTHROPIC_AUTH_TOKEN", "")  # 使用ANTHROPIC_AUTH_TOKEN
@@ -313,7 +313,7 @@ CLAUDE_MAX_DAILY_COST = 10.0
 # ==================== Claude定时分析配置（新增）====================
 
 # 是否启用Claude定时分析
-ENABLE_CLAUDE_PERIODIC_ANALYSIS = True
+ENABLE_CLAUDE_PERIODIC_ANALYSIS = False  # 禁用以避免 Claude API 使用策略违规
 
 # 定时分析间隔（分钟）- 用于场景2：30分钟定时分析
 CLAUDE_PERIODIC_INTERVAL = 30  # 默认30分钟
@@ -339,7 +339,7 @@ CLAUDE_ANALYSIS_MODULES = {
 # ==================== Claude每日报告配置（新增）====================
 
 # 是否启用Claude每日报告 - 场景3：每天早上8点的报告
-ENABLE_CLAUDE_DAILY_REPORT = True
+ENABLE_CLAUDE_DAILY_REPORT = False  # 禁用以避免 Claude API 使用策略违规
 
 # 每日报告时间（小时，24小时制）
 CLAUDE_DAILY_REPORT_HOUR = 8  # 早上8点
@@ -359,7 +359,7 @@ CLAUDE_DAILY_REVIEW_DAYS = 1
 # ==================== Policy Layer 配置（新增）====================
 
 # 是否启用 Policy Layer（策略治理层）
-ENABLE_POLICY_LAYER = True
+ENABLE_POLICY_LAYER = False  # 禁用以避免 Claude API 使用策略违规
 
 # Policy Layer 更新间隔（分钟）
 # Claude 会定期分析交易上下文并更新策略参数
