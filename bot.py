@@ -17,6 +17,7 @@ from status_monitor import StatusMonitorScheduler
 from claude_analyzer import get_claude_analyzer
 from claude_periodic_analyzer import get_claude_periodic_analyzer
 from trend_filter import get_trend_filter
+from direction_filter import get_direction_filter
 from indicators import IndicatorCalculator
 from shadow_mode import get_shadow_tracker
 from claude_guardrails import get_guardrails
@@ -55,6 +56,9 @@ class TradingBot:
         # 初始化 Claude 分析器和趋势过滤器
         self.claude_analyzer = get_claude_analyzer()
         self.trend_filter = get_trend_filter()
+
+        # 初始化方向过滤器（解决做多胜率低的问题）
+        self.direction_filter = get_direction_filter()
 
         # 初始化 P0 模块（影子模式、Claude护栏）
         self.shadow_tracker = get_shadow_tracker()
@@ -356,6 +360,18 @@ class TradingBot:
         # 运行选定的策略
         signals = analyze_all_strategies(df, selected_strategies)
 
+        # 计算策略一致性（用于方向过滤）
+        strategy_agreement = 0.0
+        if signals:
+            # 统计做多和做空信号的数量
+            long_signals = sum(1 for s in signals if s.signal == Signal.LONG)
+            short_signals = sum(1 for s in signals if s.signal == Signal.SHORT)
+            total_signals = len(signals)
+
+            # 策略一致性 = 主导方向的信号数量 / 总信号数量
+            if total_signals > 0:
+                strategy_agreement = max(long_signals, short_signals) / total_signals
+
         # 计算技术指标（用于趋势过滤和 Claude 分析）
         ind = IndicatorCalculator(df)
         indicators = {
@@ -403,6 +419,30 @@ class TradingBot:
                         rejection_stage="trend_filter",
                         rejection_reason=trend_reason,
                         trend_details={'pass': False, 'reason': trend_reason}
+                    )
+                    continue
+
+                # 方向过滤检查（对做多信号要求更严格）
+                direction_pass, direction_reason = self.direction_filter.filter_signal(
+                    trade_signal, df, strategy_agreement
+                )
+                if not direction_pass:
+                    logger.warning(f"❌ 方向过滤拒绝: {direction_reason}")
+                    # 影子模式：记录被方向过滤拒绝的信号
+                    self.shadow_tracker.record_decision(
+                        trade_id=trade_id,
+                        price=current_price,
+                        market_regime=regime_info.regime.value,
+                        volatility=regime_info.volatility,
+                        signal=trade_signal,
+                        would_execute_strategy=True,
+                        would_execute_after_trend=True,
+                        would_execute_after_claude=False,
+                        would_execute_after_exec=False,
+                        final_would_execute=False,
+                        rejection_stage="direction_filter",
+                        rejection_reason=direction_reason,
+                        trend_details={'pass': True, 'reason': trend_reason}
                     )
                     continue
 
@@ -504,6 +544,30 @@ class TradingBot:
                         rejection_stage="trend_filter",
                         rejection_reason=trend_reason,
                         trend_details={'pass': False, 'reason': trend_reason}
+                    )
+                    continue
+
+                # 方向过滤检查（对做空信号使用正常标准）
+                direction_pass, direction_reason = self.direction_filter.filter_signal(
+                    trade_signal, df, strategy_agreement
+                )
+                if not direction_pass:
+                    logger.warning(f"❌ 方向过滤拒绝: {direction_reason}")
+                    # 影子模式：记录被方向过滤拒绝的信号
+                    self.shadow_tracker.record_decision(
+                        trade_id=trade_id,
+                        price=current_price,
+                        market_regime=regime_info.regime.value,
+                        volatility=regime_info.volatility,
+                        signal=trade_signal,
+                        would_execute_strategy=True,
+                        would_execute_after_trend=True,
+                        would_execute_after_claude=False,
+                        would_execute_after_exec=False,
+                        final_would_execute=False,
+                        rejection_stage="direction_filter",
+                        rejection_reason=direction_reason,
+                        trend_details={'pass': True, 'reason': trend_reason}
                     )
                     continue
 

@@ -410,6 +410,26 @@ MIN_VOLUME_RATIO = 0.5  # 50%
 # ATR突增阈值（超过此倍数延迟进场）
 ATR_SPIKE_THRESHOLD = 1.5  # 1.5倍
 
+# ==================== 方向过滤器配置（新增）====================
+
+# 是否启用方向过滤器（解决做多胜率低的问题）
+ENABLE_DIRECTION_FILTER = True
+
+# 做多信号要求（更严格的标准）
+LONG_MIN_STRENGTH = 0.7        # 做多需要70%信号强度
+LONG_MIN_AGREEMENT = 0.7       # 做多需要70%策略一致性
+
+# 做空信号要求（正常标准）
+SHORT_MIN_STRENGTH = 0.5       # 做空保持50%信号强度
+SHORT_MIN_AGREEMENT = 0.6      # 做空保持60%策略一致性
+
+# 是否启用自适应阈值调整（根据历史胜率动态调整）
+ENABLE_ADAPTIVE_THRESHOLDS = True
+
+# 自适应调整的触发条件
+ADAPTIVE_LOW_WIN_RATE = 0.3    # 做多胜率低于30%时提高要求
+ADAPTIVE_HIGH_WIN_RATE = 0.4   # 做空胜率高于40%时放宽要求
+
 # ==================== 仓位管理配置（增强）====================
 
 # 目标波动率（用于波动率调整仓位）

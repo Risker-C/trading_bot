@@ -324,6 +324,52 @@ def test_claude_periodic_analysis():
         return False
 
 
+def test_direction_filter():
+    """测试方向过滤器功能"""
+    print("\n测试方向过滤器...")
+
+    try:
+        # 导入测试模块
+        from scripts.test_direction_filter import (
+            test_config_validation,
+            test_filter_initialization,
+            test_long_signal_strong,
+            test_short_signal_normal,
+            test_uptrend_detection,
+            test_adaptive_thresholds
+        )
+
+        # 运行关键测试
+        tests = [
+            ("配置验证", test_config_validation),
+            ("过滤器初始化", test_filter_initialization),
+            ("做多信号过滤", test_long_signal_strong),
+            ("做空信号过滤", test_short_signal_normal),
+            ("趋势检测", test_uptrend_detection),
+            ("自适应调整", test_adaptive_thresholds),
+        ]
+
+        passed = 0
+        failed = 0
+
+        for name, test_func in tests:
+            try:
+                test_func()
+                print(f"  ✅ {name}")
+                passed += 1
+            except Exception as e:
+                print(f"  ❌ {name}: {e}")
+                failed += 1
+
+        print(f"  总计: {passed}/{len(tests)} 通过")
+        return failed == 0
+
+    except Exception as e:
+        print(f"  ❌ 方向过滤器测试失败: {e}")
+        traceback.print_exc()
+        return False
+
+
 def main():
     """运行所有测试"""
     print("=" * 50)
@@ -339,6 +385,7 @@ def main():
         '数据库': test_database(),
         'API连接': test_api_connection(),
         'Claude定时分析': test_claude_periodic_analysis(),
+        '方向过滤器': test_direction_filter(),
     }
     
     print("\n" + "=" * 50)
