@@ -1,5 +1,161 @@
 # 更新日志
 
+## [2025-12-18] 新增方向过滤器功能模块
+
+### 类型
+- 🎉 新功能
+
+### 功能概述
+
+新增DirectionFilter方向过滤器模块，用于解决做多胜率低的问题。通过对做多和做空信号实施差异化的过滤标准，提高整体交易胜率。做多信号需要更强的信号强度、更高的策略一致性，以及明确的上涨趋势确认，而做空信号保持正常标准。该模块可以根据历史胜率动态调整阈值，实现自适应优化。
+
+### 修改内容
+
+#### 新增的文件
+- `direction_filter.py`: 方向过滤器功能模块，提供差异化的信号过滤机制
+
+### 技术细节
+
+#### 核心实现
+
+**1. 差异化信号强度要求**
+```python
+# 做多需要更强的确认（因为历史胜率低）
+self.long_min_strength = 0.7   # 做多需要70%强度
+self.short_min_strength = 0.5  # 做空保持50%强度
+
+# 做多需要更多策略一致
+self.long_min_agreement = 0.7  # 做多需要70%策略一致
+self.short_min_agreement = 0.6 # 做空保持60%策略一致
+```
+
+**2. 做多额外趋势确认**
+```python
+def _check_uptrend(self, df: pd.DataFrame) -> bool:
+    """
+    检查是否处于明确的上涨趋势
+
+    要求：
+    1. EMA9 > EMA21 > EMA55（多头排列）
+    2. 价格在EMA9上方
+    3. 最近3根K线至少2根收阳
+    """
+```
+
+**3. 动态阈值调整**
+```python
+def update_thresholds(self, long_win_rate: float, short_win_rate: float):
+    """根据历史胜率动态调整阈值"""
+    # 如果做多胜率低于30%，提高要求
+    if long_win_rate < 0.3:
+        self.long_min_strength = 0.8
+        self.long_min_agreement = 0.8
+
+    # 如果做空胜率高于40%，可以适当放宽
+    if short_win_rate > 0.4:
+        self.short_min_strength = 0.45
+        self.short_min_agreement = 0.55
+```
+
+**4. 全局实例接口**
+```python
+def get_direction_filter() -> DirectionFilter:
+    """获取方向过滤器实例（单例模式）"""
+    global _direction_filter
+    if _direction_filter is None:
+        _direction_filter = DirectionFilter()
+    return _direction_filter
+```
+
+### 测试结果
+- ✅ Python语法检查通过
+- ✅ 代码结构清晰，易于集成
+- ✅ 提供完整的文档注释
+- ⚠️ 待集成到主程序进行实际测试
+
+### 影响范围
+
+**预期效果：**
+- 提高做多信号质量，减少低质量做多交易
+- 保持做空信号正常标准，不影响做空表现
+- 根据历史数据自适应调整，持续优化
+- 预期可将做多胜率从当前水平提升到30%+
+
+**集成方式：**
+```python
+from direction_filter import get_direction_filter
+
+# 在信号生成后进行过滤
+filter = get_direction_filter()
+passed, reason = filter.filter_signal(signal, df, strategy_agreement)
+
+if not passed:
+    logger.info(f"信号被过滤: {reason}")
+    return None
+```
+
+**兼容性：**
+- ✅ 独立模块，不影响现有功能
+- ✅ 可选使用，不强制启用
+- ✅ 提供清晰的接口，易于集成
+
+### 使用说明
+
+**基本使用：**
+```python
+from direction_filter import get_direction_filter
+from strategies import TradeSignal, Signal
+
+# 获取过滤器实例
+filter = get_direction_filter()
+
+# 过滤信号
+passed, reason = filter.filter_signal(
+    signal=trade_signal,
+    df=kline_data,
+    strategy_agreement=0.75  # 策略一致性
+)
+
+if passed:
+    # 执行交易
+    execute_trade(signal)
+else:
+    # 记录过滤原因
+    logger.info(f"信号被过滤: {reason}")
+```
+
+**动态调整阈值：**
+```python
+# 根据历史胜率更新阈值
+filter.update_thresholds(
+    long_win_rate=0.25,   # 做多胜率25%
+    short_win_rate=0.45   # 做空胜率45%
+)
+```
+
+### 后续建议
+
+1. **集成到主程序**：在bot.py的信号处理流程中集成方向过滤器
+2. **监控效果**：记录过滤前后的信号数量和胜率变化
+3. **参数优化**：根据实际效果调整阈值参数
+4. **扩展功能**：考虑添加更多过滤条件（如成交量、波动率等）
+5. **A/B测试**：对比启用和不启用过滤器的效果差异
+
+### 相关问题
+
+**解决的问题：**
+- 当前整体胜率23.5%，低于盈亏平衡所需的33%
+- 做多和做空表现可能存在差异
+- 需要提高信号质量，减少低质量交易
+
+**设计思路：**
+- 基于历史数据分析，做多胜率通常低于做空
+- 通过提高做多信号的准入门槛，过滤低质量信号
+- 保持做空信号正常标准，避免过度限制
+- 动态调整机制确保策略能够适应市场变化
+
+---
+
 ## [2025-12-18] 优化日志系统和数据库字段扩展
 
 ### 类型
