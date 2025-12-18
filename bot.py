@@ -74,6 +74,13 @@ class TradingBot:
             self.context_builder = None
             logger.info("⚠️ Policy Layer 未启用")
 
+        # 日志优化：添加计数器以减少冗余日志
+        self.no_signal_count = 0  # 无信号计数器
+        self.NO_SIGNAL_LOG_INTERVAL = 12  # 每12次（约1分钟）打印一次
+        self.last_market_state = None  # 上次市场状态（用于检测变化）
+        self.heartbeat_count = 0  # 心跳计数器
+        self.HEARTBEAT_INTERVAL = 60  # 每60次循环（约5分钟）打印一次心跳
+
         # 注册信号处理
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -303,6 +310,15 @@ class TradingBot:
     def _check_entry_conditions(self, df, current_price: float):
         """检查开仓条件"""
 
+        # 心跳日志：定期输出系统运行状态
+        self.heartbeat_count += 1
+        if self.heartbeat_count >= self.HEARTBEAT_INTERVAL:
+            # 快速检测市场状态用于心跳日志
+            detector_temp = MarketRegimeDetector(df)
+            regime_temp = detector_temp.detect()
+            logger.info(f"💓 系统运行中 | 价格: {current_price:.2f} | 市场: {regime_temp.regime.value.upper()} | 无持仓")
+            self.heartbeat_count = 0
+
         # 风控检查
         can_open, reason = self.risk_manager.can_open_position()
         if not can_open:
@@ -323,11 +339,16 @@ class TradingBot:
         if hasattr(config, 'USE_DYNAMIC_STRATEGY') and config.USE_DYNAMIC_STRATEGY:
             # 动态策略选择
             selected_strategies = detector.get_suitable_strategies(regime_info)
-            logger.info(
-                f"市场状态: {regime_info.regime.value.upper()} "
-                f"(ADX={regime_info.adx:.1f}, 宽度={regime_info.bb_width:.2f}%) "
-                f"→ 策略: {', '.join(selected_strategies)}"
-            )
+
+            # 仅在市场状态变化时打印日志，减少冗余
+            current_state = f"{regime_info.regime.value}_{regime_info.adx:.0f}"
+            if current_state != self.last_market_state:
+                logger.info(
+                    f"市场状态: {regime_info.regime.value.upper()} "
+                    f"(ADX={regime_info.adx:.1f}, 宽度={regime_info.bb_width:.2f}%) "
+                    f"→ 策略: {', '.join(selected_strategies)}"
+                )
+                self.last_market_state = current_state
         else:
             # 使用配置文件中的固定策略
             selected_strategies = config.ENABLE_STRATEGIES
@@ -560,8 +581,11 @@ class TradingBot:
                 self._execute_open_short(trade_signal, current_price, df)
                 return
 
-        # 无信号或所有信号被过滤
-        logger.debug(f"当前价格: {current_price:.2f} - 无有效开仓信号")
+        # 无信号或所有信号被过滤 - 使用计数器减少日志冗余
+        self.no_signal_count += 1
+        if self.no_signal_count >= self.NO_SIGNAL_LOG_INTERVAL:
+            logger.debug(f"当前价格: {current_price:.2f} - 无有效开仓信号 (已检查{self.no_signal_count}次)")
+            self.no_signal_count = 0
     
     def _check_exit_conditions(self, df, current_price: float, position):
         """检查退出条件"""
@@ -731,8 +755,8 @@ class TradingBot:
         pnl_percent = (pnl / (entry_price * amount)) * 100 * config.LEVERAGE
 
         if success:
-            # 更新风控状态
-            self.risk_manager.record_trade_result(pnl)
+            # 注意：不在这里更新风控状态，因为 trader.close_position() 内部已经调用了 record_trade_result()
+            # 避免重复记录导致统计错误
 
             # 影子模式：更新实际交易结果
             if self.current_trade_id:
@@ -748,15 +772,8 @@ class TradingBot:
             self.current_strategy = None
             self.current_trade_id = None  # 重置trade_id
 
-            # 记录交易
-            db.log_trade(
-                config.SYMBOL, position['side'], 'close',
-                amount, current_price,
-                order_id="",  # close_position 方法返回布尔值，没有order_id
-                value_usdt=amount * current_price,
-                pnl=pnl, pnl_percent=pnl_percent,
-                strategy=self.current_strategy or "", reason=reason
-            )
+            # 注意：不在这里记录交易，因为 trader.close_position() 内部已经调用了 db.log_trade()
+            # 避免重复记录到数据库
 
             # 记录风控事件
             db.log_risk_event(

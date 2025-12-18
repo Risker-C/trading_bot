@@ -362,61 +362,116 @@ class BitgetTrader:
             return None
     
     def open_long(self, amount: float, df: pd.DataFrame = None) -> bool:
-        """开多仓"""
+        """开多仓（P1优化：记录完整的交易信息）"""
         order = self.create_market_order("buy", amount)
-        
+
         if order:
             # 获取成交价格
             ticker = self.get_ticker()
             entry_price = ticker['last'] if ticker else 0
-            
+
+            # P1优化：获取订单详情以记录实际成交信息
+            order_id = order.get('id', '')
+            filled_price = entry_price  # 默认使用ticker价格
+            filled_time = None
+            fee = None
+            fee_currency = None
+
+            try:
+                # 尝试获取订单详情
+                if order_id and self.exchange:
+                    order_detail = self.exchange.fetch_order(order_id, config.SYMBOL)
+                    # 实际成交均价
+                    filled_price = order_detail.get('average') or order_detail.get('price') or entry_price
+                    # 实际成交时间
+                    filled_time = order_detail.get('timestamp')
+                    # 手续费信息
+                    fee_info = order_detail.get('fee', {})
+                    fee = fee_info.get('cost')
+                    fee_currency = fee_info.get('currency')
+            except Exception as e:
+                logger.warning(f"获取订单详情失败: {e}，使用默认值")
+
             # 设置持仓
             self.risk_manager.set_position(
                 side='long',
                 amount=amount,
-                entry_price=entry_price,
+                entry_price=filled_price,  # 使用实际成交价
                 df=df
             )
-            
-            # 记录到数据库
+
+            # 记录到数据库（P1优化：包含完整的交易信息）
             db.log_trade(
                 symbol=config.SYMBOL,
                 side='long',
                 action='open',
                 amount=amount,
                 price=entry_price,
-                strategy=order.get('info', {}).get('strategy', 'unknown')
+                strategy=order.get('info', {}).get('strategy', 'unknown'),
+                order_id=order_id,
+                filled_price=filled_price,
+                filled_time=filled_time,
+                fee=fee,
+                fee_currency=fee_currency
             )
-            
+
             return True
-        
+
         return False
     
     def open_short(self, amount: float, df: pd.DataFrame = None) -> bool:
-        """开空仓"""
+        """开空仓（P1优化：记录完整的交易信息）"""
         order = self.create_market_order("sell", amount)
-        
+
         if order:
             ticker = self.get_ticker()
             entry_price = ticker['last'] if ticker else 0
-            
+
+            # P1优化：获取订单详情以记录实际成交信息
+            order_id = order.get('id', '')
+            filled_price = entry_price  # 默认使用ticker价格
+            filled_time = None
+            fee = None
+            fee_currency = None
+
+            try:
+                # 尝试获取订单详情
+                if order_id and self.exchange:
+                    order_detail = self.exchange.fetch_order(order_id, config.SYMBOL)
+                    # 实际成交均价
+                    filled_price = order_detail.get('average') or order_detail.get('price') or entry_price
+                    # 实际成交时间
+                    filled_time = order_detail.get('timestamp')
+                    # 手续费信息
+                    fee_info = order_detail.get('fee', {})
+                    fee = fee_info.get('cost')
+                    fee_currency = fee_info.get('currency')
+            except Exception as e:
+                logger.warning(f"获取订单详情失败: {e}，使用默认值")
+
             self.risk_manager.set_position(
                 side='short',
                 amount=amount,
-                entry_price=entry_price,
+                entry_price=filled_price,  # 使用实际成交价
                 df=df
             )
-            
+
+            # 记录到数据库（P1优化：包含完整的交易信息）
             db.log_trade(
                 symbol=config.SYMBOL,
                 side='short',
                 action='open',
                 amount=amount,
-                price=entry_price
+                price=entry_price,
+                order_id=order_id,
+                filled_price=filled_price,
+                filled_time=filled_time,
+                fee=fee,
+                fee_currency=fee_currency
             )
-            
+
             return True
-        
+
         return False
     
     def close_position(self, reason: str = "", position_data: dict = None) -> bool:
@@ -481,16 +536,41 @@ class BitgetTrader:
             ticker = self.get_ticker()
             close_price = ticker['last'] if ticker else 0
 
-            # 计算盈亏
+            # P1优化：获取订单详情以记录实际成交信息
+            order_id = order.get('id', '') if isinstance(order, dict) else ''
+            filled_price = close_price  # 默认使用ticker价格
+            filled_time = None
+            fee = None
+            fee_currency = None
+
+            try:
+                # 尝试获取订单详情（仅当有order_id时）
+                if order_id and self.exchange:
+                    order_detail = self.exchange.fetch_order(order_id, config.SYMBOL)
+                    # 实际成交均价
+                    filled_price = order_detail.get('average') or order_detail.get('price') or close_price
+                    # 实际成交时间
+                    filled_time = order_detail.get('timestamp')
+                    # 手续费信息
+                    fee_info = order_detail.get('fee', {})
+                    fee = fee_info.get('cost')
+                    fee_currency = fee_info.get('currency')
+            except Exception as e:
+                logger.warning(f"获取平仓订单详情失败: {e}，使用默认值")
+
+            # 计算盈亏（使用实际成交价）
             if position_side == 'long':
-                pnl = (close_price - position_entry_price) * position_amount
+                pnl = (filled_price - position_entry_price) * position_amount
             else:
-                pnl = (position_entry_price - close_price) * position_amount
+                pnl = (position_entry_price - filled_price) * position_amount
+
+            # 计算盈亏百分比
+            pnl_percent = (pnl / (position_entry_price * position_amount)) * 100 * config.LEVERAGE
 
             # 记录交易结果
             self.risk_manager.record_trade_result(pnl)
 
-            # 记录到数据库
+            # 记录到数据库（P1优化：包含完整的交易信息）
             db.log_trade(
                 symbol=config.SYMBOL,
                 side=position_side,
@@ -498,7 +578,13 @@ class BitgetTrader:
                 amount=position_amount,
                 price=close_price,
                 pnl=pnl,
-                reason=reason
+                pnl_percent=pnl_percent,
+                reason=reason,
+                order_id=order_id,
+                filled_price=filled_price,
+                filled_time=filled_time,
+                fee=fee,
+                fee_currency=fee_currency
             )
             
             # 清除持仓

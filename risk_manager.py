@@ -256,10 +256,12 @@ class RiskManager:
                     self.metrics.max_consecutive_wins, consecutive_win
                 )
             
-            self.metrics.total_trades = len(trades)
+            # 只计算有 PnL 的完成交易（排除开仓记录和 pnl=0 的记录）
+            completed_trades = len(wins) + len(losses)
+            self.metrics.total_trades = completed_trades
             self.metrics.winning_trades = len(wins)
             self.metrics.losing_trades = len(losses)
-            self.metrics.win_rate = len(wins) / len(trades) if trades else 0
+            self.metrics.win_rate = len(wins) / completed_trades if completed_trades > 0 else 0
             self.metrics.avg_win = sum(wins) / len(wins) if wins else 0
             self.metrics.avg_loss = sum(losses) / len(losses) if losses else 0
             self.metrics.total_pnl = sum(wins) + sum(losses)
@@ -1034,9 +1036,10 @@ class RiskManager:
         """记录交易结果"""
         self.daily_pnl += pnl
         self.metrics.total_pnl += pnl
-        self.metrics.total_trades += 1
-        
+
+        # 只计算有明确结果的交易（排除 pnl=0 的情况）
         if pnl > 0:
+            self.metrics.total_trades += 1
             self.metrics.winning_trades += 1
             self.metrics.consecutive_wins += 1
             self.metrics.consecutive_losses = 0
@@ -1045,6 +1048,7 @@ class RiskManager:
                 self.metrics.consecutive_wins
             )
         elif pnl < 0:
+            self.metrics.total_trades += 1
             self.metrics.losing_trades += 1
             self.metrics.consecutive_losses += 1
             self.metrics.consecutive_wins = 0
