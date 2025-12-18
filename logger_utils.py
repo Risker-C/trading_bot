@@ -2,6 +2,7 @@
 日志和数据库工具 - 增强版
 """
 import logging
+from logging.handlers import RotatingFileHandler
 import sqlite3
 from datetime import datetime
 from typing import Optional, Dict, Any, List
@@ -39,10 +40,12 @@ def get_logger(name: str) -> logging.Logger:
         )
         console_handler.setFormatter(console_format)
         
-        # 文件输出 - 兼容不同配置名
+        # 文件输出 - 使用日志轮转（P2优化）
         log_file = getattr(config, 'LOG_FILE', 'trading_bot.log')
-        file_handler = logging.FileHandler(
+        file_handler = RotatingFileHandler(
             os.path.join(LOG_DIR, log_file),
+            maxBytes=10*1024*1024,  # 10MB
+            backupCount=5,  # 保留5个备份
             encoding='utf-8'
         )
         file_handler.setLevel(logging.DEBUG)
@@ -91,6 +94,41 @@ class TradeDatabase:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # P1优化：添加新字段以支持完整的交易数据记录
+        # 检查并添加缺失的字段（兼容已存在的数据库）
+        try:
+            # 获取现有字段列表
+            cursor.execute("PRAGMA table_info(trades)")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+
+            # 添加 filled_price 字段（实际成交价）
+            if 'filled_price' not in existing_columns:
+                cursor.execute('ALTER TABLE trades ADD COLUMN filled_price REAL')
+
+            # 添加 filled_time 字段（实际成交时间）
+            if 'filled_time' not in existing_columns:
+                cursor.execute('ALTER TABLE trades ADD COLUMN filled_time TIMESTAMP')
+
+            # 添加 fee 字段（手续费）
+            if 'fee' not in existing_columns:
+                cursor.execute('ALTER TABLE trades ADD COLUMN fee REAL')
+
+            # 添加 fee_currency 字段（手续费币种）
+            if 'fee_currency' not in existing_columns:
+                cursor.execute('ALTER TABLE trades ADD COLUMN fee_currency TEXT')
+
+            # 添加 batch_number 字段（批次号，用于分批操作）
+            if 'batch_number' not in existing_columns:
+                cursor.execute('ALTER TABLE trades ADD COLUMN batch_number INTEGER')
+
+            # 添加 remaining_amount 字段（剩余持仓量，用于部分平仓）
+            if 'remaining_amount' not in existing_columns:
+                cursor.execute('ALTER TABLE trades ADD COLUMN remaining_amount REAL')
+
+        except Exception as e:
+            # 如果添加字段失败，记录错误但不影响程序运行
+            print(f"Warning: Failed to add new columns to trades table: {e}")
         
         # 持仓快照表
         cursor.execute('''
@@ -208,30 +246,49 @@ class TradeDatabase:
         pnl_percent: float = 0,
         strategy: str = "",
         reason: str = "",
-        status: str = "filled"
+        status: str = "filled",
+        # P1优化：新增字段以支持完整的交易数据记录
+        filled_price: float = None,
+        filled_time: str = None,
+        fee: float = None,
+        fee_currency: str = None,
+        batch_number: int = None,
+        remaining_amount: float = None
     ) -> int:
-        """记录交易（参数顺序调整，order_id 改为可选）"""
+        """
+        记录交易（P1优化：支持完整的交易数据记录）
+
+        新增参数：
+        - filled_price: 实际成交价（可能与price不同）
+        - filled_time: 实际成交时间
+        - fee: 手续费
+        - fee_currency: 手续费币种
+        - batch_number: 批次号（用于分批操作）
+        - remaining_amount: 剩余持仓量（用于部分平仓）
+        """
         conn = self._get_conn()
         cursor = conn.cursor()
-        
+
         # 自动计算 value_usdt
         if value_usdt == 0:
             value_usdt = amount * price
-        
+
         cursor.execute('''
             INSERT INTO trades (
                 order_id, symbol, side, action, amount, price,
-                value_usdt, pnl, pnl_percent, strategy, reason, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                value_usdt, pnl, pnl_percent, strategy, reason, status,
+                filled_price, filled_time, fee, fee_currency, batch_number, remaining_amount
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             order_id, symbol, side, action, amount, price,
-            value_usdt, pnl, pnl_percent, strategy, reason, status
+            value_usdt, pnl, pnl_percent, strategy, reason, status,
+            filled_price, filled_time, fee, fee_currency, batch_number, remaining_amount
         ))
-        
+
         trade_id = cursor.lastrowid
         conn.commit()
         conn.close()
-        
+
         return trade_id
     
     def log_signal(

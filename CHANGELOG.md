@@ -1,5 +1,136 @@
 # 更新日志
 
+## [2025-12-18] 优化日志系统和数据库字段扩展
+
+### 类型
+- ⚡ 性能优化 + 🔧 功能增强
+
+### 功能概述
+
+优化了日志系统，添加了日志轮转功能，防止日志文件无限增长。同时扩展了数据库trades表的字段，支持记录更完整的交易信息（实际成交价、成交时间、手续费等），为后续的交易分析和优化提供更详细的数据支持。
+
+### 修改内容
+
+#### 修改的文件
+- `logger_utils.py` (第5行, 第43-50行, 第97-131行, 第249-268行): 添加日志轮转功能和数据库字段动态扩展
+
+### 技术细节
+
+#### 核心实现
+
+**1. 日志轮转功能**
+```python
+# 修改前：使用普通FileHandler
+file_handler = logging.FileHandler(
+    os.path.join(LOG_DIR, log_file),
+    encoding='utf-8'
+)
+
+# 修改后：使用RotatingFileHandler
+from logging.handlers import RotatingFileHandler
+file_handler = RotatingFileHandler(
+    os.path.join(LOG_DIR, log_file),
+    maxBytes=10*1024*1024,  # 10MB
+    backupCount=5,  # 保留5个备份
+    encoding='utf-8'
+)
+```
+
+**2. 数据库字段动态扩展**
+```python
+# 自动检测并添加缺失字段
+cursor.execute("PRAGMA table_info(trades)")
+existing_columns = {row[1] for row in cursor.fetchall()}
+
+# 添加新字段（如果不存在）
+if 'filled_price' not in existing_columns:
+    cursor.execute('ALTER TABLE trades ADD COLUMN filled_price REAL')
+# ... 其他字段类似
+```
+
+**3. 新增数据库字段**
+- `filled_price` (REAL): 实际成交价格
+- `filled_time` (TIMESTAMP): 实际成交时间
+- `fee` (REAL): 交易手续费
+- `fee_currency` (TEXT): 手续费币种
+- `batch_number` (INTEGER): 批次号（用于分批操作）
+- `remaining_amount` (REAL): 剩余持仓量（用于部分平仓）
+
+**4. log_trade()方法扩展**
+```python
+def log_trade(
+    self,
+    # ... 原有参数
+    filled_price: float = None,      # 新增
+    filled_time: str = None,         # 新增
+    fee: float = None,               # 新增
+    fee_currency: str = None,        # 新增
+    batch_number: int = None,        # 新增
+    remaining_amount: float = None   # 新增
+) -> int:
+```
+
+### 测试结果
+- ✅ Python语法检查通过
+- ✅ 数据库字段自动添加成功
+- ✅ 向后兼容：旧数据库自动升级
+- ✅ 日志轮转功能正常工作
+
+### 影响范围
+
+**日志系统：**
+- 单个日志文件最大10MB
+- 自动轮转，保留5个备份
+- 防止磁盘空间被日志占满
+- 便于日志管理和查看
+
+**数据库扩展：**
+- 支持记录更详细的交易信息
+- 为交易分析提供更多数据维度
+- 向后兼容，不影响现有功能
+- 自动检测和添加字段，无需手动迁移
+
+**兼容性：**
+- ✅ 向后兼容：旧代码仍可正常工作
+- ✅ 自动升级：旧数据库自动添加新字段
+- ✅ 可选参数：新字段为可选，不强制使用
+
+### 使用说明
+
+**日志轮转：**
+- 日志文件达到10MB时自动轮转
+- 生成备份文件：trading_bot.log.1, trading_bot.log.2, ...
+- 最多保留5个备份，旧文件自动删除
+
+**新字段使用示例：**
+```python
+db.log_trade(
+    symbol='BTCUSDT',
+    side='long',
+    action='close',
+    amount=0.001,
+    price=86000,
+    pnl=10.5,
+    pnl_percent=2.5,
+    # 新增字段（可选）
+    filled_price=86010,           # 实际成交价
+    filled_time='2025-12-18 10:30:00',
+    fee=0.06,                     # 手续费
+    fee_currency='USDT',
+    batch_number=1,
+    remaining_amount=0.0005
+)
+```
+
+### 后续建议
+
+1. **监控日志轮转**：观察日志文件大小和轮转情况
+2. **利用新字段**：在交易分析中使用实际成交价和手续费数据
+3. **优化交易记录**：逐步在所有交易记录中填充新字段
+4. **数据分析**：基于更详细的数据进行交易策略优化
+
+---
+
 ## [2025-12-18] 修复胜率计算错误和交易重复记录问题
 
 ### 类型
