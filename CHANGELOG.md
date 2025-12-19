@@ -16,6 +16,7 @@
 #### 修改的文件
 - `config.py`: 新增日志分流配置项（ENABLE_LOG_SPLITTING、LOG_FILE_INFO、LOG_FILE_ERROR、LOG_FILE_DEBUG、LOG_FILE_WARNING、LOG_ROTATION_WHEN、LOG_ROTATION_INTERVAL、LOG_ROTATION_BACKUP_COUNT、CONSOLE_LOG_LEVEL、CONSOLE_SHOW_ALL_LEVELS）
 - `logger_utils.py`: 重构 get_logger 函数，新增 LevelFilter 类，实现日志分流架构
+- `test_all.py`: 集成日志分流测试到主测试套件
 
 #### 新增的文件
 - `docs/log_splitting.md`: 完整的日志分流功能说明文档（包含配置说明、使用方法、技术实现、故障排查、性能优化、扩展开发、最佳实践等）

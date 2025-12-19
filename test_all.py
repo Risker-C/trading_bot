@@ -370,6 +370,56 @@ def test_direction_filter():
         return False
 
 
+def test_log_splitting():
+    """测试日志分流功能"""
+    print("\n测试日志分流...")
+
+    try:
+        # 导入测试模块
+        from scripts.test_log_splitting import (
+            test_config_validation,
+            test_logger_creation,
+            test_level_filter,
+            test_log_file_creation,
+            test_log_content_separation,
+            test_log_format,
+            test_handler_count,
+            test_performance
+        )
+
+        # 运行关键测试
+        tests = [
+            ("配置验证", test_config_validation),
+            ("Logger创建", test_logger_creation),
+            ("级别过滤器", test_level_filter),
+            ("文件创建", test_log_file_creation),
+            ("内容分离", test_log_content_separation),
+            ("日志格式", test_log_format),
+            ("Handler验证", test_handler_count),
+            ("性能测试", test_performance),
+        ]
+
+        passed = 0
+        failed = 0
+
+        for name, test_func in tests:
+            try:
+                test_func()
+                print(f"  ✅ {name}")
+                passed += 1
+            except Exception as e:
+                print(f"  ❌ {name}: {e}")
+                failed += 1
+
+        print(f"  总计: {passed}/{len(tests)} 通过")
+        return failed == 0
+
+    except Exception as e:
+        print(f"  ❌ 日志分流测试失败: {e}")
+        traceback.print_exc()
+        return False
+
+
 def main():
     """运行所有测试"""
     print("=" * 50)
@@ -386,6 +436,7 @@ def main():
         'API连接': test_api_connection(),
         'Claude定时分析': test_claude_periodic_analysis(),
         '方向过滤器': test_direction_filter(),
+        '日志分流': test_log_splitting(),
     }
     
     print("\n" + "=" * 50)
