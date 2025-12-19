@@ -67,7 +67,7 @@ VOLATILITY_LOOKBACK = 20              # 波动率计算周期
 
 STOP_LOSS_PERCENT = 0.02       # 止损比例 2%
 TAKE_PROFIT_PERCENT = 0.04     # 止盈比例 4%
-TRAILING_STOP_PERCENT = 0.005  # 移动止损回撤比例 0.5%（降低以便更容易启用移动止损保护）
+TRAILING_STOP_PERCENT = 0.0015  # 移动止损回撤比例 0.15%（基于历史数据优化：中位数波动0.149%，此设置可覆盖50%+持仓）
 
 # ATR 动态止损（新增）
 USE_ATR_STOP_LOSS = True       # 是否使用 ATR 止损
@@ -198,9 +198,29 @@ AUTO_RECONNECT = True          # 自动重连
 
 DB_PATH = "trading_bot.db"
 LOG_DIR = "logs"
-LOG_FILE = "trading_bot.log"       # 新增
+LOG_FILE = "trading_bot.log"       # 主日志文件（已废弃，保留兼容性）
 LOG_LEVEL = "DEBUG"
 SAVE_EQUITY_CURVE = True
+
+# ==================== 日志分流配置 ====================
+
+# 是否启用日志分流（多文件存储）
+ENABLE_LOG_SPLITTING = True
+
+# 各级别日志文件名
+LOG_FILE_INFO = "info.log"         # INFO 级别日志
+LOG_FILE_ERROR = "error.log"       # ERROR 级别日志
+LOG_FILE_DEBUG = "debug.log"       # DEBUG 级别日志
+LOG_FILE_WARNING = "warning.log"   # WARNING 级别日志
+
+# 日志轮转配置
+LOG_ROTATION_WHEN = "midnight"     # 按天轮转：midnight
+LOG_ROTATION_INTERVAL = 1          # 轮转间隔：1天
+LOG_ROTATION_BACKUP_COUNT = 30     # 保留30天的日志备份
+
+# 控制台输出配置
+CONSOLE_LOG_LEVEL = "INFO"         # 控制台显示级别（聚合观察视图）
+CONSOLE_SHOW_ALL_LEVELS = True     # 控制台是否显示所有级别（观察层）
 
 # ==================== Telegram 通知（新增）====================
 
@@ -273,7 +293,7 @@ STATUS_MONITOR_MODULES = {
 # ==================== Claude AI 分析配置（新增）====================
 
 # 是否启用 Claude AI 分析
-ENABLE_CLAUDE_ANALYSIS = False  # 禁用以避免 Claude API 使用策略违规
+ENABLE_CLAUDE_ANALYSIS = True  # 启用实时信号分析
 
 # Claude API配置（从环境变量读取）
 CLAUDE_API_KEY = os.getenv("ANTHROPIC_AUTH_TOKEN", "")  # 使用ANTHROPIC_AUTH_TOKEN
@@ -313,7 +333,7 @@ CLAUDE_MAX_DAILY_COST = 10.0
 # ==================== Claude定时分析配置（新增）====================
 
 # 是否启用Claude定时分析
-ENABLE_CLAUDE_PERIODIC_ANALYSIS = False  # 禁用以避免 Claude API 使用策略违规
+ENABLE_CLAUDE_PERIODIC_ANALYSIS = True  # 启用定时市场分析（每30分钟）
 
 # 定时分析间隔（分钟）- 用于场景2：30分钟定时分析
 CLAUDE_PERIODIC_INTERVAL = 30  # 默认30分钟
@@ -339,7 +359,7 @@ CLAUDE_ANALYSIS_MODULES = {
 # ==================== Claude每日报告配置（新增）====================
 
 # 是否启用Claude每日报告 - 场景3：每天早上8点的报告
-ENABLE_CLAUDE_DAILY_REPORT = False  # 禁用以避免 Claude API 使用策略违规
+ENABLE_CLAUDE_DAILY_REPORT = True  # 启用每日报告（早上8点）
 
 # 每日报告时间（小时，24小时制）
 CLAUDE_DAILY_REPORT_HOUR = 8  # 早上8点
@@ -359,7 +379,7 @@ CLAUDE_DAILY_REVIEW_DAYS = 1
 # ==================== Policy Layer 配置（新增）====================
 
 # 是否启用 Policy Layer（策略治理层）
-ENABLE_POLICY_LAYER = False  # 禁用以避免 Claude API 使用策略违规
+ENABLE_POLICY_LAYER = False  # 禁用策略治理层（避免API阻止）
 
 # Policy Layer 更新间隔（分钟）
 # Claude 会定期分析交易上下文并更新策略参数

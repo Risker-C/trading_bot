@@ -2,7 +2,7 @@
 日志和数据库工具 - 增强版
 """
 import logging
-from logging.handlers import RotatingFileHandler
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 import sqlite3
 from datetime import datetime
 from typing import Optional, Dict, Any, List
@@ -22,42 +22,196 @@ if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
 
 
+class LevelFilter(logging.Filter):
+    """
+    日志级别过滤器
+    用于精确控制每个 handler 只接收特定级别的日志
+    """
+    def __init__(self, level: int, exact: bool = True):
+        """
+        初始化过滤器
+
+        Args:
+            level: 日志级别 (logging.DEBUG, logging.INFO, etc.)
+            exact: 是否精确匹配级别
+                   True: 只接收该级别的日志
+                   False: 接收该级别及以上的日志
+        """
+        super().__init__()
+        self.level = level
+        self.exact = exact
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """
+        过滤日志记录
+
+        Args:
+            record: 日志记录对象
+
+        Returns:
+            True: 接收该日志
+            False: 拒绝该日志
+        """
+        if self.exact:
+            # 精确匹配：只接收指定级别的日志
+            return record.levelno == self.level
+        else:
+            # 范围匹配：接收指定级别及以上的日志
+            return record.levelno >= self.level
+
+
 def get_logger(name: str) -> logging.Logger:
-    """获取 logger 实例"""
+    """
+    获取 logger 实例（支持日志分流）
+
+    架构设计：
+    - 存储层：多个文件 handler，按级别分流存储
+      * debug.log: DEBUG 级别日志
+      * info.log: INFO 级别日志
+      * warning.log: WARNING 级别日志
+      * error.log: ERROR 级别日志
+    - 观察层：控制台 handler，聚合显示所有级别日志
+
+    Args:
+        name: logger 名称（通常是模块名）
+
+    Returns:
+        配置好的 logger 实例
+    """
     logger = logging.getLogger(name)
-    
+
     if not logger.handlers:
         # 从 config 获取日志级别，兼容旧配置
-        log_level = getattr(config, 'LOG_LEVEL', 'INFO')
-        logger.setLevel(getattr(logging, log_level, logging.INFO))
-        
-        # 控制台输出
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-        console_format = logging.Formatter(
-            '%(asctime)s [%(levelname)s] %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        console_handler.setFormatter(console_format)
-        
-        # 文件输出 - 使用日志轮转（P2优化）
-        log_file = getattr(config, 'LOG_FILE', 'trading_bot.log')
-        file_handler = RotatingFileHandler(
-            os.path.join(LOG_DIR, log_file),
-            maxBytes=10*1024*1024,  # 10MB
-            backupCount=5,  # 保留5个备份
-            encoding='utf-8'
-        )
-        file_handler.setLevel(logging.DEBUG)
-        file_format = logging.Formatter(
-            '%(asctime)s [%(levelname)s] [%(name)s] %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        file_handler.setFormatter(file_format)
-        
-        logger.addHandler(console_handler)
-        logger.addHandler(file_handler)
-    
+        log_level = getattr(config, 'LOG_LEVEL', 'DEBUG')
+        logger.setLevel(getattr(logging, log_level, logging.DEBUG))
+
+        # 检查是否启用日志分流
+        enable_splitting = getattr(config, 'ENABLE_LOG_SPLITTING', True)
+
+        if enable_splitting:
+            # ========== 新架构：日志分流 ==========
+
+            # 获取日志轮转配置
+            rotation_when = getattr(config, 'LOG_ROTATION_WHEN', 'midnight')
+            rotation_interval = getattr(config, 'LOG_ROTATION_INTERVAL', 1)
+            rotation_backup_count = getattr(config, 'LOG_ROTATION_BACKUP_COUNT', 30)
+
+            # 统一的日志格式
+            file_format = logging.Formatter(
+                '%(asctime)s [%(levelname)s] [%(name)s] %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+
+            # 1. DEBUG 日志文件 handler
+            debug_file = getattr(config, 'LOG_FILE_DEBUG', 'debug.log')
+            debug_handler = TimedRotatingFileHandler(
+                os.path.join(LOG_DIR, debug_file),
+                when=rotation_when,
+                interval=rotation_interval,
+                backupCount=rotation_backup_count,
+                encoding='utf-8'
+            )
+            debug_handler.setLevel(logging.DEBUG)
+            debug_handler.setFormatter(file_format)
+            debug_handler.addFilter(LevelFilter(logging.DEBUG, exact=True))
+            logger.addHandler(debug_handler)
+
+            # 2. INFO 日志文件 handler
+            info_file = getattr(config, 'LOG_FILE_INFO', 'info.log')
+            info_handler = TimedRotatingFileHandler(
+                os.path.join(LOG_DIR, info_file),
+                when=rotation_when,
+                interval=rotation_interval,
+                backupCount=rotation_backup_count,
+                encoding='utf-8'
+            )
+            info_handler.setLevel(logging.INFO)
+            info_handler.setFormatter(file_format)
+            info_handler.addFilter(LevelFilter(logging.INFO, exact=True))
+            logger.addHandler(info_handler)
+
+            # 3. WARNING 日志文件 handler
+            warning_file = getattr(config, 'LOG_FILE_WARNING', 'warning.log')
+            warning_handler = TimedRotatingFileHandler(
+                os.path.join(LOG_DIR, warning_file),
+                when=rotation_when,
+                interval=rotation_interval,
+                backupCount=rotation_backup_count,
+                encoding='utf-8'
+            )
+            warning_handler.setLevel(logging.WARNING)
+            warning_handler.setFormatter(file_format)
+            warning_handler.addFilter(LevelFilter(logging.WARNING, exact=True))
+            logger.addHandler(warning_handler)
+
+            # 4. ERROR 日志文件 handler（包含 ERROR 和 CRITICAL）
+            error_file = getattr(config, 'LOG_FILE_ERROR', 'error.log')
+            error_handler = TimedRotatingFileHandler(
+                os.path.join(LOG_DIR, error_file),
+                when=rotation_when,
+                interval=rotation_interval,
+                backupCount=rotation_backup_count,
+                encoding='utf-8'
+            )
+            error_handler.setLevel(logging.ERROR)
+            error_handler.setFormatter(file_format)
+            # ERROR handler 不使用精确匹配，接收 ERROR 和 CRITICAL
+            error_handler.addFilter(LevelFilter(logging.ERROR, exact=False))
+            logger.addHandler(error_handler)
+
+            # 5. 控制台 handler（观察层：聚合显示所有级别）
+            console_handler = logging.StreamHandler()
+            console_log_level = getattr(config, 'CONSOLE_LOG_LEVEL', 'INFO')
+            console_handler.setLevel(getattr(logging, console_log_level, logging.INFO))
+
+            # 控制台格式（更简洁，适合实时观察）
+            console_format = logging.Formatter(
+                '%(asctime)s [%(levelname)s] %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            console_handler.setFormatter(console_format)
+
+            # 如果配置了显示所有级别，则不添加过滤器
+            show_all_levels = getattr(config, 'CONSOLE_SHOW_ALL_LEVELS', True)
+            if not show_all_levels:
+                # 只显示指定级别及以上
+                console_handler.addFilter(LevelFilter(
+                    getattr(logging, console_log_level, logging.INFO),
+                    exact=False
+                ))
+
+            logger.addHandler(console_handler)
+
+        else:
+            # ========== 旧架构：单文件日志（兼容模式）==========
+
+            # 控制台输出
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.INFO)
+            console_format = logging.Formatter(
+                '%(asctime)s [%(levelname)s] %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            console_handler.setFormatter(console_format)
+
+            # 文件输出 - 使用日志轮转
+            log_file = getattr(config, 'LOG_FILE', 'trading_bot.log')
+            file_handler = RotatingFileHandler(
+                os.path.join(LOG_DIR, log_file),
+                maxBytes=10*1024*1024,  # 10MB
+                backupCount=5,  # 保留5个备份
+                encoding='utf-8'
+            )
+            file_handler.setLevel(logging.DEBUG)
+            file_format = logging.Formatter(
+                '%(asctime)s [%(levelname)s] [%(name)s] %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            file_handler.setFormatter(file_format)
+
+            logger.addHandler(console_handler)
+            logger.addHandler(file_handler)
+
     return logger
 
 
