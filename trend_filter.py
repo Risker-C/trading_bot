@@ -122,6 +122,19 @@ class TrendFilter:
         if bb_percent_b < 0.1 and ema_trend == "down" and is_strong_trend:
             return False, f"价格在布林带极低位置({bb_percent_b:.2f})且下跌趋势，接飞刀风险高"
 
+        # 规则7: 震荡市场中的下跌趋势保护（新增）
+        if not is_strong_trend and ema_trend == "down":
+            # 震荡下跌时，要求RSI至少在40以上才能做多
+            if rsi < 40:
+                return False, f"震荡下跌市场(ADX={adx:.1f})中RSI({rsi:.1f})偏低，避免抄底"
+            # 震荡下跌时，MACD必须为正或接近零
+            if macd < -200:
+                return False, f"震荡下跌市场中MACD({macd:.1f})过低，动能不足"
+
+        # 规则8: 震荡市场中多重指标向下时拒绝（新增）
+        if not is_strong_trend and ema_trend == "down" and macd_trend == "down" and di_trend == "down":
+            return False, f"震荡市场(ADX={adx:.1f})中多重指标向下，趋势不明朗"
+
         # 通过所有检查
         return True, "趋势过滤通过"
 

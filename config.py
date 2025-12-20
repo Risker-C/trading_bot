@@ -110,8 +110,9 @@ POSITION_CHECK_INTERVAL = 2
 # ==================== 策略配置 ====================
 
 ENABLE_STRATEGIES: List[str] = [
-    "bollinger_breakthrough",
-    "rsi_divergence",
+    "bollinger_trend",        # 顺势策略：突破上轨做多（替代抄底策略）
+    # "bollinger_breakthrough",  # 禁用：逆势抄底策略，在震荡下跌时容易亏损
+    # "rsi_divergence",          # 禁用：抄底策略，RSI超卖时做多
     "macd_cross",
     "ema_cross",
     "composite_score",

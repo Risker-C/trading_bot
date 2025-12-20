@@ -16,11 +16,11 @@ class DirectionFilter:
     def __init__(self):
         """初始化"""
         # 做多需要更强的确认（因为历史胜率低）
-        self.long_min_strength = 0.80   # 做多需要80%强度 (优化：从70%提高)
+        self.long_min_strength = 0.70   # 做多需要70%强度 (调整：降低阈值以恢复交易)
         self.short_min_strength = 0.5   # 做空保持50%强度
 
         # 做多需要更多策略一致
-        self.long_min_agreement = 0.75  # 做多需要75%策略一致 (优化：从70%提高)
+        self.long_min_agreement = 0.65  # 做多需要65%策略一致 (调整：降低阈值以恢复交易)
         self.short_min_agreement = 0.6  # 做空保持60%策略一致
 
     def filter_signal(
@@ -62,7 +62,7 @@ class DirectionFilter:
             if not self._check_uptrend(df):
                 return False, "做多需要明确的上涨趋势确认"
 
-            return True, "做多信号通过（严格标准）"
+            return True, "做多信号通过（趋势确认）"
 
         return True, "非开仓信号"
 

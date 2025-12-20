@@ -406,9 +406,12 @@ class MACDCrossStrategy(BaseStrategy):
         
         if crossover:
             reason = "MACD金叉"
-            if below_zero:
-                reason += "（零轴下方，反转信号）"
+            if above_zero:
+                reason += "（零轴上方，趋势确认）"
                 strength *= 1.2
+            elif below_zero:
+                reason += "（零轴下方，弱势反转）"
+                strength *= 0.8  # 降低权重，避免在下跌趋势中盲目做多
             return TradeSignal(
                 Signal.LONG,
                 self.name,
