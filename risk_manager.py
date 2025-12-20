@@ -514,11 +514,27 @@ class RiskManager:
         if getattr(config, 'ENABLE_POLICY_LAYER', False):
             return self.get_policy_adjusted_stop_loss(entry_price, side, df)
 
-        # 原有逻辑保持不变
+        # 混合止损策略：计算固定止损和ATR止损，取较宽的一个
+        fixed_stop = self._calculate_fixed_stop_loss(entry_price, side)
+
         if config.USE_ATR_STOP_LOSS and df is not None:
-            return self._calculate_atr_stop_loss(entry_price, side, df)
+            atr_stop = self._calculate_atr_stop_loss(entry_price, side, df)
+
+            # 取较宽的止损（给交易更多空间）
+            if side == 'long':
+                # 做多：止损价格越低，止损空间越大
+                final_stop = min(fixed_stop, atr_stop)
+                stop_type = "固定" if final_stop == fixed_stop else "ATR"
+            else:
+                # 做空：止损价格越高，止损空间越大
+                final_stop = max(fixed_stop, atr_stop)
+                stop_type = "固定" if final_stop == fixed_stop else "ATR"
+
+            logger.info(f"混合止损: 固定={fixed_stop:.2f}, ATR={atr_stop:.2f}, "
+                       f"最终={final_stop:.2f} (使用{stop_type})")
+            return final_stop
         else:
-            return self._calculate_fixed_stop_loss(entry_price, side)
+            return fixed_stop
     
     def _calculate_fixed_stop_loss(self, entry_price: float, side: str) -> float:
         """计算固定比例止损"""

@@ -111,10 +111,10 @@ def test_filter_initialization():
     assert filter1 is not None, "过滤器创建失败"
     print(f"✓ 过滤器实例创建成功")
 
-    # 检查初始阈值
-    assert filter1.long_min_strength == 0.7, "做多信号强度阈值不正确"
+    # 检查初始阈值（优化后的值）
+    assert filter1.long_min_strength == 0.80, "做多信号强度阈值不正确"
     assert filter1.short_min_strength == 0.5, "做空信号强度阈值不正确"
-    assert filter1.long_min_agreement == 0.7, "做多策略一致性阈值不正确"
+    assert filter1.long_min_agreement == 0.75, "做多策略一致性阈值不正确"
     assert filter1.short_min_agreement == 0.6, "做空策略一致性阈值不正确"
     print(f"✓ 初始阈值设置正确")
 
@@ -172,12 +172,12 @@ def test_long_signal_strong():
     # 创建强做多信号
     signal = TradeSignal(
         signal=Signal.LONG,
-        strength=0.8,  # 高于阈值0.7
+        strength=0.85,  # 高于阈值0.80
         strategy="test_strategy",
         reason="测试强信号"
     )
 
-    strategy_agreement = 0.8  # 高于阈值0.7
+    strategy_agreement = 0.8  # 高于阈值0.75
 
     passed, reason = filter_obj.filter_signal(signal, df, strategy_agreement)
 
@@ -197,7 +197,7 @@ def test_long_signal_weak_strength():
     # 创建弱做多信号（强度不足）
     signal = TradeSignal(
         signal=Signal.LONG,
-        strength=0.6,  # 低于阈值0.7
+        strength=0.7,  # 低于阈值0.80
         strategy="test_strategy",
         reason="测试弱信号"
     )
@@ -223,12 +223,12 @@ def test_long_signal_weak_agreement():
     # 创建做多信号（策略一致性不足）
     signal = TradeSignal(
         signal=Signal.LONG,
-        strength=0.8,  # 强度足够
+        strength=0.85,  # 强度足够
         strategy="test_strategy",
         reason="测试策略一致性"
     )
 
-    strategy_agreement = 0.6  # 低于阈值0.7
+    strategy_agreement = 0.7  # 低于阈值0.75
 
     passed, reason = filter_obj.filter_signal(signal, df, strategy_agreement)
 
@@ -249,7 +249,7 @@ def test_long_signal_no_uptrend():
     # 创建做多信号
     signal = TradeSignal(
         signal=Signal.LONG,
-        strength=0.8,
+        strength=0.85,
         strategy="test_strategy",
         reason="测试趋势确认"
     )
@@ -382,11 +382,11 @@ def test_boundary_conditions():
     print("\n子测试1: 信号强度刚好等于阈值")
     signal = TradeSignal(
         signal=Signal.LONG,
-        strength=0.7,  # 刚好等于阈值
+        strength=0.80,  # 刚好等于阈值
         strategy="test_strategy",
         reason="边界测试"
     )
-    passed, reason = filter_obj.filter_signal(signal, df, 0.7)
+    passed, reason = filter_obj.filter_signal(signal, df, 0.75)
     print(f"结果: {passed}, 原因: {reason}")
     assert passed, "信号强度等于阈值应该通过"
 
@@ -394,7 +394,7 @@ def test_boundary_conditions():
     print("\n子测试2: 策略一致性为0")
     signal = TradeSignal(
         signal=Signal.LONG,
-        strength=0.8,
+        strength=0.85,
         strategy="test_strategy",
         reason="边界测试"
     )
@@ -430,7 +430,7 @@ def test_integration():
                 signal=Signal.LONG,
                 strategy="strategy1",
                 reason="强信号",
-                strength=0.8
+                strength=0.85
             ),
             'df': create_test_dataframe('uptrend'),
             'agreement': 0.8,
@@ -442,7 +442,7 @@ def test_integration():
                 signal=Signal.LONG,
                 strategy="strategy2",
                 reason="弱信号",
-                strength=0.5
+                strength=0.7
             ),
             'df': create_test_dataframe('uptrend'),
             'agreement': 0.8,
@@ -454,7 +454,7 @@ def test_integration():
                 signal=Signal.LONG,
                 strategy="strategy3",
                 reason="强信号但趋势不对",
-                strength=0.8
+                strength=0.85
             ),
             'df': create_test_dataframe('downtrend'),
             'agreement': 0.8,

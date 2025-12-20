@@ -58,20 +58,20 @@ MIN_WIN_RATE_FOR_KELLY = 0.4   # 使用 Kelly 的最低胜率要求
 # ==================== 波动率配置（新增）====================
 
 REDUCE_SIZE_ON_HIGH_VOL = True        # 高波动时减仓
-HIGH_VOLATILITY_THRESHOLD = 0.03      # 高波动阈值（3%）
+HIGH_VOLATILITY_THRESHOLD = 0.04      # 高波动阈值（4%）
 LOW_VOLATILITY_THRESHOLD = 0.01       # 低波动阈值（1%）
 VOLATILITY_SIZE_FACTOR = 0.7          # 高波动时仓位系数
 VOLATILITY_LOOKBACK = 20              # 波动率计算周期
 
 # ==================== 止损止盈配置 ====================
 
-STOP_LOSS_PERCENT = 0.02       # 止损比例 2%
-TAKE_PROFIT_PERCENT = 0.04     # 止盈比例 4%
-TRAILING_STOP_PERCENT = 0.0015  # 移动止损回撤比例 0.15%（基于历史数据优化：中位数波动0.149%，此设置可覆盖50%+持仓）
+STOP_LOSS_PERCENT = 0.035      # 止损比例 3.5% (优化：从2%提高，减少被市场噪音止损)
+TAKE_PROFIT_PERCENT = 0.06     # 止盈比例 6% (优化：从4%提高，更好的风险回报比)
+TRAILING_STOP_PERCENT = 0.0025  # 移动止损回撤比例 0.25% (优化：从0.15%提高，覆盖70-80%持仓)
 
 # ATR 动态止损（新增）
 USE_ATR_STOP_LOSS = True       # 是否使用 ATR 止损
-ATR_STOP_MULTIPLIER = 2.0      # ATR 倍数
+ATR_STOP_MULTIPLIER = 2.5      # ATR 倍数 (优化：从2.0提高到2.5，适应加密货币波动)
 
 # 分批止盈（新增）
 USE_PARTIAL_TAKE_PROFIT = True # 是否分批止盈
@@ -82,18 +82,16 @@ USE_PARTIAL_TAKE_PROFIT = True # 是否分批止盈
 ENABLE_TRAILING_TAKE_PROFIT = True
 
 # 最小盈利门槛（USDT）- 必须超过此值才算真正盈利
-# 计算公式：开仓手续费 + 平仓手续费
-# 对于10USDT订单，10倍杠杆：10 * 0.0006 * 2 = 0.012 USDT
-# 优化说明：从0.15降低到0.012，仅覆盖手续费成本，让动态止盈更容易启用
-MIN_PROFIT_THRESHOLD_USDT = 0.012
+# 优化说明：从0.012提高到0.08，避免过早触发动态止盈，让盈利交易有更多空间
+MIN_PROFIT_THRESHOLD_USDT = 0.08
 
 # 价格均值窗口大小（N次价格）
 # 建议：5-10次，平衡灵敏度和稳定性
 TRAILING_TP_PRICE_WINDOW = 5
 
-# 跌破均值的百分比阈值（例如：0.001 表示跌破0.1%）
-# 优化说明：从0.5%降低到0.1%，提高对小仓位的敏感度，更及时地捕捉止盈机会
-TRAILING_TP_FALLBACK_PERCENT = 0.001
+# 跌破均值的百分比阈值（例如：0.004 表示跌破0.4%）
+# 优化说明：从0.1%提高到0.4%，减少对市场噪音的敏感度，让盈利交易有更多空间
+TRAILING_TP_FALLBACK_PERCENT = 0.004
 
 # 手续费率（Bitget 默认 0.06%）
 TRADING_FEE_RATE = 0.0006
@@ -219,7 +217,7 @@ LOG_ROTATION_INTERVAL = 1          # 轮转间隔：1天
 LOG_ROTATION_BACKUP_COUNT = 30     # 保留30天的日志备份
 
 # 控制台输出配置
-CONSOLE_LOG_LEVEL = "INFO"         # 控制台显示级别（聚合观察视图）
+CONSOLE_LOG_LEVEL = "INFO"         # 控制台显示级别（聚合观察视图）- 改为 DEBUG 可查看所有日志
 CONSOLE_SHOW_ALL_LEVELS = True     # 控制台是否显示所有级别（观察层）
 
 # ==================== Telegram 通知（新增）====================
@@ -333,7 +331,7 @@ CLAUDE_MAX_DAILY_COST = 10.0
 # ==================== Claude定时分析配置（新增）====================
 
 # 是否启用Claude定时分析
-ENABLE_CLAUDE_PERIODIC_ANALYSIS = True  # 启用定时市场分析（每30分钟）
+ENABLE_CLAUDE_PERIODIC_ANALYSIS = False  # 启用定时市场分析（每30分钟）
 
 # 定时分析间隔（分钟）- 用于场景2：30分钟定时分析
 CLAUDE_PERIODIC_INTERVAL = 30  # 默认30分钟

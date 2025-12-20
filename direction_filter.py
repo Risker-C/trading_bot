@@ -16,12 +16,12 @@ class DirectionFilter:
     def __init__(self):
         """初始化"""
         # 做多需要更强的确认（因为历史胜率低）
-        self.long_min_strength = 0.7   # 做多需要70%强度
-        self.short_min_strength = 0.5  # 做空保持50%强度
+        self.long_min_strength = 0.80   # 做多需要80%强度 (优化：从70%提高)
+        self.short_min_strength = 0.5   # 做空保持50%强度
 
         # 做多需要更多策略一致
-        self.long_min_agreement = 0.7  # 做多需要70%策略一致
-        self.short_min_agreement = 0.6 # 做空保持60%策略一致
+        self.long_min_agreement = 0.75  # 做多需要75%策略一致 (优化：从70%提高)
+        self.short_min_agreement = 0.6  # 做空保持60%策略一致
 
     def filter_signal(
         self,
@@ -101,8 +101,41 @@ class DirectionFilter:
             logger.debug(f"做多过滤: 最近3根K线阳线不足({bullish_candles}/3)")
             return False
 
-        logger.info("✅ 做多趋势确认: EMA多头排列 + 价格强势")
+        # 检查成交量确认
+        if not self._check_volume_confirmation(df):
+            return False
+
+        logger.info("✅ 做多趋势确认: EMA多头排列 + 价格强势 + 成交量确认")
         return True
+
+    def _check_volume_confirmation(self, df: pd.DataFrame) -> bool:
+        """
+        检查成交量确认（做多需要放量突破）
+
+        要求：
+        1. 最近一根K线成交量 > 20周期均量的1.2倍
+        2. 或最近3根K线平均成交量 > 20周期均量
+        """
+        if len(df) < 20:
+            return False
+
+        # 计算20周期平均成交量
+        avg_volume = df['volume'].rolling(20).mean().iloc[-1]
+
+        # 检查最近一根K线是否放量
+        current_volume = df['volume'].iloc[-1]
+        if current_volume > avg_volume * 1.2:
+            logger.info("✅ 做多成交量确认: 当前放量突破")
+            return True
+
+        # 检查最近3根K线平均成交量
+        recent_avg_volume = df['volume'].tail(3).mean()
+        if recent_avg_volume > avg_volume:
+            logger.info("✅ 做多成交量确认: 近期成交量活跃")
+            return True
+
+        logger.debug("做多过滤: 成交量不足")
+        return False
 
     def update_thresholds(self, long_win_rate: float, short_win_rate: float):
         """
@@ -112,11 +145,16 @@ class DirectionFilter:
             long_win_rate: 做多胜率
             short_win_rate: 做空胜率
         """
-        # 如果做多胜率低于30%，提高要求
+        # 如果做多胜率低于30%，大幅提高要求（紧急模式）
         if long_win_rate < 0.3:
-            self.long_min_strength = 0.8
-            self.long_min_agreement = 0.8
-            logger.warning(f"做多胜率过低({long_win_rate:.1%})，提高信号要求")
+            self.long_min_strength = 0.85   # 优化：从0.8提高到0.85
+            self.long_min_agreement = 0.85  # 优化：从0.8提高到0.85
+            logger.warning(f"做多胜率过低({long_win_rate:.1%})，提高信号要求到85%")
+        # 如果做多胜率在30-40%之间，适度提高要求（中间档）
+        elif long_win_rate < 0.4:
+            self.long_min_strength = 0.82   # 新增：中间档位
+            self.long_min_agreement = 0.80
+            logger.info(f"做多胜率偏低({long_win_rate:.1%})，提高信号要求到82%")
 
         # 如果做空胜率高于40%，可以适当放宽
         if short_win_rate > 0.4:
