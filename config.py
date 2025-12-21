@@ -272,7 +272,7 @@ PERIODIC_REPORT_MODULES = {
 ENABLE_STATUS_MONITOR = True
 
 # 状态推送间隔（分钟）
-STATUS_MONITOR_INTERVAL = 5  # 默认5分钟
+STATUS_MONITOR_INTERVAL = 15  # 优化：从5分钟改为15分钟，减少推送频率
 
 # 是否启用AI分析（预留功能）
 STATUS_MONITOR_ENABLE_AI = False
@@ -288,6 +288,44 @@ STATUS_MONITOR_MODULES = {
     'service_status': True,   # 服务状态
     'account_info': True,     # 账户信息
 }
+
+# ==================== 飞书推送过滤配置（新增）====================
+
+# 是否启用飞书推送智能过滤
+ENABLE_FEISHU_PUSH_FILTER = True
+
+# 行情变化阈值（只推送变化超过此值的行情）
+FEISHU_PRICE_CHANGE_THRESHOLD = 0.005  # 0.5%，低于此值不推送行情变化
+
+# 无持仓时是否简化推送内容
+FEISHU_SIMPLIFY_NO_POSITION = True  # 无持仓时只推送关键信息
+
+# 无持仓且无显著行情变化时是否跳过推送
+FEISHU_SKIP_IDLE_PUSH = True  # 无持仓且行情变化小时跳过推送
+
+# 推送频率限制（同类型推送的最小间隔，分钟）
+FEISHU_MIN_PUSH_INTERVAL = {
+    'status_monitor': 15,     # 状态监控最小间隔15分钟
+    'market_report': 120,     # 市场报告最小间隔120分钟
+    'trade': 0,               # 交易通知不限制（重要）
+    'signal': 5,              # 信号通知最小间隔5分钟
+    'risk_event': 0,          # 风控事件不限制（重要）
+}
+
+# 是否过滤重复内容推送
+FEISHU_FILTER_DUPLICATE_CONTENT = True  # 内容与上次相同时跳过推送
+
+# 重复内容判断的相似度阈值（0-1）
+FEISHU_DUPLICATE_SIMILARITY_THRESHOLD = 0.9  # 90%相似度视为重复
+
+# 是否在非交易时段降低推送频率
+FEISHU_REDUCE_OFF_HOURS = True  # 非交易活跃时段降低推送
+
+# 非交易活跃时段定义（小时，24小时制）
+FEISHU_OFF_HOURS = list(range(0, 6)) + list(range(22, 24))  # 0-6点和22-24点
+
+# 非交易时段推送间隔倍数
+FEISHU_OFF_HOURS_INTERVAL_MULTIPLIER = 2.0  # 非活跃时段间隔翻倍
 
 # ==================== Claude AI 分析配置（新增）====================
 
@@ -472,7 +510,7 @@ BACKTEST_SLIPPAGE = 0.0001     # 滑点
 # ==================== ML信号过滤器配置（新增）====================
 
 # 是否启用ML信号过滤器
-ENABLE_ML_FILTER = False  # 默认禁用，需要先训练模型
+ENABLE_ML_FILTER = True  # 已启用，使用影子模式测试
 
 # ML运行模式
 ML_MODE = "shadow"  # shadow: 影子模式（只记录不影响交易）, filter: 过滤模式（实际过滤信号）, off: 关闭

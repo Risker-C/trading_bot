@@ -3,10 +3,11 @@
 
 提供定期状态监控和推送功能，用于实时了解机器人运行状态。
 特点：
-1. 短周期推送（默认5分钟）
+1. 短周期推送（默认15分钟，优化后）
 2. 包含最近N分钟行情变化
 3. 飞书推送失败时自动发送邮件预警
 4. 预留AI分析接口
+5. 智能推送过滤（避免频繁无用推送）
 """
 
 from datetime import datetime, timedelta
@@ -14,6 +15,7 @@ from typing import Dict, Any, Optional, List
 import time
 import traceback
 from collections import deque
+import hashlib
 
 import config
 from logger_utils import get_logger, notifier, db
@@ -105,6 +107,219 @@ class PriceHistory:
         }
 
 
+class FeishuPushFilter:
+    """飞书推送智能过滤器"""
+
+    def __init__(self):
+        """初始化推送过滤器"""
+        self.logger = get_logger("push_filter")
+        self.last_push_content = None  # 上次推送内容
+        self.last_push_time = None  # 上次推送时间
+        self.push_history = deque(maxlen=100)  # 推送历史记录
+
+        # 读取配置
+        self.enabled = getattr(config, 'ENABLE_FEISHU_PUSH_FILTER', True)
+        self.price_change_threshold = getattr(config, 'FEISHU_PRICE_CHANGE_THRESHOLD', 0.005)
+        self.simplify_no_position = getattr(config, 'FEISHU_SIMPLIFY_NO_POSITION', True)
+        self.skip_idle_push = getattr(config, 'FEISHU_SKIP_IDLE_PUSH', True)
+        self.filter_duplicate = getattr(config, 'FEISHU_FILTER_DUPLICATE_CONTENT', True)
+        self.duplicate_threshold = getattr(config, 'FEISHU_DUPLICATE_SIMILARITY_THRESHOLD', 0.9)
+        self.reduce_off_hours = getattr(config, 'FEISHU_REDUCE_OFF_HOURS', True)
+        self.off_hours = getattr(config, 'FEISHU_OFF_HOURS', list(range(0, 6)) + list(range(22, 24)))
+        self.off_hours_multiplier = getattr(config, 'FEISHU_OFF_HOURS_INTERVAL_MULTIPLIER', 2.0)
+
+        if self.enabled:
+            self.logger.info("✅ 飞书推送智能过滤器已启用")
+        else:
+            self.logger.info("⏭️  飞书推送智能过滤器已禁用")
+
+    def should_filter(self, data: Dict[str, Any], message: str) -> tuple[bool, str]:
+        """
+        判断是否应该过滤此次推送
+
+        Args:
+            data: 状态数据
+            message: 推送消息内容
+
+        Returns:
+            tuple: (是否过滤, 过滤原因)
+        """
+        if not self.enabled:
+            return False, ""
+
+        # 检查1: 无持仓且行情变化小
+        if self.skip_idle_push:
+            should_skip, reason = self._check_idle_push(data)
+            if should_skip:
+                self.logger.info(f"🔇 过滤推送: {reason}")
+                return True, reason
+
+        # 检查2: 重复内容过滤
+        if self.filter_duplicate:
+            is_duplicate, reason = self._check_duplicate_content(message)
+            if is_duplicate:
+                self.logger.info(f"🔇 过滤推送: {reason}")
+                return True, reason
+
+        # 检查3: 非交易时段降频
+        if self.reduce_off_hours:
+            should_reduce, reason = self._check_off_hours()
+            if should_reduce:
+                self.logger.info(f"🔇 过滤推送: {reason}")
+                return True, reason
+
+        return False, ""
+
+    def _check_idle_push(self, data: Dict[str, Any]) -> tuple[bool, str]:
+        """
+        检查是否为空闲推送（无持仓且行情变化小）
+
+        Args:
+            data: 状态数据
+
+        Returns:
+            tuple: (是否过滤, 原因)
+        """
+        # 检查是否有持仓
+        account_info = data.get('account_info', {})
+        has_position = account_info.get('has_position', False)
+
+        # 如果有持仓，不过滤
+        if has_position:
+            return False, ""
+
+        # 检查行情变化
+        market_change = data.get('market_change', {})
+        if not market_change.get('available', False):
+            # 数据不足，不过滤
+            return False, ""
+
+        change_percent = abs(market_change.get('change_percent', 0))
+
+        # 如果行情变化小于阈值，过滤
+        if change_percent < self.price_change_threshold * 100:  # 转换为百分比
+            return True, f"无持仓且行情变化小 ({change_percent:.2f}% < {self.price_change_threshold*100:.2f}%)"
+
+        return False, ""
+
+    def _check_duplicate_content(self, message: str) -> tuple[bool, str]:
+        """
+        检查是否为重复内容
+
+        Args:
+            message: 推送消息内容
+
+        Returns:
+            tuple: (是否重复, 原因)
+        """
+        if self.last_push_content is None:
+            return False, ""
+
+        # 计算内容相似度（使用简单的哈希比较）
+        current_hash = self._calculate_content_hash(message)
+        last_hash = self._calculate_content_hash(self.last_push_content)
+
+        # 如果哈希完全相同，视为重复
+        if current_hash == last_hash:
+            return True, "内容与上次推送完全相同"
+
+        # 计算文本相似度（简化版：比较关键数据）
+        similarity = self._calculate_similarity(message, self.last_push_content)
+
+        if similarity >= self.duplicate_threshold:
+            return True, f"内容相似度过高 ({similarity:.1%})"
+
+        return False, ""
+
+    def _check_off_hours(self) -> tuple[bool, str]:
+        """
+        检查是否为非交易活跃时段
+
+        Returns:
+            tuple: (是否降频, 原因)
+        """
+        current_hour = datetime.now().hour
+
+        if current_hour in self.off_hours:
+            # 检查距离上次推送的时间
+            if self.last_push_time is not None:
+                elapsed = (datetime.now() - self.last_push_time).total_seconds() / 60
+                required_interval = config.STATUS_MONITOR_INTERVAL * self.off_hours_multiplier
+
+                if elapsed < required_interval:
+                    return True, f"非活跃时段降频 (需间隔{required_interval:.0f}分钟)"
+
+        return False, ""
+
+    def _calculate_content_hash(self, content: str) -> str:
+        """
+        计算内容哈希
+
+        Args:
+            content: 内容字符串
+
+        Returns:
+            str: 哈希值
+        """
+        # 移除时间戳等动态内容
+        cleaned = content
+        # 移除时间相关的行
+        lines = [line for line in cleaned.split('\n')
+                if not any(keyword in line for keyword in ['时间:', '⏰', '运行时长:'])]
+        cleaned = '\n'.join(lines)
+
+        return hashlib.md5(cleaned.encode()).hexdigest()
+
+    def _calculate_similarity(self, text1: str, text2: str) -> float:
+        """
+        计算两个文本的相似度（简化版）
+
+        Args:
+            text1: 文本1
+            text2: 文本2
+
+        Returns:
+            float: 相似度 (0-1)
+        """
+        # 提取关键数据行
+        def extract_key_lines(text):
+            lines = text.split('\n')
+            key_lines = []
+            for line in lines:
+                # 只保留包含关键数据的行
+                if any(keyword in line for keyword in ['价格', '变化', '持仓', '盈亏', '状态', 'ADX', '波动率']):
+                    # 移除时间戳
+                    line = line.split('时间:')[0] if '时间:' in line else line
+                    key_lines.append(line.strip())
+            return set(key_lines)
+
+        keys1 = extract_key_lines(text1)
+        keys2 = extract_key_lines(text2)
+
+        if not keys1 or not keys2:
+            return 0.0
+
+        # 计算交集比例
+        intersection = keys1 & keys2
+        union = keys1 | keys2
+
+        return len(intersection) / len(union) if union else 0.0
+
+    def record_push(self, message: str):
+        """
+        记录推送
+
+        Args:
+            message: 推送消息内容
+        """
+        self.last_push_content = message
+        self.last_push_time = datetime.now()
+        self.push_history.append({
+            'time': self.last_push_time,
+            'content_hash': self._calculate_content_hash(message)
+        })
+
+
 class StatusMonitorScheduler:
     """状态监控调度器"""
 
@@ -121,12 +336,16 @@ class StatusMonitorScheduler:
         self.last_push_time = None  # 上次推送时间
         self.start_time = datetime.now()  # 启动时间
         self.push_count = 0  # 已推送次数
+        self.filtered_count = 0  # 被过滤次数
         self.error_count = 0  # 错误次数
         self.last_error_time = None  # 上次错误时间
         self.logger = get_logger("status_monitor")
 
         # 价格历史记录器
         self.price_history = PriceHistory(max_minutes=60)
+
+        # 推送过滤器
+        self.push_filter = FeishuPushFilter()
 
         if self.enabled:
             self.logger.info(f"✅ 状态监控调度器已启用，间隔: {interval_minutes}分钟")
@@ -197,15 +416,21 @@ class StatusMonitorScheduler:
                 risk_manager,
                 self.price_history,
                 self.start_time,
-                self.error_count
+                self.error_count,
+                self.push_filter  # 传递过滤器
             )
 
             # 生成并推送报告
-            success = collector.collect_and_push()
+            success, filtered = collector.collect_and_push()
 
             elapsed = time.time() - start_time
 
-            if success:
+            if filtered:
+                # 推送被过滤
+                self.filtered_count += 1
+                self.logger.info(f"🔇 状态监控: 推送已过滤 (第{self.filtered_count}次过滤)")
+                return False
+            elif success:
                 self.last_push_time = datetime.now()
                 self.push_count += 1
                 self.logger.info(f"📊 状态监控: 推送成功 (第{self.push_count}次，耗时{elapsed:.2f}秒)")
@@ -254,7 +479,7 @@ class StatusMonitorCollector:
     """状态监控数据收集器"""
 
     def __init__(self, trader, risk_manager, price_history: PriceHistory,
-                 start_time: datetime, error_count: int):
+                 start_time: datetime, error_count: int, push_filter: FeishuPushFilter = None):
         """
         初始化收集器
 
@@ -264,12 +489,14 @@ class StatusMonitorCollector:
             price_history: 价格历史记录器
             start_time: 服务启动时间
             error_count: 错误次数
+            push_filter: 推送过滤器
         """
         self.trader = trader
         self.risk_manager = risk_manager
         self.price_history = price_history
         self.start_time = start_time
         self.error_count = error_count
+        self.push_filter = push_filter
         self.logger = get_logger("status_collector")
 
     def collect_all(self) -> Dict[str, Any]:
@@ -619,12 +846,12 @@ class StatusMonitorCollector:
 
         return "\n".join(lines)
 
-    def collect_and_push(self) -> bool:
+    def collect_and_push(self) -> tuple[bool, bool]:
         """
         收集数据并推送
 
         Returns:
-            bool: True表示推送成功
+            tuple: (推送成功, 是否被过滤)
         """
         try:
             # 收集所有数据
@@ -633,6 +860,13 @@ class StatusMonitorCollector:
             # 格式化消息
             message = self.format_message(data)
 
+            # 应用推送过滤器
+            if self.push_filter is not None:
+                should_filter, filter_reason = self.push_filter.should_filter(data, message)
+                if should_filter:
+                    self.logger.info(f"🔇 推送已过滤: {filter_reason}")
+                    return False, True  # 未推送，已过滤
+
             # 推送到飞书
             feishu_success = False
             if config.ENABLE_FEISHU:
@@ -640,6 +874,9 @@ class StatusMonitorCollector:
                     feishu_success = notifier.feishu.send_message(message)
                     if feishu_success:
                         self.logger.info("✅ 飞书推送成功")
+                        # 记录推送
+                        if self.push_filter is not None:
+                            self.push_filter.record_push(message)
                     else:
                         self.logger.warning("❌ 飞书推送失败")
                 except Exception as e:
@@ -670,12 +907,12 @@ class StatusMonitorCollector:
                 except Exception as e:
                     self.logger.error(f"❌ 邮件预警发送异常: {e}")
 
-            return feishu_success
+            return feishu_success, False  # 推送结果，未过滤
 
         except Exception as e:
             self.logger.error(f"收集和推送失败: {e}")
             self.logger.error(traceback.format_exc())
-            return False
+            return False, False  # 推送失败，未过滤
 
     def _format_duration(self, seconds: float) -> str:
         """
