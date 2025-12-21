@@ -420,6 +420,60 @@ def test_log_splitting():
         return False
 
 
+def test_ml_signal_filter():
+    """测试ML信号过滤器功能"""
+    print("\n测试ML信号过滤器...")
+
+    try:
+        # 导入测试模块
+        from scripts.test_ml_signal_filter import (
+            test_config_validation,
+            test_feature_engineer,
+            test_ml_predictor_init,
+            test_ml_predictor_filter,
+            test_ml_predictor_stats,
+            test_feature_names,
+            test_bot_integration,
+            test_model_trainer_exists,
+            test_documentation_exists,
+            test_error_handling
+        )
+
+        # 运行关键测试
+        tests = [
+            ("配置验证", test_config_validation),
+            ("特征工程", test_feature_engineer),
+            ("预测器初始化", test_ml_predictor_init),
+            ("预测器过滤", test_ml_predictor_filter),
+            ("预测器统计", test_ml_predictor_stats),
+            ("特征名称", test_feature_names),
+            ("bot集成", test_bot_integration),
+            ("模型训练脚本", test_model_trainer_exists),
+            ("文档存在", test_documentation_exists),
+            ("错误处理", test_error_handling),
+        ]
+
+        passed = 0
+        failed = 0
+
+        for name, test_func in tests:
+            try:
+                test_func()
+                print(f"  ✅ {name}")
+                passed += 1
+            except Exception as e:
+                print(f"  ❌ {name}: {e}")
+                failed += 1
+
+        print(f"  总计: {passed}/{len(tests)} 通过")
+        return failed == 0
+
+    except Exception as e:
+        print(f"  ❌ ML信号过滤器测试失败: {e}")
+        traceback.print_exc()
+        return False
+
+
 def main():
     """运行所有测试"""
     print("=" * 50)
@@ -437,6 +491,7 @@ def main():
         'Claude定时分析': test_claude_periodic_analysis(),
         '方向过滤器': test_direction_filter(),
         '日志分流': test_log_splitting(),
+        'ML信号过滤器': test_ml_signal_filter(),
     }
     
     print("\n" + "=" * 50)

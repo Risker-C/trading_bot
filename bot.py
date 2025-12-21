@@ -24,6 +24,7 @@ from claude_guardrails import get_guardrails
 from policy_layer import get_policy_layer
 from claude_policy_analyzer import get_claude_policy_analyzer
 from trading_context_builder import get_context_builder
+from ml_predictor import get_ml_predictor
 
 logger = get_logger("bot")
 
@@ -77,6 +78,15 @@ class TradingBot:
             self.policy_analyzer = None
             self.context_builder = None
             logger.info("⚠️ Policy Layer 未启用")
+
+        # 初始化 ML 信号过滤器
+        if getattr(config, 'ENABLE_ML_FILTER', False):
+            self.ml_predictor = get_ml_predictor()
+            ml_mode = getattr(config, 'ML_MODE', 'shadow')
+            logger.info(f"✅ ML信号过滤器已启用 (模式: {ml_mode})")
+        else:
+            self.ml_predictor = None
+            logger.info("⚠️ ML信号过滤器未启用")
 
         # 日志优化：添加计数器以减少冗余日志
         self.no_signal_count = 0  # 无信号计数器
@@ -359,6 +369,26 @@ class TradingBot:
 
         # 运行选定的策略
         signals = analyze_all_strategies(df, selected_strategies)
+
+        # ML信号过滤（如果启用）
+        if self.ml_predictor is not None and signals:
+            try:
+                filtered_signals, predictions = self.ml_predictor.filter_signals(signals, df)
+
+                # 记录过滤结果
+                if config.ML_LOG_PREDICTIONS and predictions:
+                    for pred in predictions:
+                        if not pred['passed'] and config.ML_VERBOSE_LOGGING:
+                            logger.info(
+                                f"ML过滤: {pred['strategy']} {pred['signal']} "
+                                f"质量={pred.get('quality_score', 0):.2f} < {pred['threshold']:.2f}"
+                            )
+
+                # 使用过滤后的信号
+                signals = filtered_signals
+
+            except Exception as e:
+                logger.error(f"ML过滤失败: {e}，使用原始信号")
 
         # 计算策略一致性（用于方向过滤）
         strategy_agreement = 0.0

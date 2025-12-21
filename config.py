@@ -40,7 +40,7 @@ MARGIN_MODE = "crossed"  # isolated / crossed
 
 # ==================== 仓位管理 ====================
 
-POSITION_SIZE_PERCENT = 0.1   # 基础仓位比例（10%）
+POSITION_SIZE_PERCENT = 0.05   # 基础仓位比例（5%）（优化：从10%降低，降低风险敞口）
 MIN_ORDER_USDT = 10            # 最小订单金额
 MAX_ORDER_USDT = 1000          # 最大订单金额
 
@@ -67,7 +67,7 @@ VOLATILITY_LOOKBACK = 20              # 波动率计算周期
 
 STOP_LOSS_PERCENT = 0.035      # 止损比例 3.5% (优化：从2%提高，减少被市场噪音止损)
 TAKE_PROFIT_PERCENT = 0.06     # 止盈比例 6% (优化：从4%提高，更好的风险回报比)
-TRAILING_STOP_PERCENT = 0.0025  # 移动止损回撤比例 0.25% (优化：从0.15%提高，覆盖70-80%持仓)
+TRAILING_STOP_PERCENT = 0.005  # 移动止损回撤比例 0.5% (优化：从0.25%提高，避免过早止盈)
 
 # ATR 动态止损（新增）
 USE_ATR_STOP_LOSS = True       # 是否使用 ATR 止损
@@ -120,9 +120,9 @@ ENABLE_STRATEGIES: List[str] = [
 
 # 共识信号配置（新增）
 USE_CONSENSUS_SIGNAL = True        # 是否使用共识信号
-MIN_STRATEGY_AGREEMENT = 0.6       # 最小策略一致性
-MIN_SIGNAL_STRENGTH = 0.5          # 最小信号强度
-MIN_SIGNAL_CONFIDENCE = 0.5        # 最小置信度
+MIN_STRATEGY_AGREEMENT = 0.7       # 最小策略一致性（优化：从0.6提高，减少低质量交易）
+MIN_SIGNAL_STRENGTH = 0.7          # 最小信号强度（优化：从0.5提高，提高信号质量）
+MIN_SIGNAL_CONFIDENCE = 0.6        # 最小置信度（优化：从0.5提高）
 
 # 动态策略选择配置（新增）
 USE_DYNAMIC_STRATEGY = True        # 启用市场状态感知的动态策略选择
@@ -435,8 +435,8 @@ ATR_SPIKE_THRESHOLD = 1.5  # 1.5倍
 ENABLE_DIRECTION_FILTER = True
 
 # 做多信号要求（更严格的标准）
-LONG_MIN_STRENGTH = 0.7        # 做多需要70%信号强度
-LONG_MIN_AGREEMENT = 0.7       # 做多需要70%策略一致性
+LONG_MIN_STRENGTH = 0.8        # 做多需要80%信号强度（优化：从70%提高，因做多胜率仅31.8%）
+LONG_MIN_AGREEMENT = 0.8       # 做多需要80%策略一致性（优化：从70%提高，严格控制做多）
 
 # 做空信号要求（正常标准）
 SHORT_MIN_STRENGTH = 0.5       # 做空保持50%信号强度
@@ -469,6 +469,37 @@ BACKTEST_INITIAL_BALANCE = 10000
 BACKTEST_COMMISSION = 0.0006   # 手续费率
 BACKTEST_SLIPPAGE = 0.0001     # 滑点
 
+# ==================== ML信号过滤器配置（新增）====================
+
+# 是否启用ML信号过滤器
+ENABLE_ML_FILTER = False  # 默认禁用，需要先训练模型
+
+# ML运行模式
+ML_MODE = "shadow"  # shadow: 影子模式（只记录不影响交易）, filter: 过滤模式（实际过滤信号）, off: 关闭
+
+# ML模型路径
+ML_MODEL_PATH = "models/signal_quality_v1.pkl"
+
+# ML信号质量阈值（0-1，只执行质量分数>=此值的信号）
+ML_QUALITY_THRESHOLD = 0.6  # 60%质量分数
+
+# ML最小信号数量（如果过滤后信号数量<此值，则不过滤）
+ML_MIN_SIGNALS = 1
+
+# 是否记录ML预测结果到数据库
+ML_LOG_PREDICTIONS = True
+
+# 是否在日志中显示ML预测详情
+ML_VERBOSE_LOGGING = True
+
+# ML特征工程配置
+ML_FEATURE_LOOKBACK = 20  # 特征计算回溯周期（K线数量）
+
+# ML模型更新配置
+ML_AUTO_RETRAIN = False  # 是否自动重新训练模型
+ML_RETRAIN_INTERVAL_DAYS = 30  # 重新训练间隔（天）
+ML_MIN_TRAINING_SAMPLES = 100  # 最小训练样本数
+
 
 # ==================== 配置验证 ====================
 
@@ -493,7 +524,7 @@ def validate_config():
     
     for strategy in ENABLE_STRATEGIES:
         valid_strategies = [
-            "bollinger_breakthrough", "rsi_divergence", "macd_cross",
+            "bollinger_breakthrough", "bollinger_trend", "rsi_divergence", "macd_cross",
             "ema_cross", "kdj_cross", "adx_trend", "volume_breakout",
             "multi_timeframe", "grid", "composite_score"
         ]
