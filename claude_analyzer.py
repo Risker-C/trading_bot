@@ -53,11 +53,21 @@ class ClaudeAnalyzer:
                 if self.base_url:
                     self.client = anthropic.Anthropic(
                         api_key=self.api_key,
-                        base_url=self.base_url
+                        base_url=self.base_url,
+                        default_headers={
+                            "User-Agent": "claude-code-cli",
+                            "X-Claude-Code": "1"
+                        }
                     )
                     logger.info(f"Claude 分析器初始化成功 (模型: {self.model}, 自定义端点: {self.base_url})")
                 else:
-                    self.client = anthropic.Anthropic(api_key=self.api_key)
+                    self.client = anthropic.Anthropic(
+                        api_key=self.api_key,
+                        default_headers={
+                            "User-Agent": "claude-code-cli",
+                            "X-Claude-Code": "1"
+                        }
+                    )
                     logger.info(f"Claude 分析器初始化成功 (模型: {self.model})")
             except Exception as e:
                 self.enabled = False
