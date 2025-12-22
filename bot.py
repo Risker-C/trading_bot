@@ -24,7 +24,8 @@ from claude_guardrails import get_guardrails
 from policy_layer import get_policy_layer
 from claude_policy_analyzer import get_claude_policy_analyzer
 from trading_context_builder import get_context_builder
-from ml_predictor import get_ml_predictor
+from ml_predictor import get_ml_predictor  # 原版ML预测器
+from ml_predictor_lite import get_ml_predictor_lite  # 优化版ML预测器
 
 logger = get_logger("bot")
 
@@ -81,9 +82,16 @@ class TradingBot:
 
         # 初始化 ML 信号过滤器
         if getattr(config, 'ENABLE_ML_FILTER', False):
-            self.ml_predictor = get_ml_predictor()
+            # 根据配置选择使用优化版或原版
+            use_lite = getattr(config, 'ML_USE_LITE_VERSION', True)
+            if use_lite:
+                self.ml_predictor = get_ml_predictor_lite()
+                version = "优化版"
+            else:
+                self.ml_predictor = get_ml_predictor()
+                version = "原版"
             ml_mode = getattr(config, 'ML_MODE', 'shadow')
-            logger.info(f"✅ ML信号过滤器已启用 (模式: {ml_mode})")
+            logger.info(f"✅ ML信号过滤器已启用 ({version}, 模式: {ml_mode})")
         else:
             self.ml_predictor = None
             logger.info("⚠️ ML信号过滤器未启用")

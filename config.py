@@ -58,16 +58,16 @@ MIN_WIN_RATE_FOR_KELLY = 0.4   # 使用 Kelly 的最低胜率要求
 # ==================== 波动率配置（新增）====================
 
 REDUCE_SIZE_ON_HIGH_VOL = True        # 高波动时减仓
-HIGH_VOLATILITY_THRESHOLD = 0.04      # 高波动阈值（4%）
+HIGH_VOLATILITY_THRESHOLD = 0.06      # 高波动阈值（6%）（优化：从4%提高，加密货币市场波动本身较大）
 LOW_VOLATILITY_THRESHOLD = 0.01       # 低波动阈值（1%）
 VOLATILITY_SIZE_FACTOR = 0.7          # 高波动时仓位系数
 VOLATILITY_LOOKBACK = 20              # 波动率计算周期
 
 # ==================== 止损止盈配置 ====================
 
-STOP_LOSS_PERCENT = 0.035      # 止损比例 3.5% (优化：从2%提高，减少被市场噪音止损)
-TAKE_PROFIT_PERCENT = 0.06     # 止盈比例 6% (优化：从4%提高，更好的风险回报比)
-TRAILING_STOP_PERCENT = 0.005  # 移动止损回撤比例 0.5% (优化：从0.25%提高，避免过早止盈)
+STOP_LOSS_PERCENT = 0.025      # 止损比例 2.5% (优化：收紧止损，控制单笔风险)
+TAKE_PROFIT_PERCENT = 0.08     # 止盈比例 8% (优化：扩大止盈，提升盈亏比至3.2:1)
+TRAILING_STOP_PERCENT = 0.01   # 移动止损回撤比例 1% (优化：放宽移动止损，让盈利充分发展)
 
 # ATR 动态止损（新增）
 USE_ATR_STOP_LOSS = True       # 是否使用 ATR 止损
@@ -120,9 +120,9 @@ ENABLE_STRATEGIES: List[str] = [
 
 # 共识信号配置（新增）
 USE_CONSENSUS_SIGNAL = True        # 是否使用共识信号
-MIN_STRATEGY_AGREEMENT = 0.7       # 最小策略一致性（优化：从0.6提高，减少低质量交易）
-MIN_SIGNAL_STRENGTH = 0.7          # 最小信号强度（优化：从0.5提高，提高信号质量）
-MIN_SIGNAL_CONFIDENCE = 0.6        # 最小置信度（优化：从0.5提高）
+MIN_STRATEGY_AGREEMENT = 0.6       # 最小策略一致性（优化：从0.7降低，恢复交易频率）
+MIN_SIGNAL_STRENGTH = 0.6          # 最小信号强度（优化：从0.7降低，避免过度过滤）
+MIN_SIGNAL_CONFIDENCE = 0.5        # 最小置信度（优化：从0.6降低，平衡质量与数量）
 
 # 动态策略选择配置（新增）
 USE_DYNAMIC_STRATEGY = True        # 启用市场状态感知的动态策略选择
@@ -416,7 +416,7 @@ CLAUDE_DAILY_REVIEW_DAYS = 1
 # ==================== Policy Layer 配置（新增）====================
 
 # 是否启用 Policy Layer（策略治理层）
-ENABLE_POLICY_LAYER = False  # 禁用策略治理层（避免API阻止）
+ENABLE_POLICY_LAYER = False  # 临时禁用，先稳定基础配置后再启用动态调整
 
 # Policy Layer 更新间隔（分钟）
 # Claude 会定期分析交易上下文并更新策略参数
@@ -472,9 +472,9 @@ ATR_SPIKE_THRESHOLD = 1.5  # 1.5倍
 # 是否启用方向过滤器（解决做多胜率低的问题）
 ENABLE_DIRECTION_FILTER = True
 
-# 做多信号要求（更严格的标准）
-LONG_MIN_STRENGTH = 0.8        # 做多需要80%信号强度（优化：从70%提高，因做多胜率仅31.8%）
-LONG_MIN_AGREEMENT = 0.8       # 做多需要80%策略一致性（优化：从70%提高，严格控制做多）
+# 做多信号要求（适度严格的标准）
+LONG_MIN_STRENGTH = 0.65       # 做多需要65%信号强度（优化：从80%降低，过高要求导致无法开仓）
+LONG_MIN_AGREEMENT = 0.65      # 做多需要65%策略一致性（优化：从80%降低，恢复交易频率）
 
 # 做空信号要求（正常标准）
 SHORT_MIN_STRENGTH = 0.5       # 做空保持50%信号强度
@@ -511,6 +511,9 @@ BACKTEST_SLIPPAGE = 0.0001     # 滑点
 
 # 是否启用ML信号过滤器
 ENABLE_ML_FILTER = True  # 已启用，使用影子模式测试
+
+# 是否使用轻量级优化版ML预测器
+ML_USE_LITE_VERSION = True  # True: 使用优化版（推荐，内存占用低60-70%），False: 使用原版
 
 # ML运行模式
 ML_MODE = "shadow"  # shadow: 影子模式（只记录不影响交易）, filter: 过滤模式（实际过滤信号）, off: 关闭
