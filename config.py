@@ -66,8 +66,8 @@ VOLATILITY_LOOKBACK = 20              # 波动率计算周期
 # ==================== 止损止盈配置 ====================
 
 STOP_LOSS_PERCENT = 0.025      # 止损比例 2.5% (优化：收紧止损，控制单笔风险)
-TAKE_PROFIT_PERCENT = 0.08     # 止盈比例 8% (优化：扩大止盈，提升盈亏比至3.2:1)
-TRAILING_STOP_PERCENT = 0.01   # 移动止损回撤比例 1% (优化：放宽移动止损，让盈利充分发展)
+TAKE_PROFIT_PERCENT = 0.06     # 止盈比例 6% (保守方案：降低到0.6%实际止盈，更容易触发)
+TRAILING_STOP_PERCENT = 0.015  # 移动止损回撤比例 1.5% (保守方案：放宽到1.5%，减少过早止盈)
 
 # ATR 动态止损（新增）
 USE_ATR_STOP_LOSS = True       # 是否使用 ATR 止损
@@ -83,7 +83,13 @@ ENABLE_TRAILING_TAKE_PROFIT = True
 
 # 最小盈利门槛（USDT）- 必须超过此值才算真正盈利
 # 优化说明：从0.012提高到0.08，避免过早触发动态止盈，让盈利交易有更多空间
-MIN_PROFIT_THRESHOLD_USDT = 0.08
+# 保守方案：改为基于手续费的动态计算，使用倍数参数
+MIN_PROFIT_THRESHOLD_USDT = 0.08  # 保留作为后备值，实际使用动态计算
+
+# 动态止盈门槛倍数（基于总手续费）
+# 例如：1.5表示盈利必须超过总手续费的1.5倍才启用动态止盈
+# 对于10 USDT仓位，总手续费约0.012 USDT，门槛为0.018 USDT（约0.18%盈利）
+MIN_PROFIT_THRESHOLD_MULTIPLIER = 1.5  # 保守方案：1.5倍手续费
 
 # 价格均值窗口大小（N次价格）
 # 建议：5-10次，平衡灵敏度和稳定性
@@ -522,7 +528,9 @@ ML_MODE = "shadow"  # shadow: 影子模式（只记录不影响交易）, filter
 ML_MODEL_PATH = "models/signal_quality_v1.pkl"
 
 # ML信号质量阈值（0-1，只执行质量分数>=此值的信号）
-ML_QUALITY_THRESHOLD = 0.6  # 60%质量分数
+# 优化说明：从0.6降低到0.35，因为当前模型预测分数在24-29%范围内
+# 降低阈值可以让高质量信号通过，避免过度过滤
+ML_QUALITY_THRESHOLD = 0.35  # 35%质量分数（优化后）
 
 # ML最小信号数量（如果过滤后信号数量<此值，则不过滤）
 ML_MIN_SIGNALS = 1

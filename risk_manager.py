@@ -662,15 +662,27 @@ class RiskManager:
         # 1. 计算净盈利
         net_profit = position.calculate_net_profit(current_price)
 
-        # 2. 检查是否超过最小盈利门槛
-        if net_profit > config.MIN_PROFIT_THRESHOLD_USDT:
+        # 2. 计算动态盈利门槛（基于实际手续费）
+        close_fee = current_price * position.amount * config.TRADING_FEE_RATE
+        total_fee = position.entry_fee + close_fee
+
+        # 使用倍数参数计算动态门槛，如果配置不存在则使用固定值作为后备
+        if hasattr(config, 'MIN_PROFIT_THRESHOLD_MULTIPLIER'):
+            dynamic_threshold = total_fee * config.MIN_PROFIT_THRESHOLD_MULTIPLIER
+            logger.debug(f"[动态止盈] 总手续费: {total_fee:.4f} USDT, 动态门槛: {dynamic_threshold:.4f} USDT (倍数: {config.MIN_PROFIT_THRESHOLD_MULTIPLIER})")
+        else:
+            dynamic_threshold = config.MIN_PROFIT_THRESHOLD_USDT
+            logger.debug(f"[动态止盈] 使用固定门槛: {dynamic_threshold:.4f} USDT")
+
+        # 3. 检查是否超过动态门槛
+        if net_profit > dynamic_threshold:
             position.profit_threshold_reached = True
-            # 3. 更新最大盈利
+            # 4. 更新最大盈利
             if net_profit > position.max_profit:
                 position.max_profit = net_profit
                 logger.info(f"[动态止盈] 更新最大盈利: {position.max_profit:.4f} USDT")
 
-        # 4. 只有达到盈利门槛后才启用动态止盈
+        # 5. 只有达到盈利门槛后才启用动态止盈
         if not position.profit_threshold_reached:
             return 0
 
@@ -782,9 +794,19 @@ class RiskManager:
 
             # ===== 调试日志：动态止盈详情 =====
             net_profit = position.calculate_net_profit(current_price)
+
+            # 计算动态门槛（与calculate_trailing_take_profit中的逻辑一致）
+            close_fee = current_price * position.amount * config.TRADING_FEE_RATE
+            total_fee = position.entry_fee + close_fee
+            if hasattr(config, 'MIN_PROFIT_THRESHOLD_MULTIPLIER'):
+                dynamic_threshold = total_fee * config.MIN_PROFIT_THRESHOLD_MULTIPLIER
+            else:
+                dynamic_threshold = config.MIN_PROFIT_THRESHOLD_USDT
+
             logger.info(f"[动态止盈] 净盈利: {net_profit:.4f} USDT")
             logger.info(f"[动态止盈] 最大盈利: {position.max_profit:.4f} USDT")
-            logger.info(f"[动态止盈] 盈利门槛: {config.MIN_PROFIT_THRESHOLD_USDT:.4f} USDT")
+            logger.info(f"[动态止盈] 总手续费: {total_fee:.4f} USDT")
+            logger.info(f"[动态止盈] 盈利门槛: {dynamic_threshold:.4f} USDT (手续费×{getattr(config, 'MIN_PROFIT_THRESHOLD_MULTIPLIER', 'N/A')})")
             logger.info(f"[动态止盈] 门槛已达: {position.profit_threshold_reached}")
             logger.info(f"[动态止盈] 价格窗口: {position.recent_prices}")
             if len(position.recent_prices) >= config.TRAILING_TP_PRICE_WINDOW:

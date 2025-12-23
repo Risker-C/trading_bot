@@ -507,6 +507,31 @@ class BitgetTrader:
             position_amount = position_data['amount']
             position_entry_price = position_data['entry_price']
 
+        # 修复：在平仓前先从数据库获取开仓记录的order_id
+        opening_order_id = None
+        try:
+            conn = db._get_conn()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT order_id FROM trades
+                WHERE action = 'open'
+                    AND side = ?
+                    AND symbol = ?
+                    AND NOT EXISTS (
+                        SELECT 1 FROM trades t2
+                        WHERE t2.order_id = trades.order_id AND t2.action = 'close'
+                    )
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (position_side, config.SYMBOL))
+            result = cursor.fetchone()
+            if result:
+                opening_order_id = result[0]
+                logger.debug(f"找到开仓order_id: {opening_order_id}")
+            conn.close()
+        except Exception as e:
+            logger.warning(f"获取开仓order_id失败: {e}")
+
         # 使用 Bitget 一键平仓 API（双向持仓模式）
         try:
             result = self.exchange.private_mix_post_v2_mix_order_close_positions({
@@ -536,16 +561,28 @@ class BitgetTrader:
             ticker = self.get_ticker()
             close_price = ticker['last'] if ticker else 0
 
-            # P1优化：获取订单详情以记录实际成交信息
-            order_id = order.get('id', '') if isinstance(order, dict) else ''
+            # 修复：优先使用开仓时的order_id，确保能正确关联开仓和平仓记录
+            order_id = opening_order_id
+
+            # 如果没有找到开仓order_id，尝试从订单中获取
+            if not order_id:
+                order_id = order.get('id', '') if isinstance(order, dict) else ''
+                logger.warning(f"未找到开仓order_id，使用平仓订单ID: {order_id}")
+
+            # 如果还是没有order_id，生成一个唯一标识符
+            if not order_id:
+                import uuid
+                order_id = f"close_{int(datetime.now().timestamp())}_{uuid.uuid4().hex[:8]}"
+                logger.warning(f"无法获取order_id，生成临时ID: {order_id}")
+
             filled_price = close_price  # 默认使用ticker价格
             filled_time = None
             fee = None
             fee_currency = None
 
             try:
-                # 尝试获取订单详情（仅当有order_id时）
-                if order_id and self.exchange:
+                # 尝试获取订单详情（仅当有真实order_id时，不是生成的临时ID）
+                if order_id and not order_id.startswith('close_') and self.exchange:
                     order_detail = self.exchange.fetch_order(order_id, config.SYMBOL)
                     # 实际成交均价
                     filled_price = order_detail.get('average') or order_detail.get('price') or close_price
@@ -570,7 +607,7 @@ class BitgetTrader:
             # 记录交易结果
             self.risk_manager.record_trade_result(pnl)
 
-            # 记录到数据库（P1优化：包含完整的交易信息）
+            # 记录到数据库（修复：确保使用正确的order_id）
             db.log_trade(
                 symbol=config.SYMBOL,
                 side=position_side,
@@ -580,12 +617,14 @@ class BitgetTrader:
                 pnl=pnl,
                 pnl_percent=pnl_percent,
                 reason=reason,
-                order_id=order_id,
+                order_id=order_id,  # 使用开仓时的order_id
                 filled_price=filled_price,
                 filled_time=filled_time,
                 fee=fee,
                 fee_currency=fee_currency
             )
+
+            logger.info(f"✅ 平仓记录已写入数据库: order_id={order_id}, pnl={pnl:.4f}")
             
             # 清除持仓
             self.risk_manager.clear_position()

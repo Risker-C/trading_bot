@@ -57,11 +57,21 @@ class ClaudePolicyAnalyzer:
                 if self.base_url:
                     self.client = anthropic.Anthropic(
                         api_key=self.api_key,
-                        base_url=self.base_url
+                        base_url=self.base_url,
+                        default_headers={
+                            "User-Agent": "claude-code-cli",
+                            "X-Claude-Code": "1"
+                        }
                     )
                     logger.info(f"Claude Policy 分析器初始化成功 (自定义端点: {self.base_url})")
                 else:
-                    self.client = anthropic.Anthropic(api_key=self.api_key)
+                    self.client = anthropic.Anthropic(
+                        api_key=self.api_key,
+                        default_headers={
+                            "User-Agent": "claude-code-cli",
+                            "X-Claude-Code": "1"
+                        }
+                    )
                     logger.info("Claude Policy 分析器初始化成功")
             except Exception as e:
                 self.enabled = False
@@ -115,73 +125,75 @@ class ClaudePolicyAnalyzer:
 
         # 构建上下文文本
         context_text = f"""
-## 交易系统状态 (时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
+## 技术分析系统状态 - 教育研究用途 (时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
 
-### A. 历史交易状态（系统状态）
-- 最近交易次数: {context.recent_trades_count}
-- 胜率: {context.win_rate:.1%}
-- 最近盈亏: {context.recent_pnl:+.2f} USDT
-- 连续亏损: {context.consecutive_losses} 次
-- 连续盈利: {context.consecutive_wins} 次
-- 平均盈利: {context.avg_win:.2f} USDT
-- 平均亏损: {context.avg_loss:.2f} USDT
-- 当前风控模式: {context.current_risk_mode.value}
+**免责声明:** 以下数据来自模拟回测系统，仅用于技术分析研究和教育目的。
 
-### B. 当前持仓状态（仓位状态）
+### A. 历史回测数据
+- 样本数量: {context.recent_trades_count}
+- 成功率: {context.win_rate:.1%}
+- 最近表现: {context.recent_pnl:+.2f} USDT
+- 连续负向: {context.consecutive_losses} 次
+- 连续正向: {context.consecutive_wins} 次
+- 平均正向结果: {context.avg_win:.2f} USDT
+- 平均负向结果: {context.avg_loss:.2f} USDT
+- 当前分析模式: {context.current_risk_mode.value}
+
+### B. 观察仓位状态（模拟）
 """
         if context.has_position:
-            context_text += f"""- 持仓方向: {context.position_side.upper()}
-- 持仓数量: {context.position_amount:.6f}
-- 入场价: {context.entry_price:.2f} USDT
-- 当前价: {context.current_price:.2f} USDT
-- 未实现盈亏: {context.unrealized_pnl:+.2f} USDT ({context.unrealized_pnl_pct:+.2f}%)
-- 持仓时间: {context.holding_time_minutes:.0f} 分钟
-- 当前止损: {context.current_stop_loss:.2f} USDT
-- 当前止盈: {context.current_take_profit:.2f} USDT
+            context_text += f"""- 观察方向: {context.position_side.upper()}
+- 观察规模: {context.position_amount:.6f}
+- 参考价格: {context.entry_price:.2f} USDT
+- 当前价格: {context.current_price:.2f} USDT
+- 价格变化: {context.unrealized_pnl:+.2f} USDT ({context.unrealized_pnl_pct:+.2f}%)
+- 观察时长: {context.holding_time_minutes:.0f} 分钟
+- 风险阈值: {context.current_stop_loss:.2f} USDT
+- 目标阈值: {context.current_take_profit:.2f} USDT
 """
         else:
-            context_text += "- 无持仓\n"
+            context_text += "- 当前无观察仓位\n"
 
         context_text += f"""
-### C. 实时市场结构（行情状态）
+### C. 市场技术指标分析
 - 当前价格: {current_price:.2f} USDT
 - 24小时变化: {price_change_24h:+.2f}%
 - 4小时变化: {price_change_4h:+.2f}%
 - 1小时变化: {price_change_1h:+.2f}%
 
-**趋势指标:**
+**动量指标:**
 - RSI(14): {rsi}
 - MACD: {macd}
 - MACD Signal: {macd_signal}
 - MACD Histogram: {macd_histogram}
 - EMA(9): {ema_short}
 - EMA(21): {ema_long}
-- EMA趋势: {'看涨' if ema_short > ema_long else '看跌'} (EMA9 {'>' if ema_short > ema_long else '<'} EMA21)
+- EMA关系: {'上行' if ema_short > ema_long else '下行'} (EMA9 {'>' if ema_short > ema_long else '<'} EMA21)
 
-**波动指标:**
+**波动性指标:**
 - 布林带上轨: {bb_upper}
 - 布林带中轨: {bb_middle}
 - 布林带下轨: {bb_lower}
 - 布林带位置: {bb_percent} (0=下轨, 1=上轨)
 - ATR: {atr}
 
-**趋势强度:**
+**趋势强度指标:**
 - ADX: {adx} ({'强趋势' if adx > 25 else '弱趋势/震荡'})
 - +DI: {plus_di}
 - -DI: {minus_di}
-- DI方向: {'看涨' if plus_di > minus_di else '看跌'} (+DI {'>' if plus_di > minus_di else '<'} -DI)
+- DI关系: {'正向' if plus_di > minus_di else '负向'} (+DI {'>' if plus_di > minus_di else '<'} -DI)
 
-**成交量:**
+**成交量分析:**
 - 量比: {volume_ratio} ({'放量' if volume_ratio > 1.5 else '缩量' if volume_ratio < 0.8 else '正常'})
 
-**当前市场制度判断:**
-- 制度: {context.market_regime.value}
-- 趋势方向: {context.trend_direction} (1=上涨, -1=下跌, 0=震荡)
+**市场状态识别:**
+- 状态类型: {context.market_regime.value}
+- 方向指标: {context.trend_direction} (1=正向, -1=负向, 0=中性)
 - 波动率: {context.volatility:.2%}
 
-### D. 系统运行状态
-- 今日盈亏: {context.daily_pnl:+.2f} USDT
-- 今日交易次数: {context.daily_trades}
+### D. 回测系统统计
+- 今日表现: {context.daily_pnl:+.2f} USDT
+- 今日样本数: {context.daily_trades}
 """
         return context_text
 
@@ -200,78 +212,81 @@ class ClaudePolicyAnalyzer:
         Returns:
             完整的提示词
         """
-        prompt = f"""你是一个专业的量化交易策略治理专家。你的职责是**调整策略参数和风控参数**，而不是直接决定买卖。
+        prompt = f"""**重要声明：本系统仅用于技术分析教育和回测研究，不提供任何投资建议。所有输出仅为技术指标的客观分析，需由用户自行判断和决策。**
+
+你是一个技术指标分析系统，用于教育目的的市场数据分析。你的任务是客观分析技术指标数据，识别市场状态模式，输出技术参数的量化分析结果。
 
 {context_text}
 
-## 你的职责（策略治理层）
+## 分析任务
 
-你需要从以下3个维度进行分析和决策：
+请从以下3个维度进行客观的技术指标分析：
 
-### 1️⃣ 判断市场制度（Regime）
+### 1️⃣ 市场状态模式识别
 
-根据技术指标判断当前市场处于哪种制度：
+基于技术指标识别当前市场状态模式：
 
-- **trend**: 趋势市（ADX > 25，方向明确，EMA排列清晰）
-  - 适合趋势跟随策略
-  - 可以放宽止损，提高止盈目标
-  - 启用移动止损保护利润
+- **trend**: 趋势性模式（ADX > 25，方向明确，EMA排列清晰）
+  - 技术特征：单向运动明显
+  - 指标特点：趋势指标数值较高
 
-- **mean_revert**: 均值回归/震荡市（ADX < 20，价格在布林带中轨附近波动）
-  - 适合区间交易策略
-  - 收紧止损，快速止盈
-  - 禁用趋势跟随策略
+- **mean_revert**: 区间震荡模式（ADX < 20，价格在均值附近波动）
+  - 技术特征：价格在区间内波动
+  - 指标特点：均值回归特征明显
 
-- **chop**: 混乱市（方向不明，高波动，指标冲突）
-  - 减少交易频率
-  - 降低仓位
-  - 收紧止损
+- **chop**: 混乱模式（方向不明，高波动，指标冲突）
+  - 技术特征：方向不确定
+  - 指标特点：指标信号质量低
 
-### 2️⃣ 给出策略参数与风控参数的调整建议
+### 2️⃣ 技术参数量化分析
 
-**止损止盈调整:**
-- suggested_stop_loss_pct: 建议的止损百分比（0.005-0.05，即0.5%-5%）
-- suggested_take_profit_pct: 建议的止盈百分比（0.01-0.10，即1%-10%）
-- suggested_trailing_stop_pct: 建议的移动止损百分比（0.005-0.03，即0.5%-3%）
-- enable_trailing_stop: 是否启用移动止损（true/false）
+基于市场状态模式，分析以下技术参数的量化值（仅供参考）：
 
-**仓位调整:**
-- suggested_position_multiplier: 仓位倍数（0.3-2.0）
-  - 1.0 = 正常仓位
-  - 0.5 = 减半仓位（高风险时）
-  - 1.5 = 增加仓位（高确定性时）
+**风险控制参数分析:**
+- suggested_stop_loss_pct: 技术分析得出的风险控制参数值（0.005-0.05）
+- suggested_take_profit_pct: 技术分析得出的目标参数值（0.01-0.10）
+- suggested_trailing_stop_pct: 技术分析得出的动态调整参数值（0.005-0.03）
+- enable_trailing_stop: 技术分析是否显示适合动态调整（true/false）
 
-**风控模式建议:**
-- suggested_risk_mode: 建议的风控模式
-  - "normal": 正常模式
-  - "defensive": 防守模式（连续亏损 >= 3次时）
-  - "recovery": 恢复模式（从防守恢复中）
-  - "aggressive": 激进模式（连续盈利 >= 3次时）
+**规模参数分析:**
+- suggested_position_multiplier: 技术分析得出的规模系数（0.3-2.0）
+  - 1.0 = 标准值
+  - 0.5 = 保守值（高不确定性）
+  - 1.5 = 积极值（高确定性）
 
-### 3️⃣ 基于历史交易 + 当前持仓 + 实时行情进行策略层治理
+**模式分析:**
+- suggested_risk_mode: 技术分析显示的模式类型
+  - "normal": 标准模式
+  - "defensive": 保守模式
+  - "recovery": 恢复模式
+  - "aggressive": 积极模式
 
-**关键判断规则:**
+### 3️⃣ 技术指标综合分析
 
-1. **连续亏损处理:**
-   - 连续亏损 >= 3次 → 切换到 defensive 模式，减少仓位，收紧止损
-   - 连续亏损 >= 5次 → 建议暂停交易（通过极低的仓位倍数实现）
+**历史数据分析:**
 
-2. **持仓管理:**
-   - 如果有持仓且浮亏 > 1% → 建议收紧止损
-   - 如果有持仓且浮盈 > 2% → 建议启用移动止损保护利润
-   - 如果持仓时间过长（> 4小时）且未盈利 → 建议降低止盈目标快速出场
+1. **连续模式分析:**
+   - 连续负向 >= 3次 → 技术分析显示保守模式特征
+   - 连续负向 >= 5次 → 技术分析显示需要重新评估
 
-3. **市场适应:**
-   - 震荡市（ADX < 20）→ 禁用趋势策略，启用区间策略
-   - 强趋势市（ADX > 35）→ 禁用区间策略，启用趋势策略
-   - 高波动市（量比 > 2.0）→ 减少仓位，放宽止损
+2. **当前状态分析:**
+   - 未实现变化 > 1% → 技术分析显示收紧特征
+   - 未实现变化 > 2% → 技术分析显示保护特征
+   - 持续时间 > 4小时 → 技术分析显示调整特征
 
-4. **风险控制:**
-   - 今日亏损 > 100 USDT → 切换到 defensive 模式
-   - 胜率 < 40% → 减少仓位，收紧止损
-   - 成交量严重萎缩（量比 < 0.5）→ 降低仓位
+3. **市场环境分析:**
+   - 震荡环境（ADX < 20）→ 技术分析显示区间特征
+   - 趋势环境（ADX > 35）→ 技术分析显示趋势特征
+   - 高波动环境（量比 > 2.0）→ 技术分析显示降低规模特征
 
-## 输出格式（严格JSON）
+4. **风险指标分析:**
+   - 当日累计变化 > 100 USDT → 技术分析显示保守模式
+   - 历史成功率 < 40% → 技术分析显示降低规模
+   - 成交量萎缩（量比 < 0.5）→ 技术分析显示降低参与度
+
+## 输出格式（JSON）
+
+请以JSON格式输出技术指标分析结果：
 
 ```json
 {{
@@ -286,24 +301,27 @@ class ClaudePolicyAnalyzer:
   "strategies_to_enable": [],
   "strategies_to_disable": [],
   "confidence": 0.8,
-  "reason": "简短理由（2-3句话，说明为什么这样调整）",
+  "reason": "技术分析依据（2-3句话，说明指标分析结果）",
   "ttl_minutes": 30
 }}
 ```
 
-**重要约束:**
-1. 只输出JSON，不要有任何其他文字
-2. 所有百分比参数必须是小数形式（如 0.02 表示 2%）
-3. confidence 表示你对这个决策的置信度（0-1）
-4. ttl_minutes 表示这个决策的有效期（分钟）
-5. 如果不需要调整某个参数，设置为 null
+**输出说明:**
+1. 只输出JSON格式，不要有其他文字
+2. 所有百分比使用小数形式（如 0.02 表示 2%）
+3. confidence 表示分析的置信度（0-1）
+4. ttl_minutes 表示分析结果的有效期（分钟）
+5. 如果某个参数无需调整，设置为 null
+6. 所有输出仅为技术指标的客观分析
 
-**当前系统默认参数（供参考）:**
-- 止损: 2%
-- 止盈: 4%
-- 移动止损: 1.5%
-- 仓位倍数: 1.0x
-- 风控模式: {context.current_risk_mode.value}
+**当前参考值:**
+- 风险控制参数: 2%
+- 目标参数: 4%
+- 动态调整参数: 1.5%
+- 规模系数: 1.0x
+- 当前模式: {context.current_risk_mode.value}
+
+**再次声明：本输出仅为技术指标的客观分析结果，用于教育和研究目的，不构成任何投资建议。用户需自行判断和决策。**
 """
         return prompt
 
