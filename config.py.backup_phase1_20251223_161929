@@ -40,7 +40,7 @@ MARGIN_MODE = "crossed"  # isolated / crossed
 
 # ==================== 仓位管理 ====================
 
-POSITION_SIZE_PERCENT = 0.03   # Phase 1: 降低到3%以控制风险（测试期间）
+POSITION_SIZE_PERCENT = 0.05   # 基础仓位比例（5%）（优化：从10%降低，降低风险敞口）
 MIN_ORDER_USDT = 10            # 最小订单金额
 MAX_ORDER_USDT = 1000          # 最大订单金额
 
@@ -126,9 +126,9 @@ ENABLE_STRATEGIES: List[str] = [
 
 # 共识信号配置（新增）
 USE_CONSENSUS_SIGNAL = True        # 是否使用共识信号
-MIN_STRATEGY_AGREEMENT = 0.5       # Phase 1: 降低到0.5以恢复交易
-MIN_SIGNAL_STRENGTH = 0.5          # Phase 1: 降低到0.5以恢复交易
-MIN_SIGNAL_CONFIDENCE = 0.4        # Phase 1: 降低到0.4以恢复交易
+MIN_STRATEGY_AGREEMENT = 0.6       # 最小策略一致性（优化：从0.7降低，恢复交易频率）
+MIN_SIGNAL_STRENGTH = 0.6          # 最小信号强度（优化：从0.7降低，避免过度过滤）
+MIN_SIGNAL_CONFIDENCE = 0.5        # 最小置信度（优化：从0.6降低，平衡质量与数量）
 
 # 动态策略选择配置（新增）
 USE_DYNAMIC_STRATEGY = True        # 启用市场状态感知的动态策略选择
@@ -476,7 +476,7 @@ ATR_SPIKE_THRESHOLD = 1.5  # 1.5倍
 # ==================== 方向过滤器配置（新增）====================
 
 # 是否启用方向过滤器（解决做多胜率低的问题）
-ENABLE_DIRECTION_FILTER = False  # Phase 1: 临时禁用以恢复交易活动
+ENABLE_DIRECTION_FILTER = True
 
 # 做多信号要求（适度严格的标准）
 LONG_MIN_STRENGTH = 0.65       # 做多需要65%信号强度（优化：从80%降低，过高要求导致无法开仓）
@@ -487,7 +487,7 @@ SHORT_MIN_STRENGTH = 0.5       # 做空保持50%信号强度
 SHORT_MIN_AGREEMENT = 0.6      # 做空保持60%策略一致性
 
 # 是否启用自适应阈值调整（根据历史胜率动态调整）
-ENABLE_ADAPTIVE_THRESHOLDS = False  # Phase 1: 禁用以打破恶性循环
+ENABLE_ADAPTIVE_THRESHOLDS = True
 
 # 自适应调整的触发条件
 ADAPTIVE_LOW_WIN_RATE = 0.3    # 做多胜率低于30%时提高要求
