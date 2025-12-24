@@ -65,13 +65,13 @@ VOLATILITY_LOOKBACK = 20              # 波动率计算周期
 
 # ==================== 止损止盈配置 ====================
 
-STOP_LOSS_PERCENT = 0.025      # 止损比例 2.5% (优化：收紧止损，控制单笔风险)
-TAKE_PROFIT_PERCENT = 0.06     # 止盈比例 6% (保守方案：降低到0.6%实际止盈，更容易触发)
-TRAILING_STOP_PERCENT = 0.015  # 移动止损回撤比例 1.5% (保守方案：放宽到1.5%，减少过早止盈)
+STOP_LOSS_PERCENT = 0.04       # 止损比例 4% (优化：从2.5%放宽到4%，减少被市场噪音打止损)
+TAKE_PROFIT_PERCENT = 0.03     # 止盈比例 3% (保持不变，实际表现良好)
+TRAILING_STOP_PERCENT = 0.025  # 移动止损回撤比例 2.5% (优化：从1.5%放宽到2.5%，避免盈利单被打掉)
 
 # ATR 动态止损（新增）
 USE_ATR_STOP_LOSS = True       # 是否使用 ATR 止损
-ATR_STOP_MULTIPLIER = 2.5      # ATR 倍数 (优化：从2.0提高到2.5，适应加密货币波动)
+ATR_STOP_MULTIPLIER = 3.5      # ATR 倍数 (优化：从2.5提高到3.5，给交易更多空间)
 
 # 分批止盈（新增）
 USE_PARTIAL_TAKE_PROFIT = True # 是否分批止盈
@@ -95,9 +95,9 @@ MIN_PROFIT_THRESHOLD_MULTIPLIER = 1.5  # 保守方案：1.5倍手续费
 # 建议：5-10次，平衡灵敏度和稳定性
 TRAILING_TP_PRICE_WINDOW = 5
 
-# 跌破均值的百分比阈值（例如：0.004 表示跌破0.4%）
-# 优化说明：从0.1%提高到0.4%，减少对市场噪音的敏感度，让盈利交易有更多空间
-TRAILING_TP_FALLBACK_PERCENT = 0.004
+# 跌破均值的百分比阈值（例如：0.0008 表示跌破0.08%）
+# 修复说明：从0.4%降低到0.08%，提高动态止盈灵敏度，避免盈利变亏损
+TRAILING_TP_FALLBACK_PERCENT = 0.0008
 
 # 手续费率（Bitget 默认 0.06%）
 TRADING_FEE_RATE = 0.0006
@@ -126,9 +126,9 @@ ENABLE_STRATEGIES: List[str] = [
 
 # 共识信号配置（新增）
 USE_CONSENSUS_SIGNAL = True        # 是否使用共识信号
-MIN_STRATEGY_AGREEMENT = 0.5       # Phase 1: 降低到0.5以恢复交易
-MIN_SIGNAL_STRENGTH = 0.5          # Phase 1: 降低到0.5以恢复交易
-MIN_SIGNAL_CONFIDENCE = 0.4        # Phase 1: 降低到0.4以恢复交易
+MIN_STRATEGY_AGREEMENT = 0.4       # Phase 2: 进一步降低到0.4以恢复交易（修复策略选择后）
+MIN_SIGNAL_STRENGTH = 0.45         # Phase 2: 降低到0.45
+MIN_SIGNAL_CONFIDENCE = 0.35       # Phase 2: 降低到0.35
 
 # 动态策略选择配置（新增）
 USE_DYNAMIC_STRATEGY = True        # 启用市场状态感知的动态策略选择

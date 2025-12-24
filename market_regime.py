@@ -179,45 +179,49 @@ class MarketRegimeDetector:
 
     def get_suitable_strategies(self, regime_info: RegimeInfo) -> list[str]:
         """
-        根据市场状态返回适合的策略列表
+        根据市场状态返回适合的策略列表（修复版）
+
+        修复说明：确保返回的策略都在config.ENABLE_STRATEGIES中
 
         震荡市策略:
-        - bollinger_breakthrough (均值回归版)
-        - rsi_divergence
-        - kdj_cross
+        - composite_score (综合评分，适合各种市场)
+        - macd_cross (MACD在震荡市也有效)
 
         过渡市策略:
-        - composite_score
-        - multi_timeframe
+        - composite_score (综合评分)
+        - macd_cross
+        - ema_cross
 
         趋势市策略:
         - bollinger_trend (趋势突破版)
         - ema_cross
         - macd_cross
-        - adx_trend
-        - volume_breakout
         """
         if regime_info.regime == MarketRegime.RANGING:
-            return [
-                "bollinger_breakthrough",  # 均值回归
-                "rsi_divergence",
-                "kdj_cross",
-            ]
+            # 震荡市：使用综合评分 + MACD（已启用且适合震荡）
+            strategies = ["composite_score", "macd_cross"]
 
         elif regime_info.regime == MarketRegime.TRENDING:
-            return [
-                "bollinger_trend",  # 趋势突破(需要新增)
+            # 趋势市：使用趋势跟踪策略
+            strategies = [
+                "bollinger_trend",
                 "ema_cross",
                 "macd_cross",
-                "adx_trend",
-                "volume_breakout",
             ]
 
         else:  # TRANSITIONING
-            return [
-                "composite_score",
-                "multi_timeframe",
-            ]
+            # 过渡市：使用综合策略
+            strategies = ["composite_score", "macd_cross", "ema_cross"]
+
+        # 过滤：只返回已启用的策略
+        enabled_strategies = [s for s in strategies if s in config.ENABLE_STRATEGIES]
+
+        # 如果过滤后没有策略，使用所有已启用的策略
+        if not enabled_strategies:
+            logger.warning(f"市场状态{regime_info.regime.value}没有匹配的已启用策略，使用全部策略")
+            enabled_strategies = config.ENABLE_STRATEGIES
+
+        return enabled_strategies
 
     def should_trade(self, regime_info: RegimeInfo) -> tuple[bool, str]:
         """
