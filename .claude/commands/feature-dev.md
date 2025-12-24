@@ -52,6 +52,46 @@
      * 在关键操作处添加INFO级别日志
      * 在错误处理处添加ERROR级别日志
      * 在调试信息处添加DEBUG级别日志
+   - **如果涉及数据库修改，必须遵循数据库开发规范**（详见 `docs/database_standards.md`）：
+     * **修改前备份**：任何数据库结构修改前必须备份数据库
+       ```bash
+       cp trading_bot.db trading_bot_backup_$(date +%Y%m%d_%H%M%S).db
+       ```
+     * **使用统一接口**：通过 `logger_utils.py` 中的数据库类操作，禁止直接创建连接
+       ```python
+       # ✅ 正确
+       from logger_utils import db
+       db.log_trade(...)
+
+       # ❌ 错误
+       conn = sqlite3.connect('trading_bot.db')
+       ```
+     * **表设计规范**：
+       - 表名使用小写和下划线，使用复数形式（如 `trades`, `signals`）
+       - 必须包含 `id INTEGER PRIMARY KEY AUTOINCREMENT` 和 `created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`
+       - 字段命名使用小写和下划线
+       - 外键字段使用 `{表名}_id` 格式
+     * **索引规范**：
+       - 为所有 `created_at` 字段创建索引
+       - 为经常查询、关联、排序的字段创建索引
+       - 索引命名规范：`idx_{表名}_{字段名}`
+       - 示例：`CREATE INDEX idx_trades_created_at ON trades(created_at);`
+     * **操作规范**：
+       - 使用事务处理批量操作
+       - 添加数据验证（检查必需字段、数据类型、数据范围）
+       - 添加错误处理（try-except捕获异常）
+       - 使用参数化查询防止SQL注入
+     * **迁移规范**：
+       - 新表使用 `CREATE TABLE IF NOT EXISTS` 确保幂等性
+       - 新字段使用 `ALTER TABLE ADD COLUMN`，捕获已存在异常
+       - 在 `logger_utils.py` 的 `_init_db()` 方法中添加表定义
+       - 修改字段需要创建新表、复制数据、删除旧表、重命名新表
+     * **测试要求**：
+       - 创建数据库测试用例（`scripts/test_database_*.py`）
+       - 测试数据插入、查询、更新、删除操作
+       - 验证索引是否正确创建
+       - 测试数据验证和错误处理
+       - 检查数据库完整性（`PRAGMA integrity_check`）
 
 6. **集成到主程序**
    - 在主程序（如bot.py、main.py）中集成新功能
@@ -397,6 +437,15 @@
 - [ ] 所有测试通过
 - [ ] 测试已添加到主测试套件
 
+### 数据库质量（如适用）
+- [ ] 数据库修改前已备份
+- [ ] 使用统一的数据库接口（logger_utils.py）
+- [ ] 表结构符合命名规范
+- [ ] 已创建必要的索引
+- [ ] 有数据验证和错误处理
+- [ ] 数据库测试通过
+- [ ] 数据库完整性检查通过
+
 ### 部署质量
 - [ ] 服务成功重启
 - [ ] 功能正常运行
@@ -413,6 +462,11 @@
 6. **格式规范**：严格遵守文档和测试用例的格式要求
 7. **目录规范**：文档必须放在docs/，测试必须放在scripts/
 8. **主测试集成**：新测试用例必须集成到主测试套件
+9. **数据库规范**：涉及数据库修改必须遵循数据库开发规范（详见 `docs/database_standards.md`）
+   - 修改前必须备份数据库
+   - 使用统一的数据库接口
+   - 遵循表设计和索引规范
+   - 创建数据库测试用例
 
 ## 失败处理
 
