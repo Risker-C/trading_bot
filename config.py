@@ -65,16 +65,41 @@ VOLATILITY_LOOKBACK = 20              # 波动率计算周期
 
 # ==================== 止损止盈配置 ====================
 
-STOP_LOSS_PERCENT = 0.04       # 止损比例 4% (优化：从2.5%放宽到4%，减少被市场噪音打止损)
+STOP_LOSS_PERCENT = 0.045      # 止损比例 4.5% (优化：从4%放宽到4.5%，根据策略分析结果调整)
 TAKE_PROFIT_PERCENT = 0.03     # 止盈比例 3% (保持不变，实际表现良好)
-TRAILING_STOP_PERCENT = 0.025  # 移动止损回撤比例 2.5% (优化：从1.5%放宽到2.5%，避免盈利单被打掉)
+TRAILING_STOP_PERCENT = 0.03   # 移动止损回撤比例 3% (优化：从2.5%放宽到3%，给盈利单更多空间)
 
 # ATR 动态止损（新增）
 USE_ATR_STOP_LOSS = True       # 是否使用 ATR 止损
-ATR_STOP_MULTIPLIER = 3.5      # ATR 倍数 (优化：从2.5提高到3.5，给交易更多空间)
+ATR_STOP_MULTIPLIER = 4.0      # ATR 倍数 (优化：从3.5提高到4.0，减少被市场波动打止损)
 
 # 分批止盈（新增）
 USE_PARTIAL_TAKE_PROFIT = True # 是否分批止盈
+
+# ==================== 策略级差异化止损配置（新增）====================
+
+# 是否启用策略级差异化止损
+USE_STRATEGY_SPECIFIC_STOPS = True
+
+# 策略级止损配置（基于策略表现优化）
+# 格式：策略名 -> {stop_loss_pct, take_profit_pct, trailing_stop_pct, atr_multiplier}
+STRATEGY_STOP_CONFIGS = {
+    # 表现优秀的策略 - 给予更多空间
+    "multi_timeframe": {
+        "stop_loss_pct": 0.05,      # 5% 止损（盈亏比1.76，需要更多空间）
+        "take_profit_pct": 0.04,    # 4% 止盈
+        "trailing_stop_pct": 0.035, # 3.5% 移动止损
+        "atr_multiplier": 4.5,      # ATR倍数4.5
+    },
+    # 表现中等的策略 - 标准配置
+    "adx_trend": {
+        "stop_loss_pct": 0.045,     # 4.5% 止损（盈亏比0.97，标准配置）
+        "take_profit_pct": 0.03,    # 3% 止盈
+        "trailing_stop_pct": 0.03,  # 3% 移动止损
+        "atr_multiplier": 4.0,      # ATR倍数4.0
+    },
+    # 其他策略使用默认配置
+}
 
 # ==================== 动态止盈配置 ====================
 
@@ -118,10 +143,12 @@ POSITION_CHECK_INTERVAL = 2
 ENABLE_STRATEGIES: List[str] = [
     "bollinger_trend",        # 顺势策略：突破上轨做多（替代抄底策略）
     # "bollinger_breakthrough",  # 禁用：逆势抄底策略，在震荡下跌时容易亏损
-    # "rsi_divergence",          # 禁用：抄底策略，RSI超卖时做多
+    # "rsi_divergence",          # 禁用：抄底策略，RSI超卖时做多，胜率35.7%，盈亏比0.82，表现最差
     "macd_cross",
     "ema_cross",
     "composite_score",
+    "multi_timeframe",        # 启用：多时间周期策略，胜率30%但盈亏比1.76，唯一盈利策略
+    "adx_trend",              # 启用：ADX趋势策略，胜率50%，盈亏比0.97，表现中等
 ]
 
 # 共识信号配置（新增）

@@ -1,5 +1,169 @@
 # 更新日志
 
+## [2025-12-25] 策略优化 - 提升系统盈利能力
+
+### 类型
+- ⚡ 性能优化 / 🐛 Bug修复 / 🎉 新功能
+
+### 功能概述
+
+基于历史交易数据分析，对交易系统进行了全面的策略优化，包括：
+1. 禁用表现差的策略（rsi_divergence，胜率35.7%，盈亏比0.82）
+2. 启用表现优秀的策略（multi_timeframe、adx_trend）
+3. 修复开单时reason字段记录为空的bug
+4. 实现策略级差异化止损配置，根据策略表现设置不同的止损参数
+
+### 修改内容
+
+#### 修改的文件
+- `config.py`:
+  - 更新策略启用列表，禁用rsi_divergence
+  - 优化全局止损参数（4% → 4.5%，ATR倍数3.5 → 4.0）
+  - 新增策略级差异化止损配置（USE_STRATEGY_SPECIFIC_STOPS、STRATEGY_STOP_CONFIGS）
+
+- `trader.py`:
+  - 修改`open_long()`方法，添加strategy和reason参数
+  - 修改`open_short()`方法，添加strategy和reason参数
+  - 修复db.log_trade()调用，正确传递strategy和reason
+
+- `bot.py`:
+  - 修改开仓调用，传递signal.strategy和signal.reason参数
+
+- `risk_manager.py`:
+  - 修改`set_position()`方法，添加strategy参数
+  - 修改`calculate_stop_loss()`方法，支持策略级差异化
+  - 修改`calculate_take_profit()`方法，支持策略级差异化
+  - 新增`_calculate_strategy_specific_stop_loss()`方法
+
+#### 新增的文件
+- `docs/strategy_optimization.md`: 策略优化功能说明文档
+- `scripts/test_strategy_optimization.py`: 策略优化功能测试用例
+- `analyze_strategy_performance.py`: 策略表现分析脚本（优化版）
+
+### 技术细节
+
+#### 核心实现
+
+1. **策略筛选优化**
+   - 分析70笔历史交易数据
+   - 识别表现最差的策略：rsi_divergence（胜率35.7%，盈亏比0.82）
+   - 识别表现最好的策略：multi_timeframe（胜率30%，盈亏比1.76）
+   - 更新ENABLE_STRATEGIES配置
+
+2. **reason字段记录修复**
+   - 在trader.py的open_long/open_short方法中添加strategy和reason参数
+   - 在bot.py调用时传递signal.strategy和signal.reason
+   - 确保db.log_trade()正确记录策略信息
+
+3. **策略级差异化止损**
+   - 在config.py中定义STRATEGY_STOP_CONFIGS字典
+   - 在risk_manager.py中实现_calculate_strategy_specific_stop_loss()方法
+   - 根据策略历史表现设置不同的止损参数：
+     * multi_timeframe: 5%止损，4%止盈，ATR倍数4.5
+     * adx_trend: 4.5%止损，3%止盈，ATR倍数4.0
+
+#### 配置项
+
+```python
+# 策略启用配置
+ENABLE_STRATEGIES = [
+    "bollinger_trend",
+    "macd_cross",
+    "ema_cross",
+    "composite_score",
+    "multi_timeframe",  # 新增
+    "adx_trend",        # 新增
+]
+
+# 全局止损优化
+STOP_LOSS_PERCENT = 0.045      # 4.5%
+TRAILING_STOP_PERCENT = 0.03   # 3%
+ATR_STOP_MULTIPLIER = 4.0      # 4.0
+
+# 策略级差异化止损
+USE_STRATEGY_SPECIFIC_STOPS = True
+STRATEGY_STOP_CONFIGS = {
+    "multi_timeframe": {
+        "stop_loss_pct": 0.05,
+        "take_profit_pct": 0.04,
+        "trailing_stop_pct": 0.035,
+        "atr_multiplier": 4.5,
+    },
+    "adx_trend": {
+        "stop_loss_pct": 0.045,
+        "take_profit_pct": 0.03,
+        "trailing_stop_pct": 0.03,
+        "atr_multiplier": 4.0,
+    },
+}
+```
+
+### 测试结果
+
+- ✅ 配置验证测试: 通过
+- ✅ 策略级差异化止损测试: 通过
+- ✅ 策略级差异化止盈测试: 通过
+- ✅ TradeSignal结构验证测试: 通过
+- ✅ 服务验证: 正常运行
+
+**测试成功率: 100%**
+
+### 影响范围
+
+**影响的模块**：
+- 策略模块：禁用rsi_divergence，启用multi_timeframe和adx_trend
+- 风控模块：支持策略级差异化止损
+- 交易模块：修复reason字段记录
+- 配置模块：新增差异化止损配置
+
+**兼容性说明**：
+- 向后兼容：未配置差异化止损的策略自动使用默认配置
+- 数据库兼容：reason字段已存在，无需修改表结构
+- 配置兼容：新增配置项有默认值，不影响现有配置
+
+### 使用说明
+
+#### 1. 查看策略表现
+```bash
+python3 analyze_strategy_performance.py
+```
+
+#### 2. 调整策略配置
+在`config.py`中修改：
+- `ENABLE_STRATEGIES`: 启用/禁用策略
+- `STRATEGY_STOP_CONFIGS`: 调整策略级止损参数
+
+#### 3. 运行测试
+```bash
+python3 scripts/test_strategy_optimization.py
+```
+
+#### 4. 重启服务
+```bash
+./stop_bot.sh
+./start_bot.sh
+```
+
+### 后续建议
+
+1. **监控优化效果**
+   - 观察1-2天，记录开单频率、胜率、盈亏比变化
+   - 重点关注multi_timeframe和adx_trend策略的表现
+
+2. **渐进式调整**
+   - 如果效果不理想，可以微调止损参数
+   - 建议每次只调整一个参数，观察效果后再继续
+
+3. **定期分析**
+   - 每周运行一次策略分析脚本
+   - 根据最新数据调整策略配置
+
+4. **扩展优化**
+   - 可以为其他策略添加差异化配置
+   - 考虑实现动态参数调整机制
+
+---
+
 ## [2025-12-24] 更新feature-dev标准流程 - 集成数据库开发规范
 
 ### 类型

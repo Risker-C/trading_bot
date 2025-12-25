@@ -503,16 +503,28 @@ class RiskManager:
         self,
         entry_price: float,
         side: str,
-        df: pd.DataFrame = None
+        df: pd.DataFrame = None,
+        strategy: str = ""
     ) -> float:
         """
         计算止损价格
         支持固定止损和 ATR 动态止损
-        **现在会使用 Policy Layer 的参数**
+        **支持策略级差异化止损配置**
+        **支持 Policy Layer 的参数**
+
+        Args:
+            entry_price: 开仓价格
+            side: 持仓方向
+            df: K线数据
+            strategy: 策略名称（用于差异化止损）
         """
         # 检查是否启用 Policy Layer
         if getattr(config, 'ENABLE_POLICY_LAYER', False):
             return self.get_policy_adjusted_stop_loss(entry_price, side, df)
+
+        # 检查是否启用策略级差异化止损
+        if getattr(config, 'USE_STRATEGY_SPECIFIC_STOPS', False) and strategy:
+            return self._calculate_strategy_specific_stop_loss(entry_price, side, df, strategy)
 
         # 混合止损策略：计算固定止损和ATR止损，取较宽的一个
         fixed_stop = self._calculate_fixed_stop_loss(entry_price, side)
@@ -578,24 +590,115 @@ class RiskManager:
         except Exception as e:
             logger.error(f"计算ATR止损失败: {e}")
             return self._calculate_fixed_stop_loss(entry_price, side)
-    
+
+    def _calculate_strategy_specific_stop_loss(
+        self,
+        entry_price: float,
+        side: str,
+        df: pd.DataFrame,
+        strategy: str
+    ) -> float:
+        """
+        计算策略级差异化止损
+
+        Args:
+            entry_price: 开仓价格
+            side: 持仓方向
+            df: K线数据
+            strategy: 策略名称
+
+        Returns:
+            止损价格
+        """
+        # 获取策略配置
+        strategy_configs = getattr(config, 'STRATEGY_STOP_CONFIGS', {})
+        strategy_config = strategy_configs.get(strategy, {})
+
+        if not strategy_config:
+            # 如果没有配置，使用默认配置
+            logger.debug(f"策略 {strategy} 没有差异化配置，使用默认止损")
+            return self._calculate_fixed_stop_loss(entry_price, side)
+
+        # 获取策略级止损参数
+        stop_loss_pct = strategy_config.get('stop_loss_pct', config.STOP_LOSS_PERCENT)
+        atr_multiplier = strategy_config.get('atr_multiplier', config.ATR_STOP_MULTIPLIER)
+
+        logger.info(f"使用策略 {strategy} 的差异化止损: 止损={stop_loss_pct:.1%}, ATR倍数={atr_multiplier}")
+
+        # 计算固定止损
+        if side == 'long':
+            fixed_stop = entry_price * (1 - stop_loss_pct / config.LEVERAGE)
+        else:
+            fixed_stop = entry_price * (1 + stop_loss_pct / config.LEVERAGE)
+
+        # 如果启用ATR止损，计算ATR止损
+        if config.USE_ATR_STOP_LOSS and df is not None:
+            try:
+                atr = calc_atr(df['high'], df['low'], df['close'], period=14)
+                current_atr = atr.iloc[-1]
+                atr_distance = current_atr * atr_multiplier
+
+                if side == 'long':
+                    atr_stop = entry_price - atr_distance
+                else:
+                    atr_stop = entry_price + atr_distance
+
+                # 取较宽的止损
+                if side == 'long':
+                    final_stop = min(fixed_stop, atr_stop)
+                    stop_type = "固定" if final_stop == fixed_stop else "ATR"
+                else:
+                    final_stop = max(fixed_stop, atr_stop)
+                    stop_type = "固定" if final_stop == fixed_stop else "ATR"
+
+                logger.info(f"策略 {strategy} 混合止损: 固定={fixed_stop:.2f}, ATR={atr_stop:.2f}, "
+                           f"最终={final_stop:.2f} (使用{stop_type})")
+                return final_stop
+            except Exception as e:
+                logger.error(f"计算策略级ATR止损失败: {e}")
+                return fixed_stop
+        else:
+            return fixed_stop
+
     def calculate_take_profit(
         self,
         entry_price: float,
         side: str,
+        strategy: str = "",
         risk_reward_ratio: float = 2.0
     ) -> float:
         """
         计算止盈价格
         基于风险回报比
-        **现在会使用 Policy Layer 的参数**
+        **支持策略级差异化止盈配置**
+        **支持 Policy Layer 的参数**
+
+        Args:
+            entry_price: 开仓价格
+            side: 持仓方向
+            strategy: 策略名称（用于差异化止盈）
+            risk_reward_ratio: 风险回报比
         """
         # 检查是否启用 Policy Layer
         if getattr(config, 'ENABLE_POLICY_LAYER', False):
             return self.get_policy_adjusted_take_profit(entry_price, side)
 
+        # 检查是否启用策略级差异化止盈
+        if getattr(config, 'USE_STRATEGY_SPECIFIC_STOPS', False) and strategy:
+            strategy_configs = getattr(config, 'STRATEGY_STOP_CONFIGS', {})
+            strategy_config = strategy_configs.get(strategy, {})
+
+            if strategy_config:
+                take_profit_pct = strategy_config.get('take_profit_pct', config.TAKE_PROFIT_PERCENT)
+                logger.info(f"使用策略 {strategy} 的差异化止盈: {take_profit_pct:.1%}")
+
+                if side == 'long':
+                    return entry_price * (1 + take_profit_pct / config.LEVERAGE)
+                else:
+                    return entry_price * (1 - take_profit_pct / config.LEVERAGE)
+
         # 原有逻辑保持不变
-        stop_loss = self.calculate_stop_loss(entry_price, side)
+        stop_loss = self.calculate_stop_loss(entry_price, side, strategy=strategy)
         risk = abs(entry_price - stop_loss)
         reward = risk * risk_reward_ratio
 
@@ -889,9 +992,21 @@ class RiskManager:
         df: pd.DataFrame = None,
         highest_price: float = None,
         lowest_price: float = None,
-        entry_time: datetime = None
+        entry_time: datetime = None,
+        strategy: str = ""
     ):
-        """设置新持仓"""
+        """设置新持仓
+
+        Args:
+            side: 持仓方向
+            amount: 持仓数量
+            entry_price: 开仓价格
+            df: K线数据
+            highest_price: 历史最高价
+            lowest_price: 历史最低价
+            entry_time: 开仓时间
+            strategy: 策略名称（用于差异化止损）
+        """
         # 如果没有提供历史价格，使用开仓价作为默认值
         if highest_price is None:
             highest_price = entry_price
@@ -910,9 +1025,9 @@ class RiskManager:
             lowest_price=lowest_price,
         )
 
-        # 计算止损止盈价格
-        self.position.stop_loss_price = self.calculate_stop_loss(entry_price, side, df)
-        self.position.take_profit_price = self.calculate_take_profit(entry_price, side)
+        # 计算止损止盈价格（支持策略级差异化）
+        self.position.stop_loss_price = self.calculate_stop_loss(entry_price, side, df, strategy)
+        self.position.take_profit_price = self.calculate_take_profit(entry_price, side, strategy)
 
         # ===== 初始化开仓手续费（动态止盈功能） =====
         self.position.entry_fee = self.position.calculate_entry_fee(entry_price, amount)

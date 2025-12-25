@@ -361,8 +361,15 @@ class BitgetTrader:
             logger.error(f"订单创建失败: {e}")
             return None
     
-    def open_long(self, amount: float, df: pd.DataFrame = None) -> bool:
-        """开多仓（P1优化：记录完整的交易信息）"""
+    def open_long(self, amount: float, df: pd.DataFrame = None, strategy: str = "", reason: str = "") -> bool:
+        """开多仓（P1优化：记录完整的交易信息）
+
+        Args:
+            amount: 开仓数量
+            df: K线数据
+            strategy: 策略名称
+            reason: 开仓原因
+        """
         order = self.create_market_order("buy", amount)
 
         if order:
@@ -397,7 +404,8 @@ class BitgetTrader:
                 side='long',
                 amount=amount,
                 entry_price=filled_price,  # 使用实际成交价
-                df=df
+                df=df,
+                strategy=strategy  # 传递策略名称用于差异化止损
             )
 
             # 记录到数据库（P1优化：包含完整的交易信息）
@@ -407,7 +415,8 @@ class BitgetTrader:
                 action='open',
                 amount=amount,
                 price=entry_price,
-                strategy=order.get('info', {}).get('strategy', 'unknown'),
+                strategy=strategy or 'unknown',  # 使用传入的策略名称
+                reason=reason,  # 记录开仓原因
                 order_id=order_id,
                 filled_price=filled_price,
                 filled_time=filled_time,
@@ -419,8 +428,15 @@ class BitgetTrader:
 
         return False
     
-    def open_short(self, amount: float, df: pd.DataFrame = None) -> bool:
-        """开空仓（P1优化：记录完整的交易信息）"""
+    def open_short(self, amount: float, df: pd.DataFrame = None, strategy: str = "", reason: str = "") -> bool:
+        """开空仓（P1优化：记录完整的交易信息）
+
+        Args:
+            amount: 开仓数量
+            df: K线数据
+            strategy: 策略名称
+            reason: 开仓原因
+        """
         order = self.create_market_order("sell", amount)
 
         if order:
@@ -453,7 +469,8 @@ class BitgetTrader:
                 side='short',
                 amount=amount,
                 entry_price=filled_price,  # 使用实际成交价
-                df=df
+                df=df,
+                strategy=strategy  # 传递策略名称用于差异化止损
             )
 
             # 记录到数据库（P1优化：包含完整的交易信息）
@@ -463,6 +480,8 @@ class BitgetTrader:
                 action='open',
                 amount=amount,
                 price=entry_price,
+                strategy=strategy or 'unknown',  # 使用传入的策略名称
+                reason=reason,  # 记录开仓原因
                 order_id=order_id,
                 filled_price=filled_price,
                 filled_time=filled_time,

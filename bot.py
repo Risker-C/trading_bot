@@ -754,7 +754,12 @@ class TradingBot:
                 return
 
             # 执行开仓
-            result = self.trader.open_long(amount, df)
+            result = self.trader.open_long(
+                amount,
+                df,
+                strategy=signal.strategy,
+                reason=signal.reason
+            )
         except Exception as e:
             logger.error(f"执行开多失败: {e}")
             import traceback
@@ -809,7 +814,12 @@ class TradingBot:
                 return
 
             # 执行开仓
-            result = self.trader.open_short(amount, df)
+            result = self.trader.open_short(
+                amount,
+                df,
+                strategy=signal.strategy,
+                reason=signal.reason
+            )
         except Exception as e:
             logger.error(f"执行开空失败: {e}")
             import traceback
