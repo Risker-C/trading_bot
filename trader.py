@@ -342,7 +342,7 @@ class BitgetTrader:
                 "productType": config.PRODUCT_TYPE,
                 "tradeSide": "open" if not reduce_only else "close",
             }
-            
+
             order = self.exchange.create_order(
                 symbol=config.SYMBOL,
                 type="market",
@@ -350,15 +350,183 @@ class BitgetTrader:
                 amount=amount,
                 params=params
             )
-            
+
             self.health_monitor.record_success()
             logger.info(f"订单创建成功: {side} {amount} @ market")
-            
+
             return order
-            
+
         except Exception as e:
             self.health_monitor.record_error(e)
             logger.error(f"订单创建失败: {e}")
+            return None
+
+    def create_limit_order(
+        self,
+        side: str,
+        amount: float,
+        price: float,
+        reduce_only: bool = False
+    ) -> Optional[Dict]:
+        """创建限价单（Maker订单）
+
+        Args:
+            side: 方向 'buy' 或 'sell'
+            amount: 数量
+            price: 限价价格
+            reduce_only: 是否只减仓
+
+        Returns:
+            订单信息或None
+        """
+        try:
+            params = {
+                "productType": config.PRODUCT_TYPE,
+                "tradeSide": "open" if not reduce_only else "close",
+            }
+
+            order = self.exchange.create_order(
+                symbol=config.SYMBOL,
+                type="limit",
+                side=side,
+                amount=amount,
+                price=price,
+                params=params
+            )
+
+            self.health_monitor.record_success()
+            logger.info(f"限价单创建成功: {side} {amount} @ {price:.2f}")
+
+            return order
+
+        except Exception as e:
+            self.health_monitor.record_error(e)
+            logger.error(f"限价单创建失败: {e}")
+            return None
+
+    def wait_for_order_fill(self, order_id: str, timeout: float = None) -> Tuple[bool, Optional[Dict]]:
+        """等待订单成交
+
+        Args:
+            order_id: 订单ID
+            timeout: 超时时间（秒），默认使用配置中的值
+
+        Returns:
+            (是否成交, 订单详情)
+        """
+        if timeout is None:
+            timeout = config.MAKER_ORDER_TIMEOUT
+
+        start_time = time.time()
+        check_interval = config.MAKER_ORDER_CHECK_INTERVAL
+
+        logger.info(f"等待订单成交: {order_id}, 超时时间: {timeout}秒")
+
+        while time.time() - start_time < timeout:
+            try:
+                order = self.exchange.fetch_order(order_id, config.SYMBOL)
+                status = order.get('status', '')
+
+                if status == 'closed' or status == 'filled':
+                    logger.info(f"订单已成交: {order_id}")
+                    return True, order
+                elif status == 'canceled':
+                    logger.warning(f"订单已取消: {order_id}")
+                    return False, order
+
+                time.sleep(check_interval)
+
+            except Exception as e:
+                logger.error(f"查询订单状态失败: {e}")
+                time.sleep(check_interval)
+
+        logger.warning(f"订单等待超时: {order_id}")
+        return False, None
+
+    def cancel_order(self, order_id: str) -> bool:
+        """取消订单
+
+        Args:
+            order_id: 订单ID
+
+        Returns:
+            是否成功取消
+        """
+        try:
+            self.exchange.cancel_order(order_id, config.SYMBOL)
+            logger.info(f"订单已取消: {order_id}")
+            return True
+        except Exception as e:
+            logger.error(f"取消订单失败: {e}")
+            return False
+
+    def create_smart_order(
+        self,
+        side: str,
+        amount: float,
+        reduce_only: bool = False
+    ) -> Optional[Dict]:
+        """智能下单：根据配置选择Maker或Taker订单
+
+        Args:
+            side: 方向 'buy' 或 'sell'
+            amount: 数量
+            reduce_only: 是否只减仓
+
+        Returns:
+            订单信息或None
+        """
+        # 如果未启用Maker订单，直接使用市价单
+        if not config.USE_MAKER_ORDER:
+            logger.info("使用市价单（Taker）")
+            return self.create_market_order(side, amount, reduce_only)
+
+        # 获取当前价格
+        ticker = self.get_ticker()
+        if not ticker:
+            logger.error("无法获取当前价格，降级为市价单")
+            return self.create_market_order(side, amount, reduce_only)
+
+        current_price = ticker['last']
+
+        # 计算挂单价格
+        if side == 'buy':
+            # 做多：挂单价格略低于市价
+            limit_price = current_price * (1 - config.MAKER_PRICE_OFFSET)
+        else:
+            # 做空：挂单价格略高于市价
+            limit_price = current_price * (1 + config.MAKER_PRICE_OFFSET)
+
+        logger.info(f"尝试Maker订单: {side} {amount} @ {limit_price:.2f} (市价: {current_price:.2f})")
+
+        # 创建限价单
+        order = self.create_limit_order(side, amount, limit_price, reduce_only)
+        if not order:
+            logger.warning("限价单创建失败，降级为市价单")
+            return self.create_market_order(side, amount, reduce_only)
+
+        order_id = order.get('id', '')
+        if not order_id:
+            logger.warning("无法获取订单ID，降级为市价单")
+            return self.create_market_order(side, amount, reduce_only)
+
+        # 等待订单成交
+        filled, order_detail = self.wait_for_order_fill(order_id)
+
+        if filled:
+            logger.info(f"✅ Maker订单成交，节省手续费67%")
+            return order_detail
+
+        # 超时未成交，取消订单
+        logger.warning("Maker订单超时未成交")
+        self.cancel_order(order_id)
+
+        # 根据配置决定是否降级为市价单
+        if config.MAKER_AUTO_FALLBACK_TO_MARKET:
+            logger.info("自动降级为市价单")
+            return self.create_market_order(side, amount, reduce_only)
+        else:
+            logger.warning("未启用自动降级，订单失败")
             return None
     
     def open_long(self, amount: float, df: pd.DataFrame = None, strategy: str = "", reason: str = "") -> bool:
@@ -370,7 +538,7 @@ class BitgetTrader:
             strategy: 策略名称
             reason: 开仓原因
         """
-        order = self.create_market_order("buy", amount)
+        order = self.create_smart_order("buy", amount)
 
         if order:
             # 获取成交价格
@@ -437,7 +605,7 @@ class BitgetTrader:
             strategy: 策略名称
             reason: 开仓原因
         """
-        order = self.create_market_order("sell", amount)
+        order = self.create_smart_order("sell", amount)
 
         if order:
             ticker = self.get_ticker()

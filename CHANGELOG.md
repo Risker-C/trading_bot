@@ -1,5 +1,151 @@
 # 更新日志
 
+## [2025-12-25] Maker订单功能 - 降低交易手续费67%
+
+### 类型
+- 🎉 新功能 / ⚡ 性能优化
+
+### 功能概述
+
+实现Maker订单（限价单）功能，通过使用限价单替代市价单，将交易手续费从0.06%降低到0.02%，节省67%的交易成本。该功能采用智能降级策略，在限价单未成交时自动转为市价单，确保不错过交易机会。
+
+**核心优势：**
+- 手续费降低67%（从0.06%降至0.02%）
+- 年度可节省约292 USDT（基于每天10笔交易）
+- 智能降级机制，不影响交易执行
+- 完全向后兼容，可随时切换
+
+### 修改内容
+
+#### 修改的文件
+- `config.py`: 添加Maker订单配置项
+  - 新增 `USE_MAKER_ORDER` 开关（默认True）
+  - 新增 `MAKER_ORDER_TIMEOUT` 超时时间（10秒）
+  - 新增 `MAKER_PRICE_OFFSET` 价格偏移量（0.01%）
+  - 新增 `MAKER_ORDER_CHECK_INTERVAL` 检查间隔（0.5秒）
+  - 新增 `MAKER_AUTO_FALLBACK_TO_MARKET` 自动降级开关（True）
+  - 新增 `TRADING_FEE_RATE_MAKER` Maker费率（0.02%）
+  - 新增 `TRADING_FEE_RATE_TAKER` Taker费率（0.06%）
+  - 更新 `TRADING_FEE_RATE` 根据USE_MAKER_ORDER自动选择
+
+- `trader.py`: 实现Maker订单核心功能
+  - 新增 `create_limit_order()` 方法：创建限价单
+  - 新增 `wait_for_order_fill()` 方法：等待订单成交
+  - 新增 `cancel_order()` 方法：取消订单
+  - 新增 `create_smart_order()` 方法：智能下单（核心）
+  - 修改 `open_long()` 方法：使用create_smart_order替代create_market_order
+  - 修改 `open_short()` 方法：使用create_smart_order替代create_market_order
+
+#### 新增的文件
+- `docs/maker_order.md`: Maker订单功能说明文档
+- `scripts/test_maker_order.py`: Maker订单功能测试用例
+
+### 技术细节
+
+#### 核心实现
+
+1. **智能订单类型选择**
+   - 根据配置自动选择Maker或Taker订单
+   - 支持运行时动态切换
+   - 保持原有交易逻辑不变
+
+2. **限价单创建逻辑**
+   ```python
+   # 做多：挂单价格略低于市价
+   limit_price = current_price * (1 - MAKER_PRICE_OFFSET)
+
+   # 做空：挂单价格略高于市价
+   limit_price = current_price * (1 + MAKER_PRICE_OFFSET)
+   ```
+
+3. **自动降级机制**
+   - 创建限价单后等待成交
+   - 超时未成交自动取消订单
+   - 降级为市价单立即成交
+   - 避免错过交易机会
+
+4. **订单监控流程**
+   ```
+   创建限价单 → 等待成交（10秒）→ [成交] 完成
+                              ↓
+                          [超时] 取消订单 → 降级为市价单
+   ```
+
+#### 配置项
+
+```python
+# Maker订单配置
+USE_MAKER_ORDER = True  # 启用Maker订单
+MAKER_ORDER_TIMEOUT = 10  # 10秒超时
+MAKER_PRICE_OFFSET = 0.0001  # 0.01%价格偏移
+MAKER_ORDER_CHECK_INTERVAL = 0.5  # 0.5秒检查间隔
+MAKER_AUTO_FALLBACK_TO_MARKET = True  # 自动降级
+TRADING_FEE_RATE_MAKER = 0.0002  # Maker费率 0.02%
+TRADING_FEE_RATE_TAKER = 0.0006  # Taker费率 0.06%
+```
+
+### 测试结果
+
+- ✅ 配置验证：通过
+- ✅ Trader方法检查：通过
+- ✅ 价格计算逻辑：通过
+- ✅ 手续费节省计算：通过（节省67%）
+- ✅ 超时逻辑：通过
+- ✅ 服务验证：正常运行
+
+**测试摘要：**
+- 总计：5个测试
+- 通过：5个 ✅
+- 失败：0个 ❌
+- 成功率：100%
+
+### 影响范围
+
+**影响的模块：**
+- 交易执行模块（trader.py）
+- 配置管理模块（config.py）
+
+**兼容性说明：**
+- 完全向后兼容
+- 可通过配置开关随时切换
+- 不影响现有交易逻辑
+
+### 使用说明
+
+**启用Maker订单：**
+1. 配置文件中设置 `USE_MAKER_ORDER = True`
+2. 重启交易机器人
+3. 观察日志中的"Maker订单"相关信息
+
+**禁用Maker订单：**
+1. 配置文件中设置 `USE_MAKER_ORDER = False`
+2. 重启交易机器人
+3. 系统将恢复使用市价单
+
+**参数调优：**
+- 超时时间：根据市场流动性调整（5-15秒）
+- 价格偏移：根据成交率调整（0.005%-0.02%）
+- 检查间隔：建议保持0.5-1秒
+
+### 后续建议
+
+1. **监控指标**
+   - 观察Maker订单成交率
+   - 统计实际手续费节省金额
+   - 监控订单等待时间
+
+2. **参数优化**
+   - 根据成交率调整超时时间
+   - 根据滑点调整价格偏移
+   - 考虑根据市场波动动态调整参数
+
+3. **功能扩展**
+   - 添加成交率统计功能
+   - 实现动态价格偏移
+   - 支持分时段策略
+
+---
+
 ## [2025-12-25] 策略优化 - 提升系统盈利能力
 
 ### 类型

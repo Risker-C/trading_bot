@@ -124,8 +124,32 @@ TRAILING_TP_PRICE_WINDOW = 5
 # 修复说明：从0.4%降低到0.08%，提高动态止盈灵敏度，避免盈利变亏损
 TRAILING_TP_FALLBACK_PERCENT = 0.0008
 
-# 手续费率（Bitget 默认 0.06%）
-TRADING_FEE_RATE = 0.0006
+# ==================== Maker订单配置（新增）====================
+
+# 是否启用Maker订单（限价单）
+USE_MAKER_ORDER = True  # True: 使用限价单（手续费0.02%），False: 使用市价单（手续费0.06%）
+
+# Maker订单超时时间（秒）
+# 如果限价单在此时间内未成交，将自动取消并转为市价单
+MAKER_ORDER_TIMEOUT = 10  # 10秒超时
+
+# Maker订单价格偏移量（百分比）
+# 做多时：挂单价格 = 当前价格 * (1 - offset)，即略低于市价
+# 做空时：挂单价格 = 当前价格 * (1 + offset)，即略高于市价
+MAKER_PRICE_OFFSET = 0.0001  # 0.01%的价格偏移，确保成为Maker
+
+# Maker订单检查间隔（秒）
+MAKER_ORDER_CHECK_INTERVAL = 0.5  # 每0.5秒检查一次订单状态
+
+# 是否在Maker订单失败时自动降级为市价单
+MAKER_AUTO_FALLBACK_TO_MARKET = True  # 建议开启，避免错过交易机会
+
+# 手续费率配置
+TRADING_FEE_RATE_MAKER = 0.0002  # Bitget Maker费率 0.02%
+TRADING_FEE_RATE_TAKER = 0.0006  # Bitget Taker费率 0.06%
+
+# 当前使用的手续费率（根据USE_MAKER_ORDER自动选择）
+TRADING_FEE_RATE = TRADING_FEE_RATE_MAKER if USE_MAKER_ORDER else TRADING_FEE_RATE_TAKER
 
 # ==================== 动态价格更新配置 ====================
 
