@@ -753,12 +753,23 @@ class TradingBot:
                 logger.warning(f"计算的仓位大小无效: {amount}")
                 return
 
-            # 执行开仓
+            # 计算波动率（用于动态Maker订单）
+            volatility = 0.03  # 默认值
+            if df is not None:
+                try:
+                    volatility = self.risk_manager._calculate_current_volatility(df)
+                    logger.debug(f"当前波动率: {volatility:.2%}")
+                except Exception as e:
+                    logger.warning(f"计算波动率失败: {e}，使用默认值")
+
+            # 执行开仓（传递信号强度和波动率）
             result = self.trader.open_long(
                 amount,
                 df,
                 strategy=signal.strategy,
-                reason=signal.reason
+                reason=signal.reason,
+                signal_strength=signal.strength,
+                volatility=volatility
             )
         except Exception as e:
             logger.error(f"执行开多失败: {e}")
@@ -813,12 +824,23 @@ class TradingBot:
                 logger.warning(f"计算的仓位大小无效: {amount}")
                 return
 
-            # 执行开仓
+            # 计算波动率（用于动态Maker订单）
+            volatility = 0.03  # 默认值
+            if df is not None:
+                try:
+                    volatility = self.risk_manager._calculate_current_volatility(df)
+                    logger.debug(f"当前波动率: {volatility:.2%}")
+                except Exception as e:
+                    logger.warning(f"计算波动率失败: {e}，使用默认值")
+
+            # 执行开仓（传递信号强度和波动率）
             result = self.trader.open_short(
                 amount,
                 df,
                 strategy=signal.strategy,
-                reason=signal.reason
+                reason=signal.reason,
+                signal_strength=signal.strength,
+                volatility=volatility
             )
         except Exception as e:
             logger.error(f"执行开空失败: {e}")

@@ -151,6 +151,25 @@ TRADING_FEE_RATE_TAKER = 0.0006  # Bitget Taker费率 0.06%
 # 当前使用的手续费率（根据USE_MAKER_ORDER自动选择）
 TRADING_FEE_RATE = TRADING_FEE_RATE_MAKER if USE_MAKER_ORDER else TRADING_FEE_RATE_TAKER
 
+# ==================== 动态Maker订单配置（新增）====================
+
+# 是否启用动态Maker订单（根据信号强度和波动率自适应）
+ENABLE_DYNAMIC_MAKER = True  # True: 启用动态调整，False: 使用固定参数
+
+# 信号强度阈值
+MAKER_MIN_SIGNAL_STRENGTH = 0.6  # 低于此值直接使用市价单（避免弱信号浪费时间）
+MAKER_OPTIMAL_SIGNAL_STRENGTH = 0.8  # 高于此值使用最优参数（强信号值得等待）
+
+# 波动率自适应参数
+MAKER_HIGH_VOL_TIMEOUT = 5  # 高波动超时（秒）- 快速决策
+MAKER_LOW_VOL_TIMEOUT = 15  # 低波动超时（秒）- 耐心等待
+MAKER_HIGH_VOL_OFFSET = 0.0002  # 高波动偏移（0.02%）- 增大偏移提高成交率
+MAKER_LOW_VOL_OFFSET = 0.00005  # 低波动偏移（0.005%）- 减小偏移降低滑点
+
+# 极端波动禁用Maker订单
+MAKER_DISABLE_ON_EXTREME_VOL = True  # 极端波动时强制使用市价单
+MAKER_EXTREME_VOL_THRESHOLD = 0.08  # 极端波动阈值（8%）
+
 # ==================== 动态价格更新配置 ====================
 
 # 是否启用动态价格更新频率（开仓后提高更新频率）

@@ -460,18 +460,69 @@ class BitgetTrader:
             logger.error(f"取消订单失败: {e}")
             return False
 
+    def _calculate_dynamic_maker_params(
+        self,
+        signal_strength: float,
+        volatility: float
+    ) -> Tuple[float, float]:
+        """根据信号强度和波动率计算动态Maker订单参数
+
+        Args:
+            signal_strength: 信号强度 (0-1)
+            volatility: 波动率 (百分比)
+
+        Returns:
+            (超时时间, 价格偏移量)
+        """
+        # 基础参数
+        base_timeout = config.MAKER_ORDER_TIMEOUT
+        base_offset = config.MAKER_PRICE_OFFSET
+
+        # 根据波动率调整
+        if volatility > config.HIGH_VOLATILITY_THRESHOLD:
+            # 高波动：缩短超时，增大偏移
+            timeout = config.MAKER_HIGH_VOL_TIMEOUT
+            offset = config.MAKER_HIGH_VOL_OFFSET
+            logger.debug(f"高波动({volatility:.2%})：超时{timeout}秒，偏移{offset*100:.3f}%")
+        elif volatility < config.LOW_VOLATILITY_THRESHOLD:
+            # 低波动：延长超时，减小偏移
+            timeout = config.MAKER_LOW_VOL_TIMEOUT
+            offset = config.MAKER_LOW_VOL_OFFSET
+            logger.debug(f"低波动({volatility:.2%})：超时{timeout}秒，偏移{offset*100:.3f}%")
+        else:
+            # 正常波动：使用基础参数
+            timeout = base_timeout
+            offset = base_offset
+            logger.debug(f"正常波动({volatility:.2%})：超时{timeout}秒，偏移{offset*100:.3f}%")
+
+        # 根据信号强度微调超时时间
+        if signal_strength > config.MAKER_OPTIMAL_SIGNAL_STRENGTH:
+            # 强信号：可以等更久
+            timeout *= 1.2
+            logger.debug(f"强信号({signal_strength:.2f})：超时延长至{timeout:.1f}秒")
+        elif signal_strength < 0.7:
+            # 中等信号：缩短等待
+            timeout *= 0.8
+            logger.debug(f"中等信号({signal_strength:.2f})：超时缩短至{timeout:.1f}秒")
+
+        return timeout, offset
+
     def create_smart_order(
         self,
         side: str,
         amount: float,
-        reduce_only: bool = False
+        reduce_only: bool = False,
+        signal_strength: float = 1.0,
+        volatility: float = 0.03
     ) -> Optional[Dict]:
-        """智能下单：根据配置选择Maker或Taker订单
+        """智能下单：根据信号强度和波动率动态选择Maker或Taker订单
 
         Args:
             side: 方向 'buy' 或 'sell'
             amount: 数量
             reduce_only: 是否只减仓
+            signal_strength: 信号强度 (0-1)
+            volatility: 波动率 (百分比)
 
         Returns:
             订单信息或None
@@ -481,6 +532,18 @@ class BitgetTrader:
             logger.info("使用市价单（Taker）")
             return self.create_market_order(side, amount, reduce_only)
 
+        # 动态Maker订单逻辑
+        if config.ENABLE_DYNAMIC_MAKER:
+            # 1. 信号强度过滤
+            if signal_strength < config.MAKER_MIN_SIGNAL_STRENGTH:
+                logger.info(f"信号强度{signal_strength:.2f}低于阈值{config.MAKER_MIN_SIGNAL_STRENGTH}，使用市价单")
+                return self.create_market_order(side, amount, reduce_only)
+
+            # 2. 极端波动检测
+            if config.MAKER_DISABLE_ON_EXTREME_VOL and volatility > config.MAKER_EXTREME_VOL_THRESHOLD:
+                logger.info(f"极端波动{volatility:.2%}超过阈值{config.MAKER_EXTREME_VOL_THRESHOLD:.2%}，使用市价单")
+                return self.create_market_order(side, amount, reduce_only)
+
         # 获取当前价格
         ticker = self.get_ticker()
         if not ticker:
@@ -489,15 +552,22 @@ class BitgetTrader:
 
         current_price = ticker['last']
 
-        # 计算挂单价格
+        # 动态计算Maker订单参数
+        if config.ENABLE_DYNAMIC_MAKER:
+            timeout, offset = self._calculate_dynamic_maker_params(signal_strength, volatility)
+        else:
+            timeout = config.MAKER_ORDER_TIMEOUT
+            offset = config.MAKER_PRICE_OFFSET
+
+        # 计算挂单价格（使用动态偏移量）
         if side == 'buy':
             # 做多：挂单价格略低于市价
-            limit_price = current_price * (1 - config.MAKER_PRICE_OFFSET)
+            limit_price = current_price * (1 - offset)
         else:
             # 做空：挂单价格略高于市价
-            limit_price = current_price * (1 + config.MAKER_PRICE_OFFSET)
+            limit_price = current_price * (1 + offset)
 
-        logger.info(f"尝试Maker订单: {side} {amount} @ {limit_price:.2f} (市价: {current_price:.2f})")
+        logger.info(f"尝试Maker订单: {side} {amount} @ {limit_price:.2f} (市价: {current_price:.2f}, 偏移: {offset*100:.3f}%)")
 
         # 创建限价单
         order = self.create_limit_order(side, amount, limit_price, reduce_only)
@@ -510,8 +580,8 @@ class BitgetTrader:
             logger.warning("无法获取订单ID，降级为市价单")
             return self.create_market_order(side, amount, reduce_only)
 
-        # 等待订单成交
-        filled, order_detail = self.wait_for_order_fill(order_id)
+        # 等待订单成交（使用动态超时时间）
+        filled, order_detail = self.wait_for_order_fill(order_id, timeout)
 
         if filled:
             logger.info(f"✅ Maker订单成交，节省手续费67%")
@@ -529,7 +599,8 @@ class BitgetTrader:
             logger.warning("未启用自动降级，订单失败")
             return None
     
-    def open_long(self, amount: float, df: pd.DataFrame = None, strategy: str = "", reason: str = "") -> bool:
+    def open_long(self, amount: float, df: pd.DataFrame = None, strategy: str = "", reason: str = "",
+                  signal_strength: float = 1.0, volatility: float = 0.03) -> bool:
         """开多仓（P1优化：记录完整的交易信息）
 
         Args:
@@ -537,8 +608,10 @@ class BitgetTrader:
             df: K线数据
             strategy: 策略名称
             reason: 开仓原因
+            signal_strength: 信号强度 (0-1)
+            volatility: 波动率 (百分比)
         """
-        order = self.create_smart_order("buy", amount)
+        order = self.create_smart_order("buy", amount, signal_strength=signal_strength, volatility=volatility)
 
         if order:
             # 获取成交价格
@@ -596,7 +669,8 @@ class BitgetTrader:
 
         return False
     
-    def open_short(self, amount: float, df: pd.DataFrame = None, strategy: str = "", reason: str = "") -> bool:
+    def open_short(self, amount: float, df: pd.DataFrame = None, strategy: str = "", reason: str = "",
+                   signal_strength: float = 1.0, volatility: float = 0.03) -> bool:
         """开空仓（P1优化：记录完整的交易信息）
 
         Args:
@@ -604,8 +678,10 @@ class BitgetTrader:
             df: K线数据
             strategy: 策略名称
             reason: 开仓原因
+            signal_strength: 信号强度 (0-1)
+            volatility: 波动率 (百分比)
         """
-        order = self.create_smart_order("sell", amount)
+        order = self.create_smart_order("sell", amount, signal_strength=signal_strength, volatility=volatility)
 
         if order:
             ticker = self.get_ticker()
