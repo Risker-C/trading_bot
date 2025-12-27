@@ -717,6 +717,76 @@ ML_RETRAIN_INTERVAL_DAYS = 30  # 重新训练间隔（天）
 ML_MIN_TRAINING_SAMPLES = 100  # 最小训练样本数
 
 
+# ==================== 跨交易所套利配置 ====================
+
+# 是否启用套利引擎
+ENABLE_ARBITRAGE = False  # 默认关闭，需要手动启用
+
+# 套利模式
+ARBITRAGE_MODE = "conservative"  # conservative: 保守模式, balanced: 平衡模式, aggressive: 激进模式
+
+# 交易对配置
+ARBITRAGE_SYMBOL = "BTCUSDT"  # 套利交易对
+ARBITRAGE_EXCHANGES = ["bitget", "binance", "okx"]  # 参与套利的交易所
+
+# 价差监控配置
+SPREAD_MONITOR_INTERVAL = 1  # 价差监控间隔（秒）
+SPREAD_HISTORY_SIZE = 100  # 价差历史记录大小
+SPREAD_ALERT_THRESHOLD = 1.0  # 价差告警阈值（%）
+
+# 机会检测配置
+MIN_SPREAD_THRESHOLD = 0.3  # 最小价差阈值（%）
+MIN_NET_PROFIT_THRESHOLD = 1.0  # 最小净利润阈值（USDT）
+MIN_PROFIT_RATIO = 0.5  # 最小利润比例（净利润/毛利润）
+OPPORTUNITY_SCAN_INTERVAL = 2  # 机会扫描间隔（秒）
+
+# 仓位管理配置
+ARBITRAGE_POSITION_SIZE = 100  # 单次套利交易金额（USDT）
+MAX_POSITION_PER_EXCHANGE = 500  # 单交易所最大持仓（USDT）
+MAX_TOTAL_ARBITRAGE_EXPOSURE = 1000  # 总套利敞口限制（USDT）
+MAX_POSITION_COUNT_PER_EXCHANGE = 3  # 单交易所最大持仓数量
+
+# 频率限制配置
+MAX_ARBITRAGE_PER_HOUR = 10  # 每小时最大套利次数
+MAX_ARBITRAGE_PER_DAY = 50  # 每日最大套利次数
+MIN_INTERVAL_BETWEEN_ARBITRAGE = 30  # 套利最小间隔（秒）
+
+# 执行配置
+MAX_EXECUTION_TIME_PER_LEG = 10  # 单腿最大执行时间（秒）
+MAX_TOTAL_EXECUTION_TIME = 30  # 总执行最大时间（秒）
+MAX_SLIPPAGE_TOLERANCE = 0.2  # 最大滑点容忍度（%）
+ENABLE_ATOMIC_EXECUTION = True  # 是否启用原子化执行（失败自动回滚）
+
+# 订单簿深度要求
+MIN_ORDERBOOK_DEPTH_MULTIPLIER = 3.0  # 订单簿深度必须是交易量的倍数
+MIN_ORDERBOOK_DEPTH_USDT = 5000  # 最小订单簿深度（USDT）
+
+# 交易所健康检查
+MAX_API_LATENCY_MS = 500  # 最大API延迟（毫秒）
+MIN_EXCHANGE_UPTIME = 0.99  # 最小交易所可用性（99%）
+EXCHANGE_HEALTH_CHECK_INTERVAL = 60  # 健康检查间隔（秒）
+
+# 手续费配置
+ARBITRAGE_FEE_RATES = {
+    "bitget": {"maker": 0.0002, "taker": 0.0006},
+    "binance": {"maker": 0.0002, "taker": 0.0004},
+    "okx": {"maker": 0.0002, "taker": 0.0005},
+}
+
+# 通知配置
+ENABLE_ARBITRAGE_NOTIFICATIONS = True  # 是否启用套利通知
+NOTIFY_ON_OPPORTUNITY = False  # 是否通知发现机会
+NOTIFY_ON_EXECUTION = True  # 是否通知执行开始
+NOTIFY_ON_COMPLETION = True  # 是否通知执行完成
+NOTIFY_ON_FAILURE = True  # 是否通知执行失败
+
+# 日志配置
+ARBITRAGE_LOG_LEVEL = "INFO"  # 套利日志级别
+LOG_ALL_SPREADS = False  # 是否记录所有价差
+LOG_ALL_OPPORTUNITIES = True  # 是否记录所有机会
+LOG_ALL_EXECUTIONS = True  # 是否记录所有执行
+
+
 # ==================== 配置验证 ====================
 
 def validate_config():

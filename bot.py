@@ -29,6 +29,10 @@ from ml_predictor_lite import get_ml_predictor_lite  # 优化版ML预测器
 from execution_filter import ExecutionFilter  # 执行层风控
 from order_health_monitor import get_order_health_monitor  # 订单健康监控
 
+# 套利引擎（可选）
+if getattr(config, 'ENABLE_ARBITRAGE', False):
+    from arbitrage.engine import ArbitrageEngine
+
 logger = get_logger("bot")
 
 
@@ -114,6 +118,44 @@ class TradingBot:
             self.order_health_monitor = None
             logger.info("⚠️ 订单健康监控器未启用")
 
+        # 初始化套利引擎（可选）
+        if getattr(config, 'ENABLE_ARBITRAGE', False):
+            arbitrage_config = {
+                "symbol": getattr(config, 'ARBITRAGE_SYMBOL', 'BTCUSDT'),
+                "exchanges": getattr(config, 'ARBITRAGE_EXCHANGES', ['bitget', 'binance', 'okx']),
+                "monitor_interval": getattr(config, 'SPREAD_MONITOR_INTERVAL', 1),
+                "history_size": getattr(config, 'SPREAD_HISTORY_SIZE', 100),
+                "min_spread_threshold": getattr(config, 'MIN_SPREAD_THRESHOLD', 0.3),
+                "min_net_profit_threshold": getattr(config, 'MIN_NET_PROFIT_THRESHOLD', 1.0),
+                "min_profit_ratio": getattr(config, 'MIN_PROFIT_RATIO', 0.5),
+                "opportunity_scan_interval": getattr(config, 'OPPORTUNITY_SCAN_INTERVAL', 2),
+                "arbitrage_position_size": getattr(config, 'ARBITRAGE_POSITION_SIZE', 100),
+                "max_position_per_exchange": getattr(config, 'MAX_POSITION_PER_EXCHANGE', 500),
+                "max_total_arbitrage_exposure": getattr(config, 'MAX_TOTAL_ARBITRAGE_EXPOSURE', 1000),
+                "max_position_count_per_exchange": getattr(config, 'MAX_POSITION_COUNT_PER_EXCHANGE', 3),
+                "max_arbitrage_per_hour": getattr(config, 'MAX_ARBITRAGE_PER_HOUR', 10),
+                "max_arbitrage_per_day": getattr(config, 'MAX_ARBITRAGE_PER_DAY', 50),
+                "min_interval_between_arbitrage": getattr(config, 'MIN_INTERVAL_BETWEEN_ARBITRAGE', 30),
+                "max_execution_time_per_leg": getattr(config, 'MAX_EXECUTION_TIME_PER_LEG', 10),
+                "max_total_execution_time": getattr(config, 'MAX_TOTAL_EXECUTION_TIME', 30),
+                "max_slippage_tolerance": getattr(config, 'MAX_SLIPPAGE_TOLERANCE', 0.2),
+                "enable_atomic_execution": getattr(config, 'ENABLE_ATOMIC_EXECUTION', True),
+                "min_orderbook_depth_multiplier": getattr(config, 'MIN_ORDERBOOK_DEPTH_MULTIPLIER', 3.0),
+                "min_orderbook_depth_usdt": getattr(config, 'MIN_ORDERBOOK_DEPTH_USDT', 5000),
+                "max_api_latency_ms": getattr(config, 'MAX_API_LATENCY_MS', 500),
+                "fee_rates": getattr(config, 'ARBITRAGE_FEE_RATES', {
+                    "bitget": {"maker": 0.0002, "taker": 0.0006},
+                    "binance": {"maker": 0.0002, "taker": 0.0004},
+                    "okx": {"maker": 0.0002, "taker": 0.0005},
+                }),
+            }
+            self.arbitrage_engine = ArbitrageEngine(self.exchange_manager, arbitrage_config)
+            arbitrage_mode = getattr(config, 'ARBITRAGE_MODE', 'conservative')
+            logger.info(f"✅ 套利引擎已启用 (模式: {arbitrage_mode})")
+        else:
+            self.arbitrage_engine = None
+            logger.info("⚠️ 套利引擎未启用")
+
         # 日志优化：添加计数器以减少冗余日志
         self.no_signal_count = 0  # 无信号计数器
         self.NO_SIGNAL_LOG_INTERVAL = 12  # 每12次（约1分钟）打印一次
@@ -155,6 +197,11 @@ class TradingBot:
         logger.info(f"开始监控，默认检查间隔: {config.DEFAULT_CHECK_INTERVAL} 秒")
         if config.ENABLE_DYNAMIC_CHECK_INTERVAL:
             logger.info(f"动态价格更新已启用，持仓时检查间隔: {config.POSITION_CHECK_INTERVAL} 秒")
+
+        # 启动套利引擎（如果启用）
+        if self.arbitrage_engine:
+            self.arbitrage_engine.start()
+            logger.info("✅ 套利引擎已启动")
 
         while self.running:
             try:
@@ -984,7 +1031,12 @@ class TradingBot:
         """停止机器人"""
         self.running = False
         logger.info("机器人停止中...")
-    
+
+        # 停止套利引擎（如果启用）
+        if self.arbitrage_engine:
+            self.arbitrage_engine.stop()
+            logger.info("✅ 套利引擎已停止")
+
     def close_all(self):
         """紧急平仓"""
         logger.warning("执行紧急平仓")
