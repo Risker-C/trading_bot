@@ -9,13 +9,48 @@ from dotenv import load_dotenv
 # 加载 .env 文件
 load_dotenv()
 
-# ==================== 交易所配置 ====================
+# ==================== 多交易所配置 ====================
 
-EXCHANGE_CONFIG = {
-    "apiKey": os.getenv("BITGET_API_KEY", ""),
-    "secret": os.getenv("BITGET_API_SECRET") or os.getenv("BITGET_SECRET", ""),
-    "password": os.getenv("BITGET_API_PASSWORD") or os.getenv("BITGET_PASSWORD", ""),
+# 当前使用的交易所
+ACTIVE_EXCHANGE = os.getenv("ACTIVE_EXCHANGE", "bitget")
+
+# 多交易所配置
+EXCHANGES_CONFIG = {
+    "bitget": {
+        "api_key": os.getenv("BITGET_API_KEY", ""),
+        "api_secret": os.getenv("BITGET_API_SECRET") or os.getenv("BITGET_SECRET", ""),
+        "api_password": os.getenv("BITGET_API_PASSWORD") or os.getenv("BITGET_PASSWORD", ""),
+        "symbol": "BTCUSDT",
+        "product_type": "USDT-FUTURES",
+        "leverage": 10,
+        "margin_mode": "crossed",
+        "maker_fee": 0.0002,
+        "taker_fee": 0.0006,
+    },
+    "binance": {
+        "api_key": os.getenv("BINANCE_API_KEY", ""),
+        "api_secret": os.getenv("BINANCE_API_SECRET", ""),
+        "api_password": None,
+        "symbol": "BTCUSDT",
+        "leverage": 10,
+        "margin_mode": "crossed",
+        "maker_fee": 0.0002,
+        "taker_fee": 0.0004,
+    },
+    "okx": {
+        "api_key": os.getenv("OKX_API_KEY", ""),
+        "api_secret": os.getenv("OKX_API_SECRET", ""),
+        "api_password": os.getenv("OKX_API_PASSWORD", ""),
+        "symbol": "BTCUSDT",
+        "leverage": 10,
+        "margin_mode": "crossed",
+        "maker_fee": 0.0002,
+        "taker_fee": 0.0005,
+    }
 }
+
+# 向后兼容：保持EXCHANGE_CONFIG指向当前激活的交易所
+EXCHANGE_CONFIG = EXCHANGES_CONFIG.get(ACTIVE_EXCHANGE, EXCHANGES_CONFIG["bitget"])
 
 SYMBOL = "BTCUSDT"
 PRODUCT_TYPE = "USDT-FUTURES"  # USDT 合约

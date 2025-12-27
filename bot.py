@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional, List, Dict
 
 import config
-from trader import BitgetTrader
+from exchange.manager import ExchangeManager
 from risk_manager import RiskManager
 from strategies import (
     Signal, TradeSignal,
@@ -36,7 +36,11 @@ class TradingBot:
     """量化交易机器人"""
     
     def __init__(self):
-        self.trader = BitgetTrader()
+        # 使用多交易所管理器
+        self.exchange_manager = ExchangeManager()
+        self.exchange_manager.initialize()
+        self.trader = self.exchange_manager.get_current_exchange()
+
         self.risk_manager = RiskManager(self.trader)
         # 确保trader使用同一个RiskManager实例，避免持仓状态不同步
         self.trader.risk_manager = self.risk_manager
