@@ -14,59 +14,108 @@ from strategies import (
     get_consensus_signal, STRATEGY_MAP
 )
 from risk_manager import (
-    RiskManager, PositionInfo, PositionBuilder, 
+    RiskManager, PositionInfo, PositionBuilder,
     PositionCloser, DrawdownController
 )
 from indicators import IndicatorCalculator
+from error_backoff_controller import get_backoff_controller
 
 logger = get_logger("trader")
 
 
 class HealthMonitor:
-    """健康监控器"""
-    
-    def __init__(self):
+    """健康监控器 - 集成错误退避控制器"""
+
+    def __init__(self, exchange_name: str = "bitget"):
+        self.exchange_name = exchange_name
         self.api_errors = 0
         self.last_heartbeat = datetime.now()
         self.last_successful_request = datetime.now()
         self.is_healthy = True
         self.reconnect_count = 0
-    
+
+        # 集成错误退避控制器
+        if config.ENABLE_ERROR_BACKOFF:
+            self.backoff_controller = get_backoff_controller()
+        else:
+            self.backoff_controller = None
+
     def record_success(self):
         """记录成功请求"""
         self.api_errors = 0
         self.last_successful_request = datetime.now()
         self.is_healthy = True
-    
-    def record_error(self, error: Exception):
-        """记录错误"""
+
+    def record_error(self, error: Exception, error_code: str = ""):
+        """
+        记录错误并触发退避
+
+        Args:
+            error: 异常对象
+            error_code: 错误代码（可选）
+        """
         self.api_errors += 1
-        logger.error(f"API错误 ({self.api_errors}): {error}")
-        
+        error_msg = str(error)
+        logger.error(f"API错误 ({self.api_errors}): {error_msg}")
+
+        # 使用退避控制器
+        if self.backoff_controller:
+            # 尝试从错误消息中提取错误代码
+            if not error_code:
+                error_code = self._extract_error_code(error_msg)
+
+            self.backoff_controller.register_error(
+                exchange=self.exchange_name,
+                error_code=error_code,
+                error_message=error_msg
+            )
+
         if self.api_errors >= config.MAX_API_ERRORS:
             self.is_healthy = False
             logger.error(f"连续 {self.api_errors} 次错误，标记为不健康")
-    
+
+    def is_paused(self) -> bool:
+        """检查是否处于退避暂停状态"""
+        if self.backoff_controller:
+            return self.backoff_controller.is_paused(self.exchange_name)
+        return False
+
     def check_heartbeat(self) -> bool:
         """检查心跳"""
         elapsed = (datetime.now() - self.last_heartbeat).total_seconds()
         return elapsed < config.HEARTBEAT_INTERVAL * 2
-    
+
     def update_heartbeat(self):
         """更新心跳"""
         self.last_heartbeat = datetime.now()
-    
+
     def should_reconnect(self) -> bool:
         """是否需要重连"""
         if not config.AUTO_RECONNECT:
             return False
-        
+
         if not self.is_healthy and self.api_errors >= config.MAX_API_ERRORS:
             return True
-        
+
         # 超过一定时间没有成功请求
         elapsed = (datetime.now() - self.last_successful_request).total_seconds()
         return elapsed > config.HEALTH_CHECK_INTERVAL
+
+    def _extract_error_code(self, error_message: str) -> str:
+        """从错误消息中提取错误代码"""
+        error_msg_lower = error_message.lower()
+
+        # 常见错误代码模式
+        if "429" in error_message or "rate limit" in error_msg_lower:
+            return "429"
+        elif "21104" in error_message or "nonce" in error_msg_lower:
+            return "21104"
+        elif "timeout" in error_msg_lower:
+            return "timeout"
+        elif "network" in error_msg_lower or "connection" in error_msg_lower:
+            return "network"
+        else:
+            return "api"
 
 
 class BitgetTrader:

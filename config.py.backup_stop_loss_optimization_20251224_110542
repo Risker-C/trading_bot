@@ -65,41 +65,16 @@ VOLATILITY_LOOKBACK = 20              # 波动率计算周期
 
 # ==================== 止损止盈配置 ====================
 
-STOP_LOSS_PERCENT = 0.045      # 止损比例 4.5% (优化：从4%放宽到4.5%，根据策略分析结果调整)
-TAKE_PROFIT_PERCENT = 0.03     # 止盈比例 3% (保持不变，实际表现良好)
-TRAILING_STOP_PERCENT = 0.03   # 移动止损回撤比例 3% (优化：从2.5%放宽到3%，给盈利单更多空间)
+STOP_LOSS_PERCENT = 0.025      # 止损比例 2.5% (优化：收紧止损，控制单笔风险)
+TAKE_PROFIT_PERCENT = 0.03     # 止盈比例 3% (优化方案：从6%降低到3%，避免盈利变亏损)
+TRAILING_STOP_PERCENT = 0.015  # 移动止损回撤比例 1.5% (保守方案：放宽到1.5%，减少过早止盈)
 
 # ATR 动态止损（新增）
 USE_ATR_STOP_LOSS = True       # 是否使用 ATR 止损
-ATR_STOP_MULTIPLIER = 4.0      # ATR 倍数 (优化：从3.5提高到4.0，减少被市场波动打止损)
+ATR_STOP_MULTIPLIER = 2.5      # ATR 倍数 (优化：从2.0提高到2.5，适应加密货币波动)
 
 # 分批止盈（新增）
 USE_PARTIAL_TAKE_PROFIT = True # 是否分批止盈
-
-# ==================== 策略级差异化止损配置（新增）====================
-
-# 是否启用策略级差异化止损
-USE_STRATEGY_SPECIFIC_STOPS = True
-
-# 策略级止损配置（基于策略表现优化）
-# 格式：策略名 -> {stop_loss_pct, take_profit_pct, trailing_stop_pct, atr_multiplier}
-STRATEGY_STOP_CONFIGS = {
-    # 表现优秀的策略 - 给予更多空间
-    "multi_timeframe": {
-        "stop_loss_pct": 0.05,      # 5% 止损（盈亏比1.76，需要更多空间）
-        "take_profit_pct": 0.04,    # 4% 止盈
-        "trailing_stop_pct": 0.035, # 3.5% 移动止损
-        "atr_multiplier": 4.5,      # ATR倍数4.5
-    },
-    # 表现中等的策略 - 标准配置
-    "adx_trend": {
-        "stop_loss_pct": 0.045,     # 4.5% 止损（盈亏比0.97，标准配置）
-        "take_profit_pct": 0.03,    # 3% 止盈
-        "trailing_stop_pct": 0.03,  # 3% 移动止损
-        "atr_multiplier": 4.0,      # ATR倍数4.0
-    },
-    # 其他策略使用默认配置
-}
 
 # ==================== 动态止盈配置 ====================
 
@@ -124,51 +99,8 @@ TRAILING_TP_PRICE_WINDOW = 5
 # 修复说明：从0.4%降低到0.08%，提高动态止盈灵敏度，避免盈利变亏损
 TRAILING_TP_FALLBACK_PERCENT = 0.0008
 
-# ==================== Maker订单配置（新增）====================
-
-# 是否启用Maker订单（限价单）
-USE_MAKER_ORDER = True  # True: 使用限价单（手续费0.02%），False: 使用市价单（手续费0.06%）
-
-# Maker订单超时时间（秒）
-# 如果限价单在此时间内未成交，将自动取消并转为市价单
-MAKER_ORDER_TIMEOUT = 10  # 10秒超时
-
-# Maker订单价格偏移量（百分比）
-# 做多时：挂单价格 = 当前价格 * (1 - offset)，即略低于市价
-# 做空时：挂单价格 = 当前价格 * (1 + offset)，即略高于市价
-MAKER_PRICE_OFFSET = 0.0001  # 0.01%的价格偏移，确保成为Maker
-
-# Maker订单检查间隔（秒）
-MAKER_ORDER_CHECK_INTERVAL = 0.5  # 每0.5秒检查一次订单状态
-
-# 是否在Maker订单失败时自动降级为市价单
-MAKER_AUTO_FALLBACK_TO_MARKET = True  # 建议开启，避免错过交易机会
-
-# 手续费率配置
-TRADING_FEE_RATE_MAKER = 0.0002  # Bitget Maker费率 0.02%
-TRADING_FEE_RATE_TAKER = 0.0006  # Bitget Taker费率 0.06%
-
-# 当前使用的手续费率（根据USE_MAKER_ORDER自动选择）
-TRADING_FEE_RATE = TRADING_FEE_RATE_MAKER if USE_MAKER_ORDER else TRADING_FEE_RATE_TAKER
-
-# ==================== 动态Maker订单配置（新增）====================
-
-# 是否启用动态Maker订单（根据信号强度和波动率自适应）
-ENABLE_DYNAMIC_MAKER = True  # True: 启用动态调整，False: 使用固定参数
-
-# 信号强度阈值
-MAKER_MIN_SIGNAL_STRENGTH = 0.6  # 低于此值直接使用市价单（避免弱信号浪费时间）
-MAKER_OPTIMAL_SIGNAL_STRENGTH = 0.8  # 高于此值使用最优参数（强信号值得等待）
-
-# 波动率自适应参数
-MAKER_HIGH_VOL_TIMEOUT = 5  # 高波动超时（秒）- 快速决策
-MAKER_LOW_VOL_TIMEOUT = 15  # 低波动超时（秒）- 耐心等待
-MAKER_HIGH_VOL_OFFSET = 0.0002  # 高波动偏移（0.02%）- 增大偏移提高成交率
-MAKER_LOW_VOL_OFFSET = 0.00005  # 低波动偏移（0.005%）- 减小偏移降低滑点
-
-# 极端波动禁用Maker订单
-MAKER_DISABLE_ON_EXTREME_VOL = True  # 极端波动时强制使用市价单
-MAKER_EXTREME_VOL_THRESHOLD = 0.08  # 极端波动阈值（8%）
+# 手续费率（Bitget 默认 0.06%）
+TRADING_FEE_RATE = 0.0006
 
 # ==================== 动态价格更新配置 ====================
 
@@ -181,62 +113,15 @@ DEFAULT_CHECK_INTERVAL = 5
 # 持仓时检查间隔（秒）- 有持仓时提高频率
 POSITION_CHECK_INTERVAL = 2
 
-# ==================== 错误退避控制器配置 (Error Backoff Controller) ====================
-
-# 是否启用错误退避控制器
-ENABLE_ERROR_BACKOFF = True
-
-# 最小退避时间（秒）
-ERROR_BACKOFF_MIN_SECONDS = 120  # 2分钟
-
-# 最大退避时间（秒）
-ERROR_BACKOFF_MAX_SECONDS = 3600  # 1小时
-
-# 退避倍数（指数退避）
-ERROR_BACKOFF_MULTIPLIER = 2.0
-
-# 错误重置时间（秒）- 超过此时间后重置错误计数
-ERROR_RESET_SECONDS = 1800  # 30分钟
-
-# ==================== 价格稳定性检测配置 (Price Stability Detection) ====================
-
-# 是否启用价格稳定性检测
-PRICE_STABILITY_ENABLED = True
-
-# 价格稳定性观察窗口（秒）
-PRICE_STABILITY_WINDOW_SECONDS = 5.0
-
-# 价格稳定性波动阈值（百分比）
-PRICE_STABILITY_THRESHOLD_PCT = 0.5  # 0.5%
-
-# 价格采样间隔（秒）
-PRICE_STABILITY_SAMPLE_INTERVAL = 1.0
-
-# ==================== 订单健康检查配置 (Order Health Checker) ====================
-
-# 是否启用订单健康检查
-ORDER_HEALTH_CHECK_ENABLED = True
-
-# 订单健康检查间隔（秒）
-ORDER_HEALTH_CHECK_INTERVAL = 300  # 5分钟
-
-# 订单最大存活时间（秒）
-ORDER_MAX_AGE_SECONDS = 3600  # 1小时
-
-# 订单过期阈值（秒）
-ORDER_STALE_THRESHOLD_SECONDS = 600  # 10分钟
-
 # ==================== 策略配置 ====================
 
 ENABLE_STRATEGIES: List[str] = [
     "bollinger_trend",        # 顺势策略：突破上轨做多（替代抄底策略）
     # "bollinger_breakthrough",  # 禁用：逆势抄底策略，在震荡下跌时容易亏损
-    # "rsi_divergence",          # 禁用：抄底策略，RSI超卖时做多，胜率35.7%，盈亏比0.82，表现最差
+    # "rsi_divergence",          # 禁用：抄底策略，RSI超卖时做多
     "macd_cross",
     "ema_cross",
     "composite_score",
-    "multi_timeframe",        # 启用：多时间周期策略，胜率30%但盈亏比1.76，唯一盈利策略
-    "adx_trend",              # 启用：ADX趋势策略，胜率50%，盈亏比0.97，表现中等
 ]
 
 # 共识信号配置（新增）

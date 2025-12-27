@@ -34,7 +34,8 @@
       "Skill(engineering-workflow-skills:feature-planning)",
       "WebFetch(domain:github.com)",
       "Skill(README)",
-      "Skill(feature-dev)"
+      "Skill(feature-dev)",
+      "WebSearch"
     ]
   },
   "statusLine": {

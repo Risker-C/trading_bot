@@ -26,6 +26,8 @@ from claude_policy_analyzer import get_claude_policy_analyzer
 from trading_context_builder import get_context_builder
 from ml_predictor import get_ml_predictor  # 原版ML预测器
 from ml_predictor_lite import get_ml_predictor_lite  # 优化版ML预测器
+from execution_filter import ExecutionFilter  # 执行层风控
+from order_health_monitor import get_order_health_monitor  # 订单健康监控
 
 logger = get_logger("bot")
 
@@ -95,6 +97,18 @@ class TradingBot:
         else:
             self.ml_predictor = None
             logger.info("⚠️ ML信号过滤器未启用")
+
+        # 初始化执行层风控过滤器
+        self.execution_filter = ExecutionFilter()
+        logger.info("✅ 执行层风控过滤器已初始化")
+
+        # 初始化订单健康监控器
+        if getattr(config, 'ORDER_HEALTH_CHECK_ENABLED', True):
+            self.order_health_monitor = get_order_health_monitor(self.trader)
+            logger.info("✅ 订单健康监控器已初始化")
+        else:
+            self.order_health_monitor = None
+            logger.info("⚠️ 订单健康监控器未启用")
 
         # 日志优化：添加计数器以减少冗余日志
         self.no_signal_count = 0  # 无信号计数器

@@ -2,10 +2,12 @@
 执行层风控模块
 在信号通过策略和Claude分析后，进行最后的执行层检查
 """
-from typing import Tuple, Dict, Optional
+from typing import Tuple, Dict, Optional, Deque
 from datetime import datetime, timedelta
+from collections import deque
 import pandas as pd
 import numpy as np
+import time
 
 import config
 from logger_utils import get_logger
@@ -25,6 +27,15 @@ class ExecutionFilter:
         self.max_slippage_pct = getattr(config, 'MAX_SLIPPAGE_PCT', 0.002)  # 0.2%
         self.min_volume_ratio = getattr(config, 'MIN_VOLUME_RATIO', 0.5)  # 50%
         self.atr_spike_threshold = getattr(config, 'ATR_SPIKE_THRESHOLD', 1.5)  # 1.5x
+
+        # 价格稳定性检测配置
+        self.price_stability_enabled = getattr(config, 'PRICE_STABILITY_ENABLED', True)
+        self.price_stability_window = getattr(config, 'PRICE_STABILITY_WINDOW_SECONDS', 5.0)
+        self.price_stability_threshold = getattr(config, 'PRICE_STABILITY_THRESHOLD_PCT', 0.5)
+
+        # 价格历史记录 (timestamp, price)
+        self.price_history: Deque[Tuple[float, float]] = deque()
+        self.last_price_sample_time = 0.0
 
         # 历史记录
         self.last_check_time: Optional[datetime] = None
@@ -56,6 +67,7 @@ class ExecutionFilter:
             'spread_check': True,
             'slippage_check': True,
             'liquidity_check': True,
+            'price_stability_check': True,
             'volatility_check': True,
         }
 
@@ -75,7 +87,16 @@ class ExecutionFilter:
             self.rejection_count += 1
             return False, liquidity_reason, details
 
-        # 3. 检查波动率冲击
+        # 3. 检查价格稳定性（新增）
+        if self.price_stability_enabled:
+            stability_pass, stability_reason, stability_volatility = self._check_price_stability(current_price)
+            details['price_stability_check'] = stability_pass
+            details['price_volatility_pct'] = stability_volatility
+            if not stability_pass:
+                self.rejection_count += 1
+                return False, stability_reason, details
+
+        # 4. 检查波动率冲击
         volatility_pass, volatility_reason = self._check_volatility_spike(df, indicators)
         details['volatility_check'] = volatility_pass
         if not volatility_pass:
@@ -137,6 +158,63 @@ class ExecutionFilter:
         except Exception as e:
             logger.error(f"检查流动性失败: {e}")
             return True, "流动性检查异常"
+
+    def _check_price_stability(self, current_price: float) -> Tuple[bool, str, float]:
+        """
+        检查价格稳定性
+
+        Args:
+            current_price: 当前价格
+
+        Returns:
+            (是否通过, 原因, 波动率百分比)
+        """
+        try:
+            now = time.time()
+
+            # 记录价格样本
+            sample_interval = getattr(config, 'PRICE_STABILITY_SAMPLE_INTERVAL', 1.0)
+            if now - self.last_price_sample_time >= sample_interval:
+                self.price_history.append((now, current_price))
+                self.last_price_sample_time = now
+
+                # 清理过期数据
+                retention_window = self.price_stability_window * 4
+                cutoff_time = now - retention_window
+                while self.price_history and self.price_history[0][0] < cutoff_time:
+                    self.price_history.popleft()
+
+            # 检查是否有足够的历史数据
+            if len(self.price_history) < 2:
+                return True, "价格数据收集中", 0.0
+
+            # 计算观察窗口内的数据
+            window_cutoff = now - self.price_stability_window
+            window_prices = [price for timestamp, price in self.price_history if timestamp >= window_cutoff]
+
+            if len(window_prices) < 2:
+                return True, "价格数据收集中", 0.0
+
+            # 计算波动率: (max - min) / min * 100
+            max_price = max(window_prices)
+            min_price = min(window_prices)
+
+            if min_price <= 0:
+                return True, "价格数据异常", 0.0
+
+            volatility_pct = (max_price - min_price) / min_price * 100
+
+            # 检查是否超过阈值
+            if volatility_pct > self.price_stability_threshold:
+                # 价格不稳定，重置历史数据
+                self.price_history.clear()
+                return False, f"价格波动过大({volatility_pct:.2f}% > {self.price_stability_threshold:.2f}%)", volatility_pct
+
+            return True, "价格稳定", volatility_pct
+
+        except Exception as e:
+            logger.error(f"检查价格稳定性失败: {e}")
+            return True, "价格稳定性检查异常", 0.0
 
     def _check_volatility_spike(
         self,
