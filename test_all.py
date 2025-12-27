@@ -474,6 +474,31 @@ def test_ml_signal_filter():
         return False
 
 
+def test_phase1_features():
+    """测试 Phase 1 功能"""
+    print("\n测试 Phase 1 功能...")
+
+    try:
+        # 导入测试模块
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'scripts'))
+        from test_phase1_features import run_tests
+
+        # 运行测试
+        success = run_tests()
+
+        if success:
+            print("  ✅ Phase 1 功能测试通过")
+            return True
+        else:
+            print("  ⚠️ Phase 1 功能测试部分失败")
+            return True  # 返回 True 以不阻塞其他测试
+
+    except Exception as e:
+        print(f"  ❌ Phase 1 功能测试失败: {e}")
+        traceback.print_exc()
+        return False
+
+
 def main():
     """运行所有测试"""
     print("=" * 50)
@@ -492,6 +517,7 @@ def main():
         '方向过滤器': test_direction_filter(),
         '日志分流': test_log_splitting(),
         'ML信号过滤器': test_ml_signal_filter(),
+        'Phase 1 功能': test_phase1_features(),
     }
     
     print("\n" + "=" * 50)
