@@ -19,6 +19,7 @@ from risk_manager import (
 )
 from indicators import IndicatorCalculator
 from error_backoff_controller import get_backoff_controller
+from liquidity_validator import get_liquidity_validator
 
 logger = get_logger("trader")
 
@@ -126,14 +127,17 @@ class BitgetTrader:
         self.risk_manager = RiskManager(self)
         self.drawdown_controller = DrawdownController()
         self.health_monitor = HealthMonitor()
-        
+
+        # 流动性验证器
+        self.liquidity_validator = get_liquidity_validator()
+
         # 分批建仓/平仓管理
         self.position_builder: Optional[PositionBuilder] = None
         self.position_closer: Optional[PositionCloser] = None
-        
+
         # 多时间周期数据缓存
         self.timeframe_data: Dict[str, pd.DataFrame] = {}
-        
+
         # 初始化
         self._init_exchange()
     
@@ -386,6 +390,25 @@ class BitgetTrader:
     ) -> Optional[Dict]:
         """创建市价单"""
         try:
+            # 流动性验证（仅在开仓时检查）
+            if not reduce_only and config.LIQUIDITY_VALIDATION_ENABLED:
+                ticker = self.get_ticker()
+                if ticker:
+                    current_price = ticker['last']
+                    is_buy = (side == 'buy')
+                    liquidity_pass, liquidity_reason, liquidity_details = self.liquidity_validator.validate_liquidity(
+                        ticker=ticker,
+                        order_amount=amount,
+                        order_price=current_price,
+                        is_buy=is_buy
+                    )
+
+                    if not liquidity_pass:
+                        logger.warning(f"❌ 市价单流动性验证失败: {liquidity_reason}")
+                        return None
+
+                    logger.debug(f"✅ 市价单流动性验证通过")
+
             # 双向持仓模式：平仓时使用 tradeSide="close"
             params = {
                 "productType": config.PRODUCT_TYPE,
@@ -429,6 +452,24 @@ class BitgetTrader:
             订单信息或None
         """
         try:
+            # 流动性验证（仅在开仓时检查）
+            if not reduce_only and config.LIQUIDITY_VALIDATION_ENABLED:
+                ticker = self.get_ticker()
+                if ticker:
+                    is_buy = (side == 'buy')
+                    liquidity_pass, liquidity_reason, liquidity_details = self.liquidity_validator.validate_liquidity(
+                        ticker=ticker,
+                        order_amount=amount,
+                        order_price=price,
+                        is_buy=is_buy
+                    )
+
+                    if not liquidity_pass:
+                        logger.warning(f"❌ 限价单流动性验证失败: {liquidity_reason}")
+                        return None
+
+                    logger.debug(f"✅ 限价单流动性验证通过")
+
             params = {
                 "productType": config.PRODUCT_TYPE,
                 "tradeSide": "open" if not reduce_only else "close",
@@ -600,6 +641,23 @@ class BitgetTrader:
             return self.create_market_order(side, amount, reduce_only)
 
         current_price = ticker['last']
+
+        # 流动性验证（仅在开仓时检查）
+        if not reduce_only and config.LIQUIDITY_VALIDATION_ENABLED:
+            is_buy = (side == 'buy')
+            liquidity_pass, liquidity_reason, liquidity_details = self.liquidity_validator.validate_liquidity(
+                ticker=ticker,
+                order_amount=amount,
+                order_price=current_price,
+                is_buy=is_buy
+            )
+
+            if not liquidity_pass:
+                logger.warning(f"❌ 流动性验证失败: {liquidity_reason}")
+                logger.debug(f"流动性详情: {liquidity_details}")
+                return None
+
+            logger.debug(f"✅ 流动性验证通过: {liquidity_reason}")
 
         # 动态计算Maker订单参数
         if config.ENABLE_DYNAMIC_MAKER:

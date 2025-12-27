@@ -12,6 +12,7 @@ import time
 import config
 from logger_utils import get_logger
 from indicators import IndicatorCalculator
+from liquidity_validator import get_liquidity_validator
 
 logger = get_logger("execution_filter")
 
@@ -36,6 +37,9 @@ class ExecutionFilter:
         # 价格历史记录 (timestamp, price)
         self.price_history: Deque[Tuple[float, float]] = deque()
         self.last_price_sample_time = 0.0
+
+        # 流动性验证器
+        self.liquidity_validator = get_liquidity_validator()
 
         # 历史记录
         self.last_check_time: Optional[datetime] = None

@@ -226,6 +226,23 @@ ORDER_MAX_AGE_SECONDS = 3600  # 1小时
 # 订单过期阈值（秒）
 ORDER_STALE_THRESHOLD_SECONDS = 600  # 10分钟
 
+# ==================== 流动性验证配置 (Liquidity Validation) ====================
+
+# 是否启用流动性验证
+LIQUIDITY_VALIDATION_ENABLED = True
+
+# 最小订单簿深度要求（相对于订单数量的倍数）
+MIN_ORDERBOOK_DEPTH_MULTIPLIER = 2.0  # 对手盘深度至少是订单数量的2倍
+
+# 最小绝对深度要求（USDT）
+MIN_ORDERBOOK_DEPTH_USDT = 1000  # 对手盘至少1000 USDT
+
+# 订单簿数据新鲜度要求（秒）
+ORDERBOOK_DATA_FRESHNESS_SECONDS = 5.0  # 只使用5秒内的数据
+
+# 流动性不足时的处理策略
+LIQUIDITY_INSUFFICIENT_ACTION = "reject"  # reject=拒绝订单, reduce=减少订单量, ignore=忽略
+
 # ==================== 策略配置 ====================
 
 ENABLE_STRATEGIES: List[str] = [
