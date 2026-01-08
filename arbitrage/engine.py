@@ -60,6 +60,9 @@ class ArbitrageEngine:
             "start_time": None
         }
 
+        # 自动创建数据库表（如果不存在）
+        self._ensure_tables_exist()
+
         logger.info(f"套利引擎初始化完成: scan_interval={self.opportunity_scan_interval}s, "
                    f"position_size={self.arbitrage_position_size}")
 
@@ -353,3 +356,123 @@ class ArbitrageEngine:
             "is_active": self.is_running(),
             "stats": self.get_stats()
         }
+
+    def _ensure_tables_exist(self):
+        """确保套利相关数据库表存在（自动创建）"""
+        import sqlite3
+        import config
+
+        try:
+            conn = sqlite3.connect(getattr(config, 'DB_PATH', 'trading_bot.db'))
+            cursor = conn.cursor()
+
+            # 1. 创建价差历史表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS arbitrage_spreads (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    exchange_a TEXT NOT NULL,
+                    exchange_b TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    buy_price REAL NOT NULL,
+                    sell_price REAL NOT NULL,
+                    spread_pct REAL NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_arbitrage_spreads_timestamp
+                ON arbitrage_spreads(timestamp)
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_arbitrage_spreads_exchanges
+                ON arbitrage_spreads(exchange_a, exchange_b)
+            """)
+
+            # 2. 创建套利机会表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS arbitrage_opportunities (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    buy_exchange TEXT NOT NULL,
+                    sell_exchange TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    buy_price REAL NOT NULL,
+                    sell_price REAL NOT NULL,
+                    spread_pct REAL NOT NULL,
+                    gross_profit REAL NOT NULL,
+                    net_profit REAL NOT NULL,
+                    buy_exchange_fee REAL NOT NULL,
+                    sell_exchange_fee REAL NOT NULL,
+                    estimated_buy_slippage REAL NOT NULL,
+                    estimated_sell_slippage REAL NOT NULL,
+                    buy_orderbook_depth REAL,
+                    sell_orderbook_depth REAL,
+                    risk_score REAL,
+                    timestamp INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_arbitrage_opportunities_timestamp
+                ON arbitrage_opportunities(timestamp)
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_arbitrage_opportunities_net_profit
+                ON arbitrage_opportunities(net_profit DESC)
+            """)
+
+            # 3. 创建套利交易表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS arbitrage_trades (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    buy_exchange TEXT NOT NULL,
+                    sell_exchange TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    amount REAL NOT NULL,
+                    status TEXT NOT NULL,
+                    buy_order_id TEXT,
+                    sell_order_id TEXT,
+                    buy_price REAL,
+                    sell_price REAL,
+                    expected_pnl REAL,
+                    actual_pnl REAL,
+                    failure_reason TEXT,
+                    buy_execution_time REAL,
+                    sell_execution_time REAL,
+                    total_execution_time REAL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    buy_executed_at TIMESTAMP,
+                    sell_executed_at TIMESTAMP,
+                    completed_at TIMESTAMP
+                )
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_arbitrage_trades_created_at
+                ON arbitrage_trades(created_at)
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_arbitrage_trades_status
+                ON arbitrage_trades(status)
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_arbitrage_trades_exchanges
+                ON arbitrage_trades(buy_exchange, sell_exchange)
+            """)
+
+            conn.commit()
+            logger.info("✅ 套利数据库表已就绪")
+
+        except Exception as e:
+            logger.error(f"创建套利数据库表失败: {e}")
+            if 'conn' in locals():
+                conn.rollback()
+        finally:
+            if 'conn' in locals():
+                conn.close()

@@ -792,8 +792,8 @@ LOG_ALL_EXECUTIONS = True  # 是否记录所有执行
 def validate_config():
     """验证配置有效性"""
     errors = []
-    
-    if not EXCHANGE_CONFIG["apiKey"]:
+
+    if not EXCHANGE_CONFIG.get("api_key"):
         errors.append("缺少 API Key")
     
     if LEVERAGE < 1 or LEVERAGE > 125:

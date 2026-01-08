@@ -145,9 +145,9 @@ class BitgetTrader:
         """初始化交易所连接"""
         try:
             self.exchange = ccxt.bitget({
-                "apiKey": config.EXCHANGE_CONFIG["apiKey"],
-                "secret": config.EXCHANGE_CONFIG["secret"],
-                "password": config.EXCHANGE_CONFIG["password"],
+                "apiKey": config.EXCHANGE_CONFIG["api_key"],
+                "secret": config.EXCHANGE_CONFIG["api_secret"],
+                "password": config.EXCHANGE_CONFIG["api_password"],
                 "enableRateLimit": True,
                 "options": {
                     "defaultType": "swap",

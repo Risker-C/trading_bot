@@ -5,7 +5,9 @@ from datetime import datetime
 from typing import Optional, List, Dict
 
 import config
+from config_validator import validate_config
 from exchange.manager import ExchangeManager
+from exchange.legacy_adapter import LegacyAdapter
 from risk_manager import RiskManager
 from strategies import (
     Signal, TradeSignal,
@@ -40,10 +42,18 @@ class TradingBot:
     """量化交易机器人"""
     
     def __init__(self):
+        # 验证配置
+        logger.info("🔍 验证配置...")
+        if not validate_config(config):
+            raise ValueError("配置验证失败，请检查配置文件")
+        logger.info("✅ 配置验证通过")
+
         # 使用多交易所管理器
         self.exchange_manager = ExchangeManager()
         self.exchange_manager.initialize()
-        self.trader = self.exchange_manager.get_current_exchange()
+        # 使用适配器包装，解决类型不匹配问题
+        raw_exchange = self.exchange_manager.get_current_exchange()
+        self.trader = LegacyAdapter(raw_exchange)
 
         self.risk_manager = RiskManager(self.trader)
         # 确保trader使用同一个RiskManager实例，避免持仓状态不同步
@@ -149,9 +159,12 @@ class TradingBot:
                     "okx": {"maker": 0.0002, "taker": 0.0005},
                 }),
             }
-            self.arbitrage_engine = ArbitrageEngine(self.exchange_manager, arbitrage_config)
+            # 为套利引擎创建独立的 ExchangeManager 实例（避免线程安全问题）
+            arbitrage_exchange_manager = ExchangeManager()
+            arbitrage_exchange_manager.initialize()
+            self.arbitrage_engine = ArbitrageEngine(arbitrage_exchange_manager, arbitrage_config)
             arbitrage_mode = getattr(config, 'ARBITRAGE_MODE', 'conservative')
-            logger.info(f"✅ 套利引擎已启用 (模式: {arbitrage_mode})")
+            logger.info(f"✅ 套利引擎已启用 (模式: {arbitrage_mode}, 独立交易所实例)")
         else:
             self.arbitrage_engine = None
             logger.info("⚠️ 套利引擎未启用")
@@ -255,7 +268,7 @@ class TradingBot:
             for pos in positions:
                 # 获取当前价格
                 ticker = self.trader.get_ticker()
-                current_price = ticker['last'] if ticker else pos['entry_price']
+                current_price = ticker.last if ticker else pos['entry_price']
 
                 # 计算盈亏百分比
                 pnl_percent = (pos['unrealized_pnl'] / (pos['entry_price'] * pos['amount'])) * 100 if pos['amount'] > 0 else 0
@@ -287,7 +300,7 @@ class TradingBot:
             logger.warning("获取行情失败")
             return
 
-        current_price = ticker['last']
+        current_price = ticker.last
 
         # 更新状态监控的价格历史
         if self.status_monitor:
@@ -1007,7 +1020,7 @@ class TradingBot:
 
         # 获取当前价格用于计算盈亏百分比
         ticker = self.trader.get_ticker()
-        current_price = ticker['last'] if ticker else 0
+        current_price = ticker.last if ticker else 0
 
         return {
             'running': self.running,

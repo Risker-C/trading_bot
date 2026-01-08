@@ -251,9 +251,9 @@ def test_api_connection():
     import config
 
     # 检查是否配置了完整的API凭证
-    if not config.EXCHANGE_CONFIG['apiKey'] or \
-       not config.EXCHANGE_CONFIG['secret'] or \
-       not config.EXCHANGE_CONFIG['password']:
+    if not config.EXCHANGE_CONFIG.get('api_key') or \
+       not config.EXCHANGE_CONFIG.get('api_secret') or \
+       not config.EXCHANGE_CONFIG.get('api_password'):
         print("  ⏭️ 跳过（API凭证未完整配置）")
         return True
 
@@ -261,9 +261,9 @@ def test_api_connection():
         import ccxt
 
         exchange = ccxt.bitget({
-            'apiKey': config.EXCHANGE_CONFIG['apiKey'],
-            'secret': config.EXCHANGE_CONFIG['secret'],
-            'password': config.EXCHANGE_CONFIG['password'],
+            'apiKey': config.EXCHANGE_CONFIG['api_key'],
+            'secret': config.EXCHANGE_CONFIG['api_secret'],
+            'password': config.EXCHANGE_CONFIG['api_password'],
         })
 
         # 测试公共 API

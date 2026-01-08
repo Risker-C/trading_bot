@@ -37,3 +37,4 @@ equity*.png
 # 测试覆盖
 .coverage
 htmlcov/
+.ace-tool/

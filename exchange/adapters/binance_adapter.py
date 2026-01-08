@@ -392,6 +392,63 @@ class BinanceAdapter(ExchangeInterface):
             logger.error(f"Binance设置保证金模式失败: {e}")
             return False
 
+    @retry_on_error
+    def place_order(self, symbol: str, side: str, amount: float,
+                   price: Optional[float] = None, order_type: str = "market") -> OrderResult:
+        """通用下单接口（套利引擎使用）"""
+        if not self.is_connected():
+            return OrderResult(success=False, error="交易所未连接")
+
+        try:
+            order = self.exchange.create_order(
+                symbol=symbol,
+                type=order_type,
+                side=side,
+                amount=amount,
+                price=price
+            )
+
+            return OrderResult(
+                success=True,
+                order_id=order.get('id'),
+                price=order.get('price'),
+                amount=order.get('amount'),
+                side=side,
+                filled_quantity=order.get('filled', 0),
+                avg_price=order.get('average'),
+                status=order.get('status'),
+                raw_data=order
+            )
+
+        except Exception as e:
+            logger.error(f"Binance下单失败: {e}")
+            return OrderResult(success=False, error=str(e))
+
+    @retry_on_error
+    def get_order_status(self, order_id: str, symbol: str) -> OrderResult:
+        """查询订单状态（套利引擎使用）"""
+        if not self.is_connected():
+            return OrderResult(success=False, error="交易所未连接")
+
+        try:
+            order = self.exchange.fetch_order(order_id, symbol)
+
+            return OrderResult(
+                success=True,
+                order_id=order.get('id'),
+                price=order.get('price'),
+                amount=order.get('amount'),
+                side=order.get('side'),
+                filled_quantity=order.get('filled', 0),
+                avg_price=order.get('average'),
+                status=order.get('status'),
+                raw_data=order
+            )
+
+        except Exception as e:
+            logger.error(f"Binance查询订单失败: {e}")
+            return OrderResult(success=False, error=str(e))
+
     # ========== 辅助方法 ==========
 
     def get_exchange_name(self) -> str:

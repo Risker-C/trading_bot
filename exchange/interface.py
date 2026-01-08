@@ -41,6 +41,10 @@ class OrderResult:
     side: Optional[str] = None
     error: Optional[str] = None
     raw_data: Optional[Dict] = None
+    # 套利引擎需要的字段
+    filled_quantity: Optional[float] = None  # 已成交数量
+    avg_price: Optional[float] = None  # 平均成交价格
+    status: Optional[str] = None  # 订单状态：'open', 'closed', 'canceled'
 
 
 class ExchangeInterface(ABC):
@@ -117,6 +121,38 @@ class ExchangeInterface(ABC):
     @abstractmethod
     def close_all_positions(self) -> List[OrderResult]:
         """一键平仓所有持仓"""
+        pass
+
+    @abstractmethod
+    def place_order(self, symbol: str, side: str, amount: float,
+                   price: Optional[float] = None, order_type: str = "market") -> OrderResult:
+        """
+        通用下单接口（套利引擎使用）
+
+        Args:
+            symbol: 交易对
+            side: 'buy' 或 'sell'
+            amount: 数量
+            price: 价格（限价单）
+            order_type: 订单类型 'market' 或 'limit'
+
+        Returns:
+            OrderResult: 订单结果
+        """
+        pass
+
+    @abstractmethod
+    def get_order_status(self, order_id: str, symbol: str) -> OrderResult:
+        """
+        查询订单状态（套利引擎使用）
+
+        Args:
+            order_id: 订单ID
+            symbol: 交易对
+
+        Returns:
+            OrderResult: 订单状态（包含 filled_quantity, avg_price 等）
+        """
         pass
 
     # ========== 交易参数设置 ==========

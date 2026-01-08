@@ -56,6 +56,7 @@ class ExchangeFactory:
 
         try:
             instance = adapter_class(config)
+            instance.connect()  # 连接交易所
             return instance
         except Exception as e:
             logger.error(f"创建交易所适配器失败: {exchange_name}, 错误: {e}")
