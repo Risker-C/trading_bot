@@ -1,0 +1,304 @@
+{
+  "project_name": "trading_bot",
+  "scan_timestamp": "2026-01-09T00:00:00Z",
+  "version": "1.0.1",
+  "root_path": "/root/trading_bot",
+  "modules": [
+    {
+      "name": "核心交易模块",
+      "path": "/",
+      "type": "core",
+      "entry_points": [
+        "main.py",
+        "bot.py",
+        "trader.py"
+      ],
+      "key_files": [
+        "main.py",
+        "bot.py",
+        "trader.py",
+        "config.py",
+        "backtest.py",
+        "monitor.py",
+        "cli.py"
+      ],
+      "interfaces": [
+        "BitgetTrader",
+        "TradingBot"
+      ],
+      "dependencies": [
+        "exchange",
+        "strategies",
+        "risk_manager",
+        "indicators"
+      ],
+      "test_files": [
+        "test_all.py"
+      ],
+      "coverage": 85,
+      "status": "stable"
+    },
+    {
+      "name": "多交易所框架",
+      "path": "exchange/",
+      "type": "framework",
+      "entry_points": [
+        "exchange/__init__.py",
+        "exchange/manager.py"
+      ],
+      "key_files": [
+        "exchange/__init__.py",
+        "exchange/interface.py",
+        "exchange/factory.py",
+        "exchange/manager.py",
+        "exchange/errors.py",
+        "exchange/decorators.py",
+        "exchange/legacy_adapter.py",
+        "exchange/adapters/bitget_adapter.py",
+        "exchange/adapters/binance_adapter.py",
+        "exchange/adapters/okx_adapter.py"
+      ],
+      "interfaces": [
+        "ExchangeInterface",
+        "ExchangeFactory",
+        "ExchangeManager"
+      ],
+      "data_models": [
+        "TickerData",
+        "PositionData",
+        "OrderResult"
+      ],
+      "test_files": [
+        "scripts/test_multi_exchange.py"
+      ],
+      "coverage": 90,
+      "status": "stable"
+    },
+    {
+      "name": "套利引擎",
+      "path": "arbitrage/",
+      "type": "engine",
+      "entry_points": [
+        "arbitrage/engine.py"
+      ],
+      "key_files": [
+        "arbitrage/__init__.py",
+        "arbitrage/engine.py",
+        "arbitrage/models.py",
+        "arbitrage/spread_monitor.py",
+        "arbitrage/opportunity_detector.py",
+        "arbitrage/execution_coordinator.py",
+        "arbitrage/arbitrage_risk_manager.py",
+        "arbitrage/position_tracker.py"
+      ],
+      "interfaces": [
+        "ArbitrageEngine",
+        "SpreadMonitor",
+        "OpportunityDetector",
+        "ExecutionCoordinator"
+      ],
+      "data_models": [
+        "SpreadData",
+        "ArbitrageOpportunity",
+        "ArbitrageTrade"
+      ],
+      "test_files": [
+        "scripts/test_arbitrage.py"
+      ],
+      "coverage": 80,
+      "status": "implemented"
+    },
+    {
+      "name": "策略与指标",
+      "path": "/",
+      "type": "strategy",
+      "key_files": [
+        "strategies.py",
+        "indicators.py",
+        "market_regime.py",
+        "trend_filter.py",
+        "direction_filter.py"
+      ],
+      "interfaces": [
+        "get_strategy",
+        "analyze_all_strategies",
+        "get_consensus_signal",
+        "IndicatorCalculator",
+        "MarketRegimeDetector"
+      ],
+      "strategies": [
+        "bollinger_trend",
+        "bollinger_breakthrough",
+        "rsi_divergence",
+        "macd_cross",
+        "ema_cross",
+        "composite_score",
+        "multi_timeframe",
+        "adx_trend"
+      ],
+      "test_files": [
+        "scripts/test_dynamic_strategy.py",
+        "scripts/test_market_regime.py",
+        "scripts/test_strategy_optimization.py"
+      ],
+      "coverage": 75,
+      "status": "stable"
+    },
+    {
+      "name": "风险管理",
+      "path": "/",
+      "type": "risk",
+      "key_files": [
+        "risk_manager.py",
+        "execution_filter.py",
+        "liquidity_validator.py",
+        "error_backoff_controller.py",
+        "order_health_monitor.py"
+      ],
+      "interfaces": [
+        "RiskManager",
+        "ExecutionFilter",
+        "LiquidityValidator",
+        "ErrorBackoffController"
+      ],
+      "test_files": [
+        "scripts/test_risk_manager_record_trade.py",
+        "scripts/test_liquidity_validation.py",
+        "scripts/test_phase1_features.py"
+      ],
+      "coverage": 85,
+      "status": "stable"
+    },
+    {
+      "name": "AI分析层",
+      "path": "/",
+      "type": "ai",
+      "key_files": [
+        "claude_analyzer.py",
+        "claude_periodic_analyzer.py",
+        "claude_policy_analyzer.py",
+        "claude_guardrails.py",
+        "policy_layer.py",
+        "ml_predictor.py",
+        "ml_predictor_lite.py",
+        "feature_engineer.py",
+        "model_trainer.py",
+        "shadow_mode.py",
+        "trading_context_builder.py"
+      ],
+      "interfaces": [
+        "get_claude_analyzer",
+        "get_claude_periodic_analyzer",
+        "get_policy_layer",
+        "get_ml_predictor",
+        "get_shadow_tracker"
+      ],
+      "test_files": [
+        "scripts/test_claude_integration.py",
+        "scripts/test_claude_periodic_analysis.py",
+        "scripts/test_policy_layer.py",
+        "scripts/test_ml_signal_filter.py",
+        "test_claude_api.py"
+      ],
+      "coverage": 70,
+      "status": "active"
+    },
+    {
+      "name": "监控与工具",
+      "path": "/",
+      "type": "monitoring",
+      "key_files": [
+        "status_monitor.py",
+        "logger_utils.py",
+        "market_report.py",
+        "performance_analyzer.py",
+        "analyze_win_rate.py",
+        "analyze_strategy_performance.py"
+      ],
+      "interfaces": [
+        "StatusMonitorScheduler",
+        "get_logger",
+        "notifier"
+      ],
+      "test_files": [
+        "scripts/test_status_monitor.py",
+        "scripts/test_periodic_report.py",
+        "scripts/test_notification.py"
+      ],
+      "coverage": 80,
+      "status": "stable"
+    },
+    {
+      "name": "测试脚本",
+      "path": "scripts/",
+      "type": "testing",
+      "key_files": [
+        "scripts/test_trading.py",
+        "scripts/test_database_fix.py",
+        "scripts/check_status.py",
+        "scripts/close_raw_api.py",
+        "scripts/diagnose_bollinger.py",
+        "scripts/db_viewer.py"
+      ],
+      "script_count": 52,
+      "categories": [
+        "核心功能测试",
+        "AI与ML测试",
+        "策略与指标测试",
+        "风控与执行测试",
+        "监控与报告测试",
+        "诊断工具",
+        "数据库工具",
+        "紧急操作脚本"
+      ],
+      "coverage": 85,
+      "status": "maintained"
+    }
+  ],
+  "statistics": {
+    "total_files": 150,
+    "scanned_files": 120,
+    "python_files": 95,
+    "test_files": 52,
+    "doc_files": 45,
+    "coverage_percentage": 80
+  },
+  "ignored_patterns": [
+    "__pycache__/**",
+    "*.pyc",
+    "venv/**",
+    "env/**",
+    "logs/**",
+    "*.db",
+    "*.db-journal",
+    ".vscode/**",
+    ".idea/**",
+    "node_modules/**",
+    ".git/**"
+  ],
+  "gaps": [
+    {
+      "module": "AI分析层",
+      "missing": "完整的ML模型训练文档",
+      "priority": "medium"
+    },
+    {
+      "module": "套利引擎",
+      "missing": "生产环境运行案例",
+      "priority": "low"
+    },
+    {
+      "module": "策略与指标",
+      "missing": "策略回测报告",
+      "priority": "medium"
+    }
+  ],
+  "next_steps": [
+    "补充AI分析层的详细使用文档",
+    "添加策略回测结果和性能分析",
+    "完善套利引擎的生产环境配置指南",
+    "增加更多单元测试覆盖边缘情况"
+  ],
+  "truncated": false,
+  "scan_complete": true
+}

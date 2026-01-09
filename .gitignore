@@ -38,3 +38,18 @@ equity*.png
 .coverage
 htmlcov/
 .ace-tool/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# 本地环境变量
+*.env.local

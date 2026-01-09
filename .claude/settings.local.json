@@ -36,7 +36,8 @@
       "Skill(README)",
       "Skill(feature-dev)",
       "WebSearch",
-      "mcp__ace-tool__search_context"
+      "mcp__ace-tool__search_context",
+      "mcp__ace-tool__enhance_prompt"
     ]
   },
   "statusLine": {
