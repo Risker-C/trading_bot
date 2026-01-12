@@ -246,6 +246,24 @@ class MetricsLogger:
             'max': max(latencies)
         }
 
+    def get_memory_usage(self) -> Dict[str, float]:
+        """获取内存使用情况（MB）"""
+        try:
+            import psutil
+            process = psutil.Process()
+            mem_info = process.memory_info()
+            return {
+                'rss': mem_info.rss / 1024 / 1024,  # 物理内存
+                'vms': mem_info.vms / 1024 / 1024,  # 虚拟内存
+            }
+        except ImportError:
+            # 如果没有 psutil，使用 resource 模块
+            import resource
+            usage = resource.getrusage(resource.RUSAGE_SELF)
+            return {
+                'rss': usage.ru_maxrss / 1024,  # KB to MB
+            }
+
 
 class TradeDatabase:
     """交易记录数据库"""

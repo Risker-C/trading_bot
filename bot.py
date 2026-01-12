@@ -88,6 +88,7 @@ class TradingBot:
 
         # 初始化性能指标记录器（Phase 0）
         self.metrics_logger = MetricsLogger()
+        self.cycle_count = 0  # Phase 4: 循环计数器，用于定期内存监控
 
         # 初始化 Policy Layer（策略治理层）
         if getattr(config, 'ENABLE_POLICY_LAYER', False):
@@ -308,6 +309,17 @@ class TradingBot:
         # Phase 0: 记录循环开始时间
         loop_start = time.time()
 
+
+        # Phase 4: 增加循环计数器
+        self.cycle_count += 1
+
+        # Phase 4: 每10个循环周期记录一次内存使用
+        if self.cycle_count % 10 == 0:
+            try:
+                mem_usage = self.metrics_logger.get_memory_usage()
+                logger.debug(f"内存使用: RSS={mem_usage.get('rss', 0):.1f}MB")
+            except Exception as e:
+                logger.debug(f"获取内存使用失败: {e}")
         # 获取K线数据
         df = self.trader.get_klines()
         if df is None or df.empty:
