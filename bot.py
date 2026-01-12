@@ -236,6 +236,12 @@ class TradingBot:
                 logger.error(traceback.format_exc())
                 notifier.notify_error(str(e))
 
+            
+            # 刷新数据库缓冲区
+            try:
+                db.flush_buffers()
+            except Exception as e:
+                logger.error(f"刷新数据库缓冲区失败: {e}")
             # 等待下一次检查 - 动态调整检查间隔
             if self.running:
                 # 根据是否有持仓动态调整检查间隔
@@ -829,7 +835,7 @@ class TradingBot:
 
         try:
             # 记录信号
-            db.log_signal(
+            db.log_signal_buffered(
                 signal.strategy, signal.signal.value,
                 signal.reason, signal.strength, signal.confidence, signal.indicators
             )
@@ -900,7 +906,7 @@ class TradingBot:
 
         try:
             # 记录信号
-            db.log_signal(
+            db.log_signal_buffered(
                 signal.strategy, signal.signal.value,
                 signal.reason, signal.strength, signal.confidence, signal.indicators
             )
@@ -1067,6 +1073,13 @@ class TradingBot:
         if self.arbitrage_engine:
             self.arbitrage_engine.stop()
             logger.info("✅ 套利引擎已停止")
+
+        # 强制刷新数据库缓冲区
+        try:
+            db.flush_buffers(force=True)
+            logger.info("✅ 数据库缓冲区已刷新")
+        except Exception as e:
+            logger.error(f"刷新数据库缓冲区失败: {e}")
 
     def close_all(self):
         """紧急平仓"""

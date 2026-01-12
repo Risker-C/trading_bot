@@ -255,7 +255,14 @@ class TradeDatabase:
         default_db = getattr(config, 'DB_FILE', None) or getattr(config, 'DB_PATH', 'trading_bot.db')
         self.db_file = db_file or default_db
         self._init_db()
-    
+        # Phase 3: 批量写入缓冲区
+        self._trade_buffer: List[Dict[str, Any]] = []
+        self._signal_buffer: List[Dict[str, Any]] = []
+        self._last_trade_flush = time.time()
+        self._last_signal_flush = time.time()
+        self._batch_size = max(1, int(getattr(config, 'DB_BATCH_SIZE', 20)))
+        self._batch_flush_interval = float(getattr(config, 'DB_BATCH_FLUSH_INTERVAL', 5))
+
     def _init_db(self):
         """初始化数据库表"""
         conn = sqlite3.connect(self.db_file)
@@ -416,7 +423,14 @@ class TradeDatabase:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        
+
+        # Phase 3: 添加索引以优化查询性能
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_trades_created_at ON trades(created_at)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_trades_strategy ON trades(strategy)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_signals_created_at ON signals(created_at)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_signals_strategy ON signals(strategy)')
+
         conn.commit()
         conn.close()
     

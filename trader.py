@@ -757,7 +757,7 @@ class BitgetTrader:
             )
 
             # 记录到数据库（P1优化：包含完整的交易信息）
-            db.log_trade(
+            db.log_trade_buffered(
                 symbol=config.SYMBOL,
                 side='long',
                 action='open',
@@ -825,7 +825,7 @@ class BitgetTrader:
             )
 
             # 记录到数据库（P1优化：包含完整的交易信息）
-            db.log_trade(
+            db.log_trade_buffered(
                 symbol=config.SYMBOL,
                 side='short',
                 action='open',
@@ -978,7 +978,7 @@ class BitgetTrader:
             self.risk_manager.record_trade_result(pnl)
 
             # 记录到数据库（修复：确保使用正确的order_id）
-            db.log_trade(
+            db.log_trade_buffered(
                 symbol=config.SYMBOL,
                 side=position_side,
                 action='close',
@@ -1033,7 +1033,7 @@ class BitgetTrader:
             # 更新持仓
             self.risk_manager.partial_close(ratio, close_price, pnl)
             
-            db.log_trade(
+            db.log_trade_buffered(
                 symbol=config.SYMBOL,
                 side=position.side,
                 action='partial_close',
@@ -1072,7 +1072,7 @@ class BitgetTrader:
             
             self.risk_manager.add_position(amount, add_price)
             
-            db.log_trade(
+            db.log_trade_buffered(
                 symbol=config.SYMBOL,
                 side=position.side,
                 action='add',
@@ -1463,6 +1463,12 @@ class BitgetTrader:
                 if cycle_count % 10 == 0:
                     self._print_status()
                 
+                
+                # 刷新数据库缓冲区
+                try:
+                    db.flush_buffers()
+                except Exception as e:
+                    logger.error(f"刷新数据库缓冲区失败: {e}")
                 # 等待下一个周期
                 time.sleep(config.CHECK_INTERVAL)
                 
@@ -1473,6 +1479,13 @@ class BitgetTrader:
                 logger.error(f"主循环异常: {e}")
                 time.sleep(config.API_ERROR_COOLDOWN)
         
+        
+        # 强制刷新数据库缓冲区
+        try:
+            db.flush_buffers(force=True)
+            logger.info("✅ 数据库缓冲区已刷新")
+        except Exception as e:
+            logger.error(f"刷新数据库缓冲区失败: {e}")
         logger.info("交易机器人已关闭")
     
     def _print_status(self):
