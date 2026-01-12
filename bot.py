@@ -1,4 +1,5 @@
 import time
+import asyncio
 import signal
 import sys
 from datetime import datetime
@@ -199,6 +200,18 @@ class TradingBot:
     
     def start(self):
         """启动机器人"""
+        # 检查是否启用异步主循环
+        if getattr(config, 'USE_ASYNC_MAIN_LOOP', False):
+            logger.info("检测到异步主循环配置，使用异步模式启动")
+            # 使用 asyncio.run() 启动异步版本
+            try:
+                asyncio.run(self.start_async())
+            except KeyboardInterrupt:
+                logger.info("收到中断信号，正在停止...")
+                self.stop()
+            return
+        
+        # 原有同步启动逻辑
         logger.info("=" * 50)
         logger.info("🤖 量化交易机器人启动")
         logger.info("=" * 50)
@@ -255,6 +268,185 @@ class TradingBot:
         
         logger.info("机器人已停止")
     
+
+    async def start_async(self):
+        """启动机器人（异步版本）"""
+        logger.info("=" * 50)
+        logger.info("🤖 量化交易机器人启动 (异步模式)")
+        logger.info("=" * 50)
+
+        # 检查交易所连接
+        if self.trader.exchange is None:
+            logger.error("交易所初始化失败，退出")
+            return
+
+        # 显示配置
+        self._show_config()
+        
+        # 显示账户信息
+        self._show_account_info()
+        
+        # 检查现有持仓
+        self._check_existing_positions()
+        
+        # 主循环
+        self.running = True
+        logger.info(f"开始监控，默认检查间隔: {config.DEFAULT_CHECK_INTERVAL} 秒")
+        if config.ENABLE_DYNAMIC_CHECK_INTERVAL:
+            logger.info(f"动态价格更新已启用，持仓时检查间隔: {config.POSITION_CHECK_INTERVAL} 秒")
+
+        # 启动套利引擎（如果启用）
+        if self.arbitrage_engine:
+            self.arbitrage_engine.start()
+            logger.info("✅ 套利引擎已启动")
+
+        # 记录异步模式启动时间
+        async_start_time = time.time()
+
+        while self.running:
+            try:
+                await self._main_loop_async()
+            except Exception as e:
+                import traceback
+                logger.error(f"主循环异常: {e}")
+                logger.error(traceback.format_exc())
+                notifier.notify_error(str(e))
+
+            
+            # 刷新数据库缓冲区
+            try:
+                db.flush_buffers()
+            except Exception as e:
+                logger.error(f"刷新数据库缓冲区失败: {e}")
+            
+            # 等待下一次检查 - 动态调整检查间隔（使用异步sleep）
+            if self.running:
+                # 根据是否有持仓动态调整检查间隔
+                if config.ENABLE_DYNAMIC_CHECK_INTERVAL and self.risk_manager.has_position():
+                    check_interval = config.POSITION_CHECK_INTERVAL
+                else:
+                    check_interval = config.DEFAULT_CHECK_INTERVAL
+
+                await asyncio.sleep(check_interval)
+        
+        # 记录异步模式运行时长
+        async_duration = time.time() - async_start_time
+        logger.info(f"异步模式运行时长: {async_duration:.2f}秒")
+        logger.info("机器人已停止")
+
+
+    async def _main_loop_async(self):
+        """主循环逻辑（异步版本）"""
+        # Phase 0: 记录循环开始时间
+        loop_start = time.time()
+
+        # Phase 4: 增加循环计数器
+        self.cycle_count += 1
+
+        # Phase 4: 每10个循环周期记录一次内存使用
+        if self.cycle_count % 10 == 0:
+            try:
+                mem_usage = self.metrics_logger.get_memory_usage()
+                logger.debug(f"[异步] 内存使用: RSS={mem_usage.get('rss', 0):.1f}MB")
+            except Exception as e:
+                logger.debug(f"获取内存使用失败: {e}")
+        
+        # 获取K线数据
+        df = self.trader.get_klines()
+        if df is None or df.empty:
+            logger.warning("获取K线数据失败")
+            return
+
+        # 获取当前价格
+        ticker = self.trader.get_ticker()
+        if not ticker:
+            logger.warning("获取行情失败")
+            return
+
+        current_price = ticker.last
+
+        # 更新状态监控的价格历史
+        if self.status_monitor:
+            self.status_monitor.update_price(current_price)
+
+        # 检查并推送状态监控
+        if self.status_monitor:
+            try:
+                self.status_monitor.check_and_push(self.trader, self.risk_manager)
+            except Exception as e:
+                logger.error(f"状态监控推送失败: {e}")
+
+        # 获取当前持仓
+        positions = self.trader.get_positions()
+        has_position = len(positions) > 0
+
+        # 检查并执行Claude定时分析
+        if self.claude_periodic_analyzer:
+            try:
+                # 计算技术指标
+                indicator_calc = IndicatorCalculator(df)
+                indicators = indicator_calc.calculate_all()
+
+                # 准备持仓信息
+                position_info = None
+                if has_position:
+                    pos = positions[0]
+                    pnl_percent = (pos['unrealized_pnl'] / (pos['entry_price'] * pos['amount'])) * 100 if pos['amount'] > 0 else 0
+                    position_info = {
+                        'side': pos['side'],
+                        'amount': pos['amount'],
+                        'entry_price': pos['entry_price'],
+                        'unrealized_pnl': pos['unrealized_pnl'],
+                        'pnl_percent': pnl_percent
+                    }
+
+                # 场景2：执行30分钟定时分析
+                self.claude_periodic_analyzer.check_and_analyze(
+                    df, current_price, indicators, position_info
+                )
+
+                # 场景3：检查是否需要生成每日报告（每天早上8点）
+                if self.claude_periodic_analyzer.should_generate_daily_report():
+                    # 获取昨日交易历史
+                    trades_history = self._get_yesterday_trades()
+
+                    # 生成每日报告
+                    self.claude_periodic_analyzer.generate_daily_report(
+                        df, current_price, indicators, position_info, trades_history
+                    )
+
+            except Exception as e:
+                logger.error(f"Claude定时分析失败: {e}")
+
+        # Policy Layer 定期更新（新增）
+        if self.policy_layer and self._should_update_policy():
+            try:
+                # 计算技术指标（如果还没有计算）
+                if 'indicators' not in locals():
+                    indicator_calc = IndicatorCalculator(df)
+                    indicators = indicator_calc.calculate_all()
+
+                self._update_policy_layer(df, current_price, indicators)
+            except Exception as e:
+                logger.error(f"Policy Layer 更新失败: {e}")
+                import traceback
+                logger.debug(traceback.format_exc())
+
+        if has_position:
+            # 有持仓：检查风控和退出信号
+            self._check_exit_conditions(df, current_price, positions[0])
+        else:
+            # 无持仓：检查开仓信号
+            self._check_entry_conditions(df, current_price)
+
+        # Phase 0: 记录循环总延迟
+        loop_duration = (time.time() - loop_start) * 1000  # 转换为毫秒
+        self.metrics_logger.record_latency("main_loop_async", loop_duration)
+        
+        # 记录性能对比日志
+        if self.cycle_count % 50 == 0:
+            logger.info(f"[异步模式] 第 {self.cycle_count} 次循环完成，耗时: {loop_duration:.2f}ms")
+
     def _show_config(self):
         """显示配置信息"""
         logger.info("\n📋 当前配置:")

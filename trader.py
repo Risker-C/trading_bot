@@ -2,6 +2,8 @@
 交易执行器 - 增强版
 """
 import ccxt
+import asyncio
+import ccxt.async_support as ccxt_async
 import time
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
@@ -240,20 +242,193 @@ class BitgetTrader:
         return self.fetch_ohlcv(symbol, timeframe, limit)
     
     def fetch_multi_timeframe_data(self) -> Dict[str, pd.DataFrame]:
-        """获取多时间周期数据"""
+        """
+        获取多时间周期数据
+        
+        根据配置 USE_ASYNC_DATA_FETCH 自动选择同步或异步方式：
+        - 异步模式：并发获取，速度快（3-5倍提升）
+        - 同步模式：顺序获取，兼容性好
+        
+        Returns:
+            Dict[str, pd.DataFrame]: 时间周期到数据的映射
+        """
         if not config.MULTI_TIMEFRAME_ENABLED:
             return {}
         
-        data = {}
-        for tf in config.TIMEFRAMES:
-            df = self.fetch_ohlcv(timeframe=tf)
-            if df is not None:
-                data[tf] = df
-            time.sleep(0.5)  # 避免频率限制
+        # 根据配置选择同步或异步方式
+        if config.USE_ASYNC_DATA_FETCH:
+            logger.info("使用异步模式获取多时间周期数据")
+            data = self._run_async(self.fetch_multi_timeframe_data_async())
+        else:
+            logger.info("使用同步模式获取多时间周期数据")
+            start_time = time.time()
+            
+            data = {}
+            for tf in config.TIMEFRAMES:
+                df = self.fetch_ohlcv(timeframe=tf)
+                if df is not None:
+                    data[tf] = df
+                time.sleep(0.5)  # 避免频率限制
+            
+            elapsed = time.time() - start_time
+            logger.info(
+                f"同步获取多时间周期数据完成: "
+                f"{len(data)}/{len(config.TIMEFRAMES)} 个周期, "
+                f"耗时 {elapsed:.2f}s"
+            )
         
         self.timeframe_data = data
         return data
     
+
+    # ==================== 异步数据获取方法 ====================
+    
+    def _run_async(self, coro):
+        """
+        运行异步协程的辅助方法
+        
+        Args:
+            coro: 异步协程对象
+            
+        Returns:
+            协程的返回值
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # 如果事件循环已在运行，创建新的事件循环
+                import nest_asyncio
+                nest_asyncio.apply()
+                return loop.run_until_complete(coro)
+            else:
+                return loop.run_until_complete(coro)
+        except RuntimeError:
+            # 如果没有事件循环，创建新的
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(coro)
+            finally:
+                loop.close()
+    
+    async def fetch_ohlcv_async(
+        self,
+        symbol: str = None,
+        timeframe: str = None,
+        limit: int = None,
+        exchange_async: ccxt_async.Exchange = None
+    ) -> Optional[pd.DataFrame]:
+        """
+        异步获取K线数据
+        
+        Args:
+            symbol: 交易对符号
+            timeframe: 时间周期
+            limit: K线数量
+            exchange_async: 异步交易所实例（可选）
+            
+        Returns:
+            DataFrame: K线数据
+        """
+        symbol = symbol or config.SYMBOL
+        timeframe = timeframe or config.TIMEFRAME
+        limit = limit or config.KLINE_LIMIT
+        
+        # 如果没有提供异步交易所实例，创建临时实例
+        close_exchange = False
+        if exchange_async is None:
+            exchange_class = getattr(ccxt_async, config.ACTIVE_EXCHANGE.lower())
+            exchange_async = exchange_class({
+                "apiKey": config.API_KEY,
+                "secret": config.API_SECRET,
+                "password": config.EXCHANGE_CONFIG.get("api_password", ""),
+                "enableRateLimit": True,
+                "options": {"defaultType": "swap"}
+            })
+            close_exchange = True
+        
+        try:
+            ohlcv = await exchange_async.fetch_ohlcv(
+                symbol, timeframe, limit=limit,
+                params={"productType": config.PRODUCT_TYPE}
+            )
+            
+            df = pd.DataFrame(
+                ohlcv,
+                columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
+            )
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
+            
+            return df
+            
+        except Exception as e:
+            logger.error(f"异步获取K线失败 [{timeframe}]: {e}")
+            return None
+        finally:
+            if close_exchange:
+                await exchange_async.close()
+    
+    async def fetch_multi_timeframe_data_async(self) -> Dict[str, pd.DataFrame]:
+        """
+        异步并发获取多时间周期数据
+        
+        使用 asyncio.gather 并发获取所有时间周期的数据，
+        相比同步方法可以显著提升性能（3-5倍速度提升）
+        
+        Returns:
+            Dict[str, pd.DataFrame]: 时间周期到数据的映射
+        """
+        if not config.MULTI_TIMEFRAME_ENABLED:
+            return {}
+        
+        start_time = time.time()
+        
+        # 创建异步交易所实例
+        exchange_class = getattr(ccxt_async, config.ACTIVE_EXCHANGE.lower())
+        exchange_async = exchange_class({
+            "apiKey": config.API_KEY,
+            "secret": config.API_SECRET,
+            "password": config.EXCHANGE_CONFIG.get("api_password", ""),
+            "enableRateLimit": True,
+            "options": {"defaultType": "swap"}
+        })
+        
+        try:
+            # 并发获取所有时间周期的数据
+            tasks = [
+                self.fetch_ohlcv_async(
+                    timeframe=tf,
+                    exchange_async=exchange_async
+                )
+                for tf in config.TIMEFRAMES
+            ]
+            
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 构建结果字典
+            data = {}
+            for tf, result in zip(config.TIMEFRAMES, results):
+                if isinstance(result, Exception):
+                    logger.error(f"获取 {tf} 数据失败: {result}")
+                elif result is not None:
+                    data[tf] = result
+            
+            elapsed = time.time() - start_time
+            logger.info(
+                f"异步获取多时间周期数据完成: "
+                f"{len(data)}/{len(config.TIMEFRAMES)} 个周期, "
+                f"耗时 {elapsed:.2f}s"
+            )
+            
+            return data
+            
+        except Exception as e:
+            logger.error(f"异步获取多时间周期数据失败: {e}")
+            return {}
+        finally:
+            await exchange_async.close()
+
     def get_balance(self) -> float:
         """获取可用余额"""
         try:

@@ -68,6 +68,10 @@ TIMEFRAME_WEIGHTS = {
     "4h": 0.20,
 }
 
+
+# 异步数据获取配置
+USE_ASYNC_DATA_FETCH = True  # 启用异步并发获取多时间周期数据
+USE_ASYNC_MAIN_LOOP = False  # 启用异步主循环（实验性功能）
 # ==================== 杠杆和保证金 ====================
 
 LEVERAGE = 10
