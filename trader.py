@@ -385,11 +385,11 @@ class BitgetTrader:
         start_time = time.time()
         
         # 创建异步交易所实例
-        exchange_class = getattr(ccxt_async, config.ACTIVE_EXCHANGE.lower())
+        exchange_class = getattr(ccxt_async, getattr(config, 'ACTIVE_EXCHANGE', 'bitget').lower())
         exchange_async = exchange_class({
-            "apiKey": config.API_KEY,
-            "secret": config.API_SECRET,
-            "password": config.EXCHANGE_CONFIG.get("api_password", ""),
+            "apiKey": getattr(config, 'API_KEY', ''),
+            "secret": getattr(config, 'API_SECRET', ''),
+            "password": getattr(config, 'EXCHANGE_CONFIG', {}).get("api_password", ""),
             "enableRateLimit": True,
             "options": {"defaultType": "swap"}
         })
