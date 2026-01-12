@@ -14,10 +14,7 @@ import logging
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import (
-    API_KEY, API_SECRET, API_PASSPHRASE,
-    SYMBOL, TIMEFRAME, ACTIVE_EXCHANGE
-)
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +38,7 @@ class AsyncExchangeManager:
         Args:
             exchange_name: 交易所名称，默认使用配置中的 ACTIVE_EXCHANGE
         """
-        self.exchange_name = exchange_name or ACTIVE_EXCHANGE
+        self.exchange_name = exchange_name or getattr(config, 'ACTIVE_EXCHANGE', 'bitget')
         self.exchange: Optional[ccxt_async.Exchange] = None
         self.initialized = False
         self.max_retries = 3
@@ -63,23 +60,23 @@ class AsyncExchangeManager:
         try:
             # 根据交易所名称创建实例
             exchange_class = getattr(ccxt_async, self.exchange_name.lower())
-            
+
             # 配置参数
-            config = {
-                'apiKey': API_KEY,
-                'secret': API_SECRET,
+            exchange_config = {
+                'apiKey': getattr(config, 'API_KEY', ''),
+                'secret': getattr(config, 'API_SECRET', ''),
                 'enableRateLimit': True,
                 'options': {
                     'defaultType': 'swap',  # 合约交易
                 }
             }
-            
+
             # Bitget 需要 passphrase
             if self.exchange_name.lower() == 'bitget':
-                config['password'] = API_PASSPHRASE
-            
+                exchange_config['password'] = getattr(config, 'API_PASSPHRASE', '')
+
             # 创建交易所实例
-            self.exchange = exchange_class(config)
+            self.exchange = exchange_class(exchange_config)
             
             # 加载市场数据
             await self.exchange.load_markets()
@@ -363,44 +360,49 @@ class AsyncExchangeManager:
 
 # 便捷函数
 async def get_market_data(
-    symbol: str = SYMBOL,
+    symbol: str = None,
     timeframes: List[str] = None,
     limit: int = 100
 ) -> Dict[str, pd.DataFrame]:
     """
     便捷函数：获取市场数据
-    
+
     Args:
         symbol: 交易对
         timeframes: 时间周期列表，默认 ['5m', '15m', '1h']
         limit: K线数量
-        
+
     Returns:
         Dict: {timeframe: DataFrame}
     """
+    if symbol is None:
+        symbol = getattr(config, 'SYMBOL', 'BTC/USDT:USDT')
     if timeframes is None:
         timeframes = ['5m', '15m', '1h']
-    
+
     async with AsyncExchangeManager() as manager:
         return await manager.fetch_multiple_timeframes(symbol, timeframes, limit)
 
 
 async def get_multiple_symbols_data(
     symbols: List[str],
-    timeframe: str = TIMEFRAME,
+    timeframe: str = None,
     limit: int = 100
 ) -> Dict[str, pd.DataFrame]:
     """
     便捷函数：获取多个交易对数据
-    
+
     Args:
         symbols: 交易对列表
         timeframe: 时间周期
         limit: K线数量
-        
+
     Returns:
         Dict: {symbol: DataFrame}
     """
+    if timeframe is None:
+        timeframe = getattr(config, 'TIMEFRAME', '15m')
+
     async with AsyncExchangeManager() as manager:
         return await manager.fetch_multiple_symbols(symbols, timeframe, limit)
 
@@ -411,25 +413,28 @@ async def test_async_manager():
     print("=" * 60)
     print("测试异步交易所管理器")
     print("=" * 60)
-    
+
+    # 获取配置
+    symbol = getattr(config, 'SYMBOL', 'BTC/USDT:USDT')
+
     async with AsyncExchangeManager() as manager:
         # 测试1: 获取单个 ticker
         print("\n[测试1] 获取 ticker")
-        ticker = await manager.fetch_ticker_async(SYMBOL)
+        ticker = await manager.fetch_ticker_async(symbol)
         if ticker:
-            print(f"✓ {SYMBOL} 价格: {ticker['last']}")
-        
+            print(f"✓ {symbol} 价格: {ticker['last']}")
+
         # 测试2: 获取单个时间周期K线
         print("\n[测试2] 获取单个时间周期K线")
-        df = await manager.fetch_ohlcv_async(SYMBOL, '15m', 10)
+        df = await manager.fetch_ohlcv_async(symbol, '15m', 10)
         if df is not None:
             print(f"✓ 获取 {len(df)} 条K线")
             print(df.tail(3))
-        
+
         # 测试3: 并发获取多时间周期
         print("\n[测试3] 并发获取多时间周期")
         timeframes = ['5m', '15m', '1h', '4h']
-        data_dict = await manager.fetch_multiple_timeframes(SYMBOL, timeframes, 10)
+        data_dict = await manager.fetch_multiple_timeframes(symbol, timeframes, 10)
         for tf, df in data_dict.items():
             print(f"✓ {tf}: {len(df)} 条K线")
         
