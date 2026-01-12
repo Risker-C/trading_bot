@@ -14,7 +14,7 @@ from strategies import (
     get_strategy, analyze_all_strategies, STRATEGY_MAP
 )
 from market_regime import MarketRegimeDetector
-from logger_utils import get_logger, db, notifier
+from logger_utils import get_logger, db, notifier, MetricsLogger
 from status_monitor import StatusMonitorScheduler
 from claude_analyzer import get_claude_analyzer
 from claude_periodic_analyzer import get_claude_periodic_analyzer
@@ -85,6 +85,9 @@ class TradingBot:
         # 初始化 P0 模块（影子模式、Claude护栏）
         self.shadow_tracker = get_shadow_tracker()
         self.guardrails = get_guardrails()
+
+        # 初始化性能指标记录器（Phase 0）
+        self.metrics_logger = MetricsLogger()
 
         # 初始化 Policy Layer（策略治理层）
         if getattr(config, 'ENABLE_POLICY_LAYER', False):
@@ -288,6 +291,9 @@ class TradingBot:
     
     def _main_loop(self):
         """主循环逻辑"""
+        # Phase 0: 记录循环开始时间
+        loop_start = time.time()
+
         # 获取K线数据
         df = self.trader.get_klines()
         if df is None or df.empty:
@@ -375,6 +381,10 @@ class TradingBot:
         else:
             # 无持仓：检查开仓信号
             self._check_entry_conditions(df, current_price)
+
+        # Phase 0: 记录循环总延迟
+        loop_duration = (time.time() - loop_start) * 1000  # 转换为毫秒
+        self.metrics_logger.record_latency("main_loop", loop_duration)
 
     def _get_yesterday_trades(self) -> List[Dict]:
         """

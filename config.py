@@ -786,6 +786,19 @@ LOG_ALL_SPREADS = False  # 是否记录所有价差
 LOG_ALL_OPPORTUNITIES = True  # 是否记录所有机会
 LOG_ALL_EXECUTIONS = True  # 是否记录所有执行
 
+# ==================== Phase 0: 特性开关（用于渐进式优化）====================
+
+# AI异步化开关
+ASYNC_AI_ENABLED = False  # 是否启用AI异步调用（避免阻塞交易链路）
+
+# 数据库批量写入开关
+DB_BATCH_WRITES_ENABLED = False  # 是否启用数据库批量写入
+
+# ML强制轻量化开关
+ML_FORCE_LITE = False  # 是否强制使用轻量级ML预测器（生产环境推荐）
+
+# 配置拆分开关
+CONFIG_SPLIT_ENABLED = False  # 是否启用配置拆分（从config/目录加载）
 
 # ==================== 配置验证 ====================
 

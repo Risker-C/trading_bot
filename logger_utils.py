@@ -215,6 +215,38 @@ def get_logger(name: str) -> logging.Logger:
     return logger
 
 
+class MetricsLogger:
+    """轻量级性能指标记录器（Phase 0）"""
+
+    def __init__(self):
+        self.logger = logging.getLogger("metrics")
+        self.metrics = {}
+
+    def record_latency(self, operation: str, latency_ms: float):
+        """记录操作延迟（毫秒）"""
+        if operation not in self.metrics:
+            self.metrics[operation] = []
+        self.metrics[operation].append(latency_ms)
+        self.logger.debug(f"{operation}: {latency_ms:.2f}ms")
+
+    def record_memory(self, label: str, memory_mb: float):
+        """记录内存使用（MB）"""
+        self.logger.debug(f"Memory [{label}]: {memory_mb:.2f}MB")
+
+    def get_stats(self, operation: str) -> Dict:
+        """获取操作的统计信息"""
+        if operation not in self.metrics or not self.metrics[operation]:
+            return {}
+
+        latencies = self.metrics[operation]
+        return {
+            'count': len(latencies),
+            'avg': sum(latencies) / len(latencies),
+            'min': min(latencies),
+            'max': max(latencies)
+        }
+
+
 class TradeDatabase:
     """交易记录数据库"""
     
