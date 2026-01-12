@@ -29,6 +29,11 @@ class TradeService:
         rows = await asyncio.to_thread(self.db.get_trades, limit, offset)
         return [self._to_trade(row) for row in rows]
 
+    async def get_trade_by_id(self, trade_id: int) -> Optional[Trade]:
+        """根据 ID 获取单个交易详情"""
+        row = await asyncio.to_thread(self.db.get_trade_by_id, trade_id)
+        return self._to_trade(row) if row else None
+
     async def get_summary(self) -> TradeSummary:
         stats = await asyncio.to_thread(self.db.get_statistics)
         return TradeSummary(**stats)

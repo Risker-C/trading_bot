@@ -227,6 +227,11 @@ class TradeDatabase:
     def _init_db(self):
         """初始化数据库表"""
         conn = sqlite3.connect(self.db_file)
+
+        # 启用 WAL 模式以提升并发性能
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+
         cursor = conn.cursor()
         
         # 交易记录表
@@ -385,7 +390,11 @@ class TradeDatabase:
     
     def _get_conn(self):
         """获取数据库连接"""
-        return sqlite3.connect(self.db_file)
+        conn = sqlite3.connect(self.db_file)
+        # 启用 WAL 模式以提升并发性能
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        return conn
     
     def log_trade(
         self,
@@ -560,7 +569,53 @@ class TradeDatabase:
                 'created_at': row[10]
             }
         return None
-    
+
+    def get_position_history(
+        self,
+        symbol: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> List[Dict]:
+        """获取持仓历史快照列表"""
+        conn = self._get_conn()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # 构建查询条件
+        conditions = []
+        params = []
+
+        if symbol:
+            conditions.append("symbol = ?")
+            params.append(symbol)
+
+        if start_date:
+            conditions.append("date(created_at) >= ?")
+            params.append(start_date)
+
+        if end_date:
+            conditions.append("date(created_at) <= ?")
+            params.append(end_date)
+
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+        query = f'''
+            SELECT * FROM position_snapshots
+            WHERE {where_clause}
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+        '''
+
+        params.extend([limit, offset])
+        cursor.execute(query, params)
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [dict(row) for row in rows]
+
     def log_balance_snapshot(self, total: float, free: float, used: float):
         """记录余额快照"""
         conn = self._get_conn()
@@ -712,18 +767,34 @@ class TradeDatabase:
         conn = self._get_conn()
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        
+
         cursor.execute('''
             SELECT * FROM trades
             ORDER BY created_at DESC
             LIMIT ? OFFSET ?
         ''', (limit, offset))
-        
+
         rows = cursor.fetchall()
         conn.close()
-        
+
         return [dict(row) for row in rows]
-    
+
+    def get_trade_by_id(self, trade_id: int) -> Optional[Dict]:
+        """根据 ID 获取单个交易详情"""
+        conn = self._get_conn()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT * FROM trades
+            WHERE id = ?
+        ''', (trade_id,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        return dict(row) if row else None
+
     def get_today_trades(self) -> List[Dict]:
         """获取今日交易"""
         conn = self._get_conn()

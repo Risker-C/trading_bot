@@ -1,7 +1,7 @@
 import asyncio
 import sqlite3
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 import config
 from logger_utils import TradeDatabase, get_logger
@@ -39,6 +39,42 @@ class PositionService:
 
         return Position(
             symbol=snapshot.get("symbol", target_symbol),
+            side=snapshot.get("side"),
+            amount=float(snapshot.get("amount") or 0),
+            entry_price=self._to_float(snapshot.get("entry_price")),
+            current_price=self._to_float(snapshot.get("current_price")),
+            unrealized_pnl=self._to_float(snapshot.get("unrealized_pnl")),
+            leverage=snapshot.get("leverage"),
+            highest_price=self._to_float(snapshot.get("highest_price")),
+            lowest_price=self._to_float(snapshot.get("lowest_price")),
+            entry_time=self._parse_datetime(snapshot.get("entry_time")),
+            updated_at=self._parse_datetime(snapshot.get("created_at")),
+        )
+
+    async def get_position_history(
+        self,
+        symbol: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> List[Position]:
+        """获取持仓历史快照列表"""
+        snapshots = await asyncio.to_thread(
+            self.db.get_position_history,
+            symbol=symbol,
+            limit=limit,
+            offset=offset,
+            start_date=start_date,
+            end_date=end_date
+        )
+
+        return [self._snapshot_to_position(snapshot) for snapshot in snapshots]
+
+    def _snapshot_to_position(self, snapshot: dict) -> Position:
+        """将快照字典转换为 Position 对象"""
+        return Position(
+            symbol=snapshot.get("symbol", ""),
             side=snapshot.get("side"),
             amount=float(snapshot.get("amount") or 0),
             entry_price=self._to_float(snapshot.get("entry_price")),
