@@ -1,6 +1,9 @@
 """
 ML信号预测器 - 预测信号质量并过滤低质量信号
 
+⚠️ LEGACY版本：此版本内存占用较高（约200MB），建议使用ml_predictor_lite.py
+在生产环境中，请启用ML_FORCE_LITE=True强制使用轻量版（内存占用降低60%）
+
 支持三种运行模式：
 - shadow: 影子模式（只记录预测，不影响交易）
 - filter: 过滤模式（实际过滤信号）
@@ -39,6 +42,10 @@ class MLSignalPredictor:
         self.scaler = None
         self.feature_names = None
         self.feature_engineer = FeatureEngineer()
+
+        # Phase 2: Legacy版本警告
+        logger.warning("⚠️ 使用LEGACY版本的ML预测器（内存占用约200MB）")
+        logger.warning("   建议启用ML_FORCE_LITE=True使用轻量版（内存占用降低60%）")
 
         # 统计信息
         self.stats = {

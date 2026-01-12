@@ -56,6 +56,10 @@ class LightweightMLPredictor:
         self._model_loaded = False
         self._last_prediction_time = None
 
+        # Phase 2: 模型卸载策略
+        self._unload_timeout = getattr(config, 'ML_UNLOAD_AFTER_IDLE_SECONDS', 600)
+        self._unload_enabled = self._unload_timeout > 0
+
         # 使用轻量级特征工程器
         if use_pandas_compat:
             self.feature_engineer = PandasCompatibleWrapper()
@@ -131,6 +135,13 @@ class LightweightMLPredictor:
         Returns:
             信号质量分数（0-1），如果预测失败则返回None
         """
+        # Phase 2: 检查是否需要卸载模型（空闲超时）
+        if self._unload_enabled and self._last_prediction_time is not None:
+            idle_time = time.time() - self._last_prediction_time
+            if idle_time > self._unload_timeout and self._model_loaded:
+                logger.info(f"模型空闲{idle_time:.0f}秒，自动卸载以释放内存")
+                self.unload_model()
+
         # 延迟加载模型
         if not self._model_loaded:
             if not self._load_model_lazy():

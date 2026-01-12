@@ -28,3 +28,7 @@ ML_MIN_TRAINING_SAMPLES = 100
 # ==================== Phase 0: ML强制轻量化 ====================
 
 ML_FORCE_LITE = False  # 生产环境推荐启用
+
+# ==================== Phase 2: 模型卸载策略 ====================
+
+ML_UNLOAD_AFTER_IDLE_SECONDS = 600  # 空闲600秒（10分钟）后卸载模型以释放内存

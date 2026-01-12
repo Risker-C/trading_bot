@@ -105,14 +105,22 @@ class TradingBot:
 
         # 初始化 ML 信号过滤器
         if getattr(config, 'ENABLE_ML_FILTER', False):
-            # 根据配置选择使用优化版或原版
+            # Phase 2: 检查是否强制使用轻量版
+            force_lite = getattr(config, 'ML_FORCE_LITE', False)
             use_lite = getattr(config, 'ML_USE_LITE_VERSION', True)
-            if use_lite:
+
+            if force_lite:
+                self.ml_predictor = get_ml_predictor_lite()
+                version = "优化版（强制）"
+                if not use_lite:
+                    logger.warning("⚠️ ML_FORCE_LITE已启用，忽略ML_USE_LITE_VERSION=False设置")
+            elif use_lite:
                 self.ml_predictor = get_ml_predictor_lite()
                 version = "优化版"
             else:
                 self.ml_predictor = get_ml_predictor()
                 version = "原版"
+
             ml_mode = getattr(config, 'ML_MODE', 'shadow')
             logger.info(f"✅ ML信号过滤器已启用 ({version}, 模式: {ml_mode})")
         else:
