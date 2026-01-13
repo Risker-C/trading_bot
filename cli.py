@@ -3,6 +3,7 @@
 """
 import argparse
 import sys
+import asyncio
 from datetime import datetime
 
 import config
@@ -184,6 +185,33 @@ def cmd_test_notify():
     print("通知已发送（如果配置正确）")
 
 
+def cmd_market(format_type='dashboard', timeframes=None):
+    """查看市场快照"""
+    from market_snapshot import MarketSnapshot
+
+    trader = BitgetTrader()
+    if trader.exchange is None:
+        print("❌ 交易所连接失败")
+        return
+
+    # 解析时间周期
+    if timeframes:
+        tf_list = [tf.strip() for tf in timeframes.split(',')]
+    else:
+        tf_list = ['15m']  # 默认只显示15m
+
+    snapshot_gen = MarketSnapshot(trader, tf_list)
+
+    # 异步获取快照
+    snapshot = asyncio.run(snapshot_gen.fetch_snapshot())
+
+    # 输出
+    if format_type == 'json':
+        print(snapshot_gen.to_json(snapshot))
+    else:
+        print(snapshot_gen.to_dashboard(snapshot))
+
+
 def main():
     parser = argparse.ArgumentParser(description="量化交易命令行工具")
     subparsers = parser.add_subparsers(dest='command', help='可用命令')
@@ -220,7 +248,12 @@ def main():
     
     # test-notify
     subparsers.add_parser('test-notify', help='测试Telegram通知')
-    
+
+    # market
+    p_market = subparsers.add_parser('market', help='查看市场快照')
+    p_market.add_argument('--format', choices=['dashboard', 'json'], default='dashboard', help='输出格式')
+    p_market.add_argument('--timeframes', type=str, help='时间周期（逗号分隔，如: 15m,1h,4h）')
+
     args = parser.parse_args()
     
     if args.command == 'status':
@@ -243,6 +276,8 @@ def main():
         cmd_run()
     elif args.command == 'test-notify':
         cmd_test_notify()
+    elif args.command == 'market':
+        cmd_market(args.format, args.timeframes)
     else:
         parser.print_help()
 

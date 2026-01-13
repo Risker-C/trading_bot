@@ -18,12 +18,12 @@ ENABLE_STRATEGIES: List[str] = [
 
 USE_CONSENSUS_SIGNAL = True
 MIN_STRATEGY_AGREEMENT = 0.35
-MIN_SIGNAL_STRENGTH = 0.40
-MIN_SIGNAL_CONFIDENCE = 0.30
+MIN_SIGNAL_STRENGTH = 0.30         # Phase 2 优化: 降至0.30
+MIN_SIGNAL_CONFIDENCE = 0.25       # Phase 2 优化: 降至0.25
 
 # ==================== 动态策略选择 ====================
 
-USE_DYNAMIC_STRATEGY = True
+USE_DYNAMIC_STRATEGY = False       # Phase 2 修复: 禁用（震荡市策略不生成信号）
 
 # ==================== 技术指标参数 ====================
 
