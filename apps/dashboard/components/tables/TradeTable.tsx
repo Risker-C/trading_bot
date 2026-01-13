@@ -36,14 +36,14 @@ export function TradeTable() {
               </TableCell>
               <TableCell className="font-medium">{trade.symbol}</TableCell>
               <TableCell>
-                <span className={trade.side === 'long' ? 'text-green-600' : 'text-red-600'}>
+                <span className={trade.side === 'long' ? 'text-trading-up' : 'text-trading-down'}>
                   {trade.side === 'long' ? '做多' : '做空'}
                 </span>
               </TableCell>
-              <TableCell>{trade.price.toFixed(2)}</TableCell>
-              <TableCell>{trade.amount}</TableCell>
+              <TableCell className="font-mono tabular-nums">{trade.price.toFixed(2)}</TableCell>
+              <TableCell className="font-mono tabular-nums">{trade.amount}</TableCell>
               <TableCell>
-                <span className={trade.pnl && trade.pnl > 0 ? 'text-green-600' : 'text-red-600'}>
+                <span className={`font-mono tabular-nums ${trade.pnl && trade.pnl > 0 ? 'text-trading-up' : 'text-trading-down'}`}>
                   {trade.pnl ? `${trade.pnl > 0 ? '+' : ''}${trade.pnl.toFixed(2)}` : '-'}
                 </span>
               </TableCell>

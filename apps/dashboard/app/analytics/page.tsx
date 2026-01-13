@@ -90,19 +90,19 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <p className="text-sm text-muted-foreground">总交易次数</p>
-            <p className="text-2xl font-bold">{stats?.total_trades || 0}</p>
+            <p className="text-2xl font-bold font-mono tabular-nums">{stats?.total_trades || 0}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">盈利交易</p>
-            <p className="text-2xl font-bold text-green-500">{stats?.winning_trades || 0}</p>
+            <p className="text-2xl font-bold text-trading-up font-mono tabular-nums">{stats?.winning_trades || 0}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">亏损交易</p>
-            <p className="text-2xl font-bold text-red-500">{stats?.losing_trades || 0}</p>
+            <p className="text-2xl font-bold text-trading-down font-mono tabular-nums">{stats?.losing_trades || 0}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">平均盈亏</p>
-            <p className="text-2xl font-bold">${stats?.avg_pnl?.toFixed(2) || '0.00'}</p>
+            <p className="text-2xl font-bold font-mono tabular-nums">${stats?.avg_pnl?.toFixed(2) || '0.00'}</p>
           </div>
         </div>
       </Card>
