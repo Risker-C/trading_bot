@@ -60,17 +60,17 @@ export default function TradesPage() {
                   <TableCell>
                     <span className={`px-2 py-1 rounded text-xs font-semibold ${
                       trade.side === 'buy'
-                        ? 'bg-green-500/10 text-green-500'
-                        : 'bg-red-500/10 text-red-500'
+                        ? 'bg-trading-up/10 text-trading-up'
+                        : 'bg-trading-down/10 text-trading-down'
                     }`}>
                       {trade.side === 'buy' ? '买入' : '卖出'}
                     </span>
                   </TableCell>
-                  <TableCell>${trade.price?.toFixed(2)}</TableCell>
-                  <TableCell>{trade.amount?.toFixed(4)}</TableCell>
-                  <TableCell>${trade.fee?.toFixed(2) || '0.00'}</TableCell>
-                  <TableCell className={`text-right font-semibold ${
-                    trade.pnl > 0 ? 'text-green-500' : trade.pnl < 0 ? 'text-red-500' : 'text-gray-500'
+                  <TableCell className="font-mono tabular-nums">${trade.price?.toFixed(2)}</TableCell>
+                  <TableCell className="font-mono tabular-nums">{trade.amount?.toFixed(4)}</TableCell>
+                  <TableCell className="font-mono tabular-nums">${trade.fee?.toFixed(2) || '0.00'}</TableCell>
+                  <TableCell className={`text-right font-semibold font-mono tabular-nums ${
+                    trade.pnl > 0 ? 'text-trading-up' : trade.pnl < 0 ? 'text-trading-down' : 'text-muted-foreground'
                   }`}>
                     {trade.pnl > 0 ? '+' : ''}${trade.pnl?.toFixed(2)}
                   </TableCell>

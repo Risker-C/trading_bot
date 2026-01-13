@@ -20,9 +20,9 @@ export function StatCard({ title, value, icon: Icon, trend, className = '' }: St
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <p className="text-sm text-muted-foreground">{title}</p>
-          <p className={`text-2xl font-bold mt-2 ${NUMERIC_FONT}`}>{value}</p>
+          <p className={`text-2xl font-bold mt-2 tabular-nums ${NUMERIC_FONT}`}>{value}</p>
           {trend !== undefined && (
-            <p className={`text-sm mt-1 ${trendColor} ${NUMERIC_FONT}`}>
+            <p className={`text-sm mt-1 tabular-nums ${trendColor} ${NUMERIC_FONT}`}>
               {trend > 0 ? '↑' : trend < 0 ? '↓' : '→'} {Math.abs(trend)}%
             </p>
           )}

@@ -88,13 +88,13 @@ export default function HomePage() {
                 <TableCell>{new Date(trade.timestamp).toLocaleString()}</TableCell>
                 <TableCell>{trade.symbol}</TableCell>
                 <TableCell>
-                  <span className={trade.side === 'buy' ? 'text-green-500' : 'text-red-500'}>
+                  <span className={trade.side === 'buy' ? 'text-trading-up' : 'text-trading-down'}>
                     {trade.side.toUpperCase()}
                   </span>
                 </TableCell>
-                <TableCell>${trade.price?.toFixed(2)}</TableCell>
-                <TableCell>{trade.amount?.toFixed(4)}</TableCell>
-                <TableCell className={`text-right ${trade.pnl > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                <TableCell className="font-mono tabular-nums">${trade.price?.toFixed(2)}</TableCell>
+                <TableCell className="font-mono tabular-nums">{trade.amount?.toFixed(4)}</TableCell>
+                <TableCell className={`text-right font-mono tabular-nums ${trade.pnl > 0 ? 'text-trading-up' : 'text-trading-down'}`}>
                   ${trade.pnl?.toFixed(2)}
                 </TableCell>
               </TableRow>
