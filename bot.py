@@ -1398,6 +1398,48 @@ class TradingBot:
             logger.error(f"发送 Policy 更新通知失败: {e}")
 
 
+def create_trading_engine_demo(run_once: bool = False):
+    """
+    TradingEngine 集成示例（不影响现有 TradingBot）。
+
+    Args:
+        run_once: 是否执行一次引擎周期示例
+    """
+    from core.engine import TradingEngine
+    from core.adapters import (
+        StrategyEngineAdapter,
+        RiskEngineAdapter,
+        ExecutionEngineAdapter,
+        MonitoringEngineAdapter,
+    )
+    from trader import BitgetTrader
+
+    # 使用现有模块构建四层适配器
+    trader = BitgetTrader()
+    risk_manager = trader.risk_manager
+
+    strategy_engine = StrategyEngineAdapter(config.ENABLE_STRATEGIES)
+    risk_engine = RiskEngineAdapter(risk_manager)
+    execution_engine = ExecutionEngineAdapter(trader)
+    monitoring_engine = MonitoringEngineAdapter()
+
+    engine = TradingEngine(
+        strategy_engine=strategy_engine,
+        risk_engine=risk_engine,
+        execution_engine=execution_engine,
+        monitoring_engine=monitoring_engine,
+    )
+
+    if run_once:
+        df = trader.get_klines()
+        if df is not None and not df.empty:
+            engine.start()
+            engine.run_cycle(df)
+            engine.stop()
+
+    return engine
+
+
 def main():
     """主函数"""
     bot = TradingBot()
