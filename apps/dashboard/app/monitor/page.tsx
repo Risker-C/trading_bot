@@ -7,11 +7,12 @@ import { StatCard } from '@/components/StatCard';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, Legend } from 'recharts';
 
 export default function MonitorPage() {
-  const { data, isConnected } = useWebSocket(['trades', 'positions', 'trends', 'indicators']);
+  const { data, isConnected } = useWebSocket(['trades', 'positions', 'trends', 'indicators', 'ticker']);
 
   const indicators = data.indicators || [];
   const position = data.position;
   const trend = data.trend;
+  const ticker = data.ticker;
 
   const radarData = indicators.map((ind: any) => ({
     indicator: ind.name,
@@ -34,9 +35,9 @@ export default function MonitorPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard
           title="当前价格"
-          value={`$${position?.current_price?.toFixed(2) || '0.00'}`}
+          value={`$${ticker?.last?.toFixed(2) || '0.00'}`}
           icon={TrendingUp}
-          trend={position?.price_change_24h}
+          trend={ticker?.change_24h}
         />
         <StatCard
           title="持仓数量"

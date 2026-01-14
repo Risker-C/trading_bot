@@ -23,16 +23,27 @@ const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(142 76% 36%
 export default function AnalyticsPage() {
   const router = useRouter();
   const [period, setPeriod] = useState<'daily' | 'weekly'>('daily');
+  const [hasToken, setHasToken] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     if (!token) {
       router.push('/login');
+    } else {
+      setHasToken(true);
     }
   }, [router]);
 
-  const { data: dailyStats } = useQuery({ queryKey: ['daily-stats'], queryFn: fetchDailyStats });
-  const { data: weeklyStats } = useQuery({ queryKey: ['weekly-stats'], queryFn: fetchWeeklyStats });
+  const { data: dailyStats } = useQuery({
+    queryKey: ['daily-stats'],
+    queryFn: fetchDailyStats,
+    enabled: hasToken
+  });
+  const { data: weeklyStats } = useQuery({
+    queryKey: ['weekly-stats'],
+    queryFn: fetchWeeklyStats,
+    enabled: hasToken
+  });
 
   const stats = period === 'daily' ? dailyStats : weeklyStats;
   const strategyData = stats?.strategy_comparison || [];
