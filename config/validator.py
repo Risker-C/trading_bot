@@ -106,5 +106,5 @@ def validate_config(config_module):
 
 if __name__ == "__main__":
     # 测试配置验证
-    import config
+    from config.settings import settings as config
     validate_config(config)

@@ -183,7 +183,7 @@ def test_execute_close_position_fix():
 
     # 测试2.4: 验证盈亏百分比计算
     try:
-        import config
+        from config.settings import settings as config
         pnl = (current_price - position['entry_price']) * position['amount']
         pnl_percent = (pnl / (position['entry_price'] * position['amount'])) * 100 * config.LEVERAGE
 
@@ -222,7 +222,7 @@ def test_get_status_fix():
 
     # 测试3.1: 验证正确的字典访问方式
     try:
-        import config
+        from config.settings import settings as config
         position_data = []
         for p in positions:
             # 修复后应该使用字典访问方式
@@ -264,7 +264,7 @@ def test_get_status_fix():
 
     # 测试3.3: 验证 pnl_percent 计算
     try:
-        import config
+        from config.settings import settings as config
         p = positions[0]
         pnl_percent = (p['unrealized_pnl'] / (p['entry_price'] * p['amount']) * 100 * config.LEVERAGE) \
                       if p['entry_price'] > 0 and p['amount'] > 0 else 0
@@ -304,7 +304,7 @@ def test_cli_status_fix():
 
     # 测试4.1: 验证正确的字典访问方式
     try:
-        import config
+        from config.settings import settings as config
         for pos in positions:
             # 修复后应该使用字典访问方式
             emoji = "🟢" if pos['side'] == 'long' else "🔴"
@@ -334,7 +334,7 @@ def test_cli_status_fix():
 
     # 测试4.3: 验证格式化输出
     try:
-        import config
+        from config.settings import settings as config
         pos = positions[0]
         pnl_percent = (pos['unrealized_pnl'] / (pos['entry_price'] * pos['amount']) * 100 * config.LEVERAGE) \
                       if pos['entry_price'] > 0 and pos['amount'] > 0 else 0
@@ -421,7 +421,7 @@ def test_regression_prevention():
             pnl = (entry_price - current_price) * amount
 
         # 计算盈亏百分比
-        import config
+        from config.settings import settings as config
         pnl_percent = (pnl / (entry_price * amount)) * 100 * config.LEVERAGE
 
         assert abs(pnl - 1.0) < 0.0001

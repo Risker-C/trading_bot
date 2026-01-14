@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 import time
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger, db
 
 logger = get_logger("order_health_monitor")

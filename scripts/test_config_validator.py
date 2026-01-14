@@ -18,8 +18,8 @@ from datetime import datetime
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import config
-from config_validator import RiskConfig, ExchangeConfig, StrategyConfig, validate_config
+from config.settings import settings as config
+from config.validator import RiskConfig, ExchangeConfig, StrategyConfig, validate_config
 from utils.logger_utils import get_logger
 
 logger = get_logger("test_config_validator")
@@ -74,7 +74,7 @@ class TestConfigValidator:
 
 def test_module_import():
     """测试1: 模块导入"""
-    from config_validator import RiskConfig, ExchangeConfig, StrategyConfig, validate_config
+    from config.validator import RiskConfig, ExchangeConfig, StrategyConfig, validate_config
     print("✓ 所有模块导入成功")
 
 

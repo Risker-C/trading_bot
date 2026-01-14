@@ -21,7 +21,7 @@ import joblib
 from datetime import datetime
 import time
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger
 from ai.feature_engineer_lite import LightweightFeatureEngineer, PandasCompatibleWrapper
 from strategies.strategies import TradeSignal

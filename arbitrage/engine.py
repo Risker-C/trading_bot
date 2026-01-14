@@ -360,7 +360,7 @@ class ArbitrageEngine:
     def _ensure_tables_exist(self):
         """确保套利相关数据库表存在（自动创建）"""
         import sqlite3
-        import config
+        from config.settings import settings as config
 
         try:
             conn = sqlite3.connect(getattr(config, 'DB_PATH', 'trading_bot.db'))

@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime
 from typing import List, Optional
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger
 
 from apps.api.models.trend import Trend

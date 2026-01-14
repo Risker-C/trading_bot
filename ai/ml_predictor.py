@@ -17,7 +17,7 @@ from pathlib import Path
 import joblib
 from datetime import datetime
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger
 from ai.feature_engineer import FeatureEngineer
 from strategies.strategies import TradeSignal

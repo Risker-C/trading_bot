@@ -8,7 +8,7 @@ sys.path.insert(0, '/root/trading_bot')
 from core.trader import BitgetTrader
 from strategies.market_regime import MarketRegimeDetector
 from strategies.strategies import analyze_all_strategies
-import config
+from config.settings import settings as config
 
 def main():
     print("=" * 60)

@@ -7,7 +7,7 @@ import asyncio
 from datetime import datetime
 import pandas as pd
 
-import config
+from config.settings import settings as config
 from core.trader import BitgetTrader
 from strategies.market_regime import MarketRegimeDetector
 from ai.claude_policy_analyzer import ClaudePolicyAnalyzer

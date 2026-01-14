@@ -3,7 +3,7 @@
 测试动态策略系统
 """
 import sys
-import config
+from config.settings import settings as config
 from core.trader import BitgetTrader
 from strategies.market_regime import MarketRegimeDetector, MarketRegime
 from strategies.strategies import analyze_all_strategies, get_strategy, Signal

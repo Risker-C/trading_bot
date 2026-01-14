@@ -9,7 +9,7 @@ import os
 from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import config
+from config.settings import settings as config
 
 DB_PATH = config.DB_PATH
 

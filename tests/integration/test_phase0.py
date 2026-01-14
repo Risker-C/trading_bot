@@ -10,7 +10,7 @@ print("=" * 50)
 # 测试1: 导入config
 print("\n1. 测试config导入...")
 try:
-    import config
+    from config.settings import settings as config
     print("✅ config导入成功")
 except Exception as e:
     print(f"❌ config导入失败: {e}")

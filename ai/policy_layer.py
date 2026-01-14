@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 import json
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger
 
 logger = get_logger("policy_layer")

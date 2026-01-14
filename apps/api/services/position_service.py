@@ -3,7 +3,7 @@ import sqlite3
 from datetime import datetime
 from typing import List, Optional
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import TradeDatabase, get_logger
 
 from apps.api.models.position import Position

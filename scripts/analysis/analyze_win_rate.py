@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict, Counter
 import statistics
 
-import config
+from config.settings import settings as config
 
 def analyze_trades():
     """分析历史交易数据"""

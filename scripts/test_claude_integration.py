@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from ai.claude_analyzer import get_claude_analyzer
 from strategies.trend_filter import get_trend_filter
 from strategies.strategies import Signal, TradeSignal
-import config
+from config.settings import settings as config
 
 
 def create_test_dataframe(trend="down", length=100):

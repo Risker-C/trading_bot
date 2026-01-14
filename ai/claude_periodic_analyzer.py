@@ -14,7 +14,7 @@ except ImportError:
     ANTHROPIC_AVAILABLE = False
     print("警告: anthropic 库未安装，Claude 定时分析功能将被禁用")
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger, notifier
 
 logger = get_logger("claude_periodic_analyzer")

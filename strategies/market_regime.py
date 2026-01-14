@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 from typing import Dict, Optional
 
-import config
+from config.settings import settings as config
 from strategies.indicators import IndicatorCalculator
 from utils.logger_utils import get_logger
 

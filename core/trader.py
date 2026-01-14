@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 import pandas as pd
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger, db
 from strategies.strategies import (
     Signal, TradeSignal, get_strategy, analyze_all_strategies,

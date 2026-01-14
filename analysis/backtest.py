@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import matplotlib.pyplot as plt
 
-import config
+from config.settings import settings as config
 from strategies.strategies import (
     Signal, TradeSignal, get_strategy, 
     analyze_all_strategies, STRATEGY_MAP

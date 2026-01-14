@@ -14,7 +14,7 @@ import logging
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import config
+from config.settings import settings as config
 
 logger = logging.getLogger(__name__)
 

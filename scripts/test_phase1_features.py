@@ -16,7 +16,7 @@ import time
 from risk.error_backoff_controller import ErrorBackoffController, ErrorType, BackoffState
 from risk.execution_filter import ExecutionFilter
 from monitoring.order_health_monitor import OrderHealthMonitor
-import config
+from config.settings import settings as config
 
 
 class TestErrorBackoffController(unittest.TestCase):

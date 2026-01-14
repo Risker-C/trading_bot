@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import pandas as pd
 
-import config
+from config.settings import settings as config
 from core.trader import BitgetTrader
 from strategies.indicators import IndicatorCalculator
 from strategies.market_regime import MarketRegimeDetector

@@ -21,7 +21,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 导入必要的模块
-import config
+from config.settings import settings as config
 from strategies.direction_filter import DirectionFilter, get_direction_filter
 from strategies.strategies import Signal, TradeSignal
 from utils.logger_utils import get_logger

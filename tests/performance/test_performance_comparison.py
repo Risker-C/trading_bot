@@ -5,7 +5,7 @@ import time
 import sys
 sys.path.insert(0, '.')
 
-import config
+from config.settings import settings as config
 
 # 临时修改配置进行测试
 original_async_fetch = getattr(config, 'USE_ASYNC_DATA_FETCH', True)

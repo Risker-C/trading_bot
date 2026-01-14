@@ -18,7 +18,7 @@ from typing import List, Dict, Any
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import DatabaseLogger, get_logger
 
 logger = get_logger("test_batch_write")

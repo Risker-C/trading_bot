@@ -39,7 +39,7 @@ class ExchangeManager:
         """
         if exchanges_config is None:
             # 从config.py导入配置
-            import config
+            from config.settings import settings as config
             exchanges_config = config.EXCHANGES_CONFIG
             active_exchange = active_exchange or config.ACTIVE_EXCHANGE
 

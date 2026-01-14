@@ -19,7 +19,7 @@ import sqlite3
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 导入必要的模块
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger
 
 logger = get_logger("test_database_maintenance")

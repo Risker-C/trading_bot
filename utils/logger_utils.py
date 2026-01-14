@@ -15,7 +15,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import numpy as np
 
-import config
+from config.settings import settings as config
 
 # 创建日志目录
 LOG_DIR = getattr(config, 'LOG_DIR', 'logs')

@@ -11,7 +11,7 @@
 import asyncio
 import ccxt.async_support as ccxt_async
 from typing import Dict, List
-import config
+from config.settings import settings as config
 
 
 class AsyncExchangeManager:

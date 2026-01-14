@@ -5,7 +5,7 @@
 from typing import Dict, Tuple
 import pandas as pd
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger
 from strategies.strategies import Signal, TradeSignal
 from strategies.indicators import IndicatorCalculator

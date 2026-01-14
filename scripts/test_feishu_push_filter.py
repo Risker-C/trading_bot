@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import config
+from config.settings import settings as config
 from monitoring.status_monitor import FeishuPushFilter
 from utils.logger_utils import get_logger
 

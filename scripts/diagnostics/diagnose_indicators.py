@@ -7,7 +7,7 @@ sys.path.insert(0, '/root/trading_bot')
 
 from core.trader import BitgetTrader
 from strategies.indicators import IndicatorCalculator
-import config
+from config.settings import settings as config
 
 def main():
     print("=" * 60)

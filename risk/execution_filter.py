@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 import time
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger
 from strategies.indicators import IndicatorCalculator
 from risk.liquidity_validator import get_liquidity_validator

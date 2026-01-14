@@ -5,7 +5,7 @@
 import pandas as pd
 from core.trader import BitgetTrader
 from strategies.indicators import IndicatorCalculator
-import config
+from config.settings import settings as config
 
 def diagnose_bollinger_bands():
     """诊断布林带计算"""

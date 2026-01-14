@@ -5,7 +5,7 @@
 from core.trader import BitgetTrader
 from strategies.indicators import IndicatorCalculator
 from strategies.market_regime import MarketRegimeDetector
-import config
+from config.settings import settings as config
 
 def compare_data_sources():
     """对比数据源"""

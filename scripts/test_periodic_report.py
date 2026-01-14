@@ -65,7 +65,7 @@ def test_config_validation():
     result = TestResult()
 
     try:
-        import config
+        from config.settings import settings as config
 
         # 测试1.1: 验证配置项存在
         try:
@@ -309,7 +309,7 @@ def test_complete_flow():
         from monitoring.market_report import PeriodicReportScheduler
         from core.trader import BitgetTrader
         from risk.risk_manager import RiskManager
-        import config
+        from config.settings import settings as config
 
         # 初始化组件
         try:
@@ -371,7 +371,7 @@ def test_manual_send():
     logger.info("测试5: 手动发送测试")
     logger.info("=" * 60)
 
-    import config
+    from config.settings import settings as config
 
     if not config.ENABLE_FEISHU or not config.FEISHU_WEBHOOK_URL:
         logger.warning("⏭️  飞书未配置，跳过手动发送测试")

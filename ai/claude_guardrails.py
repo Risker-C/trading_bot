@@ -8,7 +8,7 @@ from typing import Dict, Optional, Tuple
 from datetime import datetime, timedelta
 from collections import defaultdict
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger
 
 logger = get_logger("claude_guardrails")

@@ -5,7 +5,7 @@ from typing import List, Dict, Optional, Tuple
 import pandas as pd
 import numpy as np
 
-import config
+from config.settings import settings as config
 from strategies.indicators import IndicatorCalculator, detect_market_state
 from utils.logger_utils import get_logger
 

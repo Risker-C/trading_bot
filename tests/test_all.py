@@ -9,7 +9,7 @@ def test_imports():
     print("测试模块导入...")
     
     try:
-        import config
+        from config.settings import settings as config
         print("  ✅ config")
     except Exception as e:
         print(f"  ❌ config: {e}")
@@ -64,7 +64,7 @@ def test_config():
     """测试配置"""
     print("\n测试配置...")
     
-    import config
+    from config.settings import settings as config
     errors = config.validate_config()
     
     if errors:
@@ -248,7 +248,7 @@ def test_api_connection():
     """测试 API 连接（可选）"""
     print("\n测试 API 连接...")
 
-    import config
+    from config.settings import settings as config
 
     # 检查是否配置了完整的API凭证
     if not config.EXCHANGE_CONFIG.get('api_key') or \

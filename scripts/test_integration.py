@@ -13,7 +13,7 @@ from risk.execution_filter import (
     get_kill_switch
 )
 from strategies.strategies import Signal, TradeSignal
-import config
+from config.settings import settings as config
 
 
 def create_test_data():

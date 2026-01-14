@@ -6,7 +6,7 @@ import sys
 import asyncio
 from datetime import datetime
 
-import config
+from config.settings import settings as config
 from core.trader import BitgetTrader
 from bot import TradingBot
 from utils.logger_utils import db, notifier, get_logger

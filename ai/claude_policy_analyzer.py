@@ -22,7 +22,7 @@ try:
 except ImportError:
     ANTHROPIC_AVAILABLE = False
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger
 from ai.policy_layer import (
     TradingContext, PolicyDecision, MarketRegime, RiskMode

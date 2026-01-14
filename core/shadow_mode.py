@@ -6,7 +6,7 @@ from typing import Dict, Optional, Tuple
 from datetime import datetime
 import pandas as pd
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger, db
 from strategies.strategies import Signal, TradeSignal
 

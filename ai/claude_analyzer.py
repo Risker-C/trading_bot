@@ -17,7 +17,7 @@ except ImportError:
     print("警告: anthropic 库未安装，Claude 分析功能将被禁用")
     print("安装命令: pip install anthropic")
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger
 from strategies.strategies import Signal, TradeSignal
 

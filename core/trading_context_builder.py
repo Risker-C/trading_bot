@@ -10,7 +10,7 @@ import pandas as pd
 
 from ai.policy_layer import TradingContext, MarketRegime, RiskMode
 from risk.risk_manager import RiskManager
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger
 
 logger = get_logger("context_builder")

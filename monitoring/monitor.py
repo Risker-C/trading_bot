@@ -5,7 +5,7 @@ import time
 import sys
 from datetime import datetime, timedelta
 
-import config
+from config.settings import settings as config
 from core.trader import BitgetTrader
 from utils.logger_utils import db, notifier, get_logger
 

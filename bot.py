@@ -5,8 +5,8 @@ import sys
 from datetime import datetime
 from typing import Optional, List, Dict
 
-import config
-from config_validator import validate_config
+from config.settings import settings as config
+from config.validator import validate_config
 from exchange.manager import ExchangeManager
 from exchange.legacy_adapter import LegacyAdapter
 from risk.risk_manager import RiskManager

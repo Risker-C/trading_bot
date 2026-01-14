@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-import config
+from config.settings import settings as config
 from strategies.indicators import calc_atr, calc_volatility
 from utils.logger_utils import get_logger, db
 

@@ -2,7 +2,7 @@
 """
 测试通知功能
 """
-import config
+from config.settings import settings as config
 from utils.logger_utils import notifier
 
 print("=" * 60)

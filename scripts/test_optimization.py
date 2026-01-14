@@ -20,7 +20,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 导入必要的模块
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger, db
 from ai.claude_analyzer import ClaudeAnalyzer
 from strategies.indicators import calc_bollinger_bands, calc_bollinger_bandwidth, calc_bollinger_percent_b

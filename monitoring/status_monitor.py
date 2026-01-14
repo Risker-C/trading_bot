@@ -17,7 +17,7 @@ import traceback
 from collections import deque
 import hashlib
 
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger, notifier, db
 
 

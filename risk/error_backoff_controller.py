@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Dict, Optional, Tuple
 import time
-import config
+from config.settings import settings as config
 from utils.logger_utils import get_logger
 
 logger = get_logger("error_backoff")
