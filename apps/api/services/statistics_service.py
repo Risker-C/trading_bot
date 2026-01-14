@@ -20,6 +20,13 @@ class StatisticsService:
         stats['period'] = 'daily'
         stats['date'] = today
 
+        # 添加策略对比数据
+        strategy_stats = await asyncio.to_thread(self._get_strategy_comparison, today, today)
+        stats['strategy_comparison'] = strategy_stats
+
+        # 添加胜率趋势数据(暂时返回空数组)
+        stats['win_rate_trend'] = []
+
         return stats
 
     async def get_weekly_statistics(self) -> Dict[str, Any]:
@@ -36,6 +43,9 @@ class StatisticsService:
         # 添加策略对比
         strategy_stats = await asyncio.to_thread(self._get_strategy_comparison, week_start, week_end)
         stats['strategy_comparison'] = strategy_stats
+
+        # 添加胜率趋势数据(暂时返回空数组)
+        stats['win_rate_trend'] = []
 
         return stats
 
