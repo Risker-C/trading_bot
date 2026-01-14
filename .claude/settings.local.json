@@ -3,6 +3,13 @@
     "allow": [
       "Bash",
       "Git",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "Task",
+      "TodoWrite",
       "Bash(ls:*)",
       "Bash(cat:*)",
       "Bash(grep:*)",
@@ -32,13 +39,19 @@
       "Bash(./start_bot.sh:*)",
       "Bash(./stop_bot.sh:*)",
       "Skill(engineering-workflow-skills:feature-planning)",
+      "Skill(engineering-workflow-skills:git-pushing)",
+      "Skill(engineering-workflow-skills:test-fixing)",
+      "Skill(ccg:*)",
       "WebFetch(domain:github.com)",
       "Skill(README)",
       "Skill(feature-dev)",
       "WebSearch",
       "mcp__ace-tool__search_context",
-      "mcp__ace-tool__enhance_prompt"
-    ]
+      "mcp__ace-tool__enhance_prompt",
+      "Skill(collaborating-with-gemini)",
+      "Skill(collaborating-with-codex)"
+    ],
+    "defaultMode": "default"
   },
   "statusLine": {
     "type": "command",

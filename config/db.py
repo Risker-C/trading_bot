@@ -11,7 +11,7 @@
 SAVE_EQUITY_CURVE = True
 
 # Phase 0: 数据库批量写入开关
-DB_BATCH_WRITES_ENABLED = False
+DB_BATCH_WRITES_ENABLED = True  # 启用批量写入以提升性能
 
 # Phase 3: 批量写入参数（建议 10-50 条）
 DB_BATCH_SIZE = 20

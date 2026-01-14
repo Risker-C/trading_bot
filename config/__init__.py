@@ -11,7 +11,7 @@ from .db import *
 from .runtime import *
 from .ml import *
 from .ai import *
-from .strategies import *
+# from .strategies import *  # Phase 2: 已合并到主config.py，移除此导入
 
 # 导入原config.py中的其他配置（交易参数、风控参数等）
 # 使用相对导入从父目录导入
