@@ -147,7 +147,7 @@ class StatisticsService:
             'avg_pnl': round((total_pnl / total_trades) if total_trades > 0 else 0, 2),
             'profit_loss_ratio': round(profit_loss_ratio, 2),
             'pnl_trend': 'up' if total_pnl > 0 else 'down' if total_pnl < 0 else 'neutral',  # 前端期望字段
-            'win_rate_trend': 'up' if win_rate > 50 else 'down' if win_rate < 50 else 'neutral',  # 前端期望字段
+            'win_rate_trend': [],  # 修改为数组格式,避免前端图表报错
             'today_trend': 'up' if total_pnl > 0 else 'down',  # 前端期望字段
             'position_status': 'Active' if total_trades > 0 else 'Inactive',  # 前端期望字段
             'pnl_history': []  # 前端期望字段,暂时返回空数组
@@ -185,6 +185,8 @@ class StatisticsService:
             win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
 
             strategies.append({
+                'name': strategy_name or 'Unknown',  # PieChart需要'name'字段
+                'value': total_trades,  # PieChart需要'value'字段
                 'strategy': strategy_name,
                 'total_trades': total_trades,
                 'winning_trades': winning_trades,

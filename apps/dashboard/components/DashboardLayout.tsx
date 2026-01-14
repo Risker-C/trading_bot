@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, TrendingUp, BarChart3, Activity } from 'lucide-react';
 import { ThemeToggle } from './theme-toggle';
+import { TickerDisplay } from './TickerDisplay';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -14,6 +16,7 @@ const navItems = [
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { data } = useWebSocket(['ticker']);
 
   return (
     <div className="flex h-screen bg-background">
@@ -50,6 +53,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <h2 className="text-xl font-semibold md:hidden">Trading Bot</h2>
+              <div className="hidden md:block">
+                <TickerDisplay ticker={data.ticker} />
+              </div>
             </div>
             <div className="flex items-center gap-4">
               <ThemeToggle />

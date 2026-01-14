@@ -9,6 +9,8 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import apiClient from '@/lib/api-client';
+import { MarketOverview } from '@/components/MarketOverview';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 async function fetchStats() {
   const { data } = await apiClient.get('/api/statistics/daily');
@@ -22,6 +24,7 @@ async function fetchTrades() {
 
 export default function HomePage() {
   const router = useRouter();
+  const { data: wsData } = useWebSocket(['ticker']);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -37,6 +40,7 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6">
+      <MarketOverview ticker={wsData?.ticker} />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="总盈亏"

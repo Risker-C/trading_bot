@@ -1,6 +1,7 @@
 """
 Trading Dashboard API - 主入口文件
 """
+import asyncio
 import os
 
 from dotenv import load_dotenv
@@ -16,6 +17,7 @@ from apps.api.routes import statistics as statistics_routes
 from apps.api.routes import trades as trades_routes
 from apps.api.routes import trends as trends_routes
 from apps.api.websocket import router as websocket_router
+from apps.api.services.ticker_service import ticker_service
 
 # 加载环境变量
 load_dotenv()
@@ -49,6 +51,20 @@ app.include_router(history_routes.router)
 app.include_router(statistics_routes.router)
 app.include_router(ai_routes.router)
 app.include_router(websocket_router)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """应用启动时初始化服务"""
+    try:
+        # 初始化 ticker 服务
+        await ticker_service.initialize()
+
+        # 启动后台刷新任务
+        asyncio.create_task(ticker_service.start_background_refresh())
+    except Exception as e:
+        print(f"启动 ticker 服务失败: {e}")
+
 
 @app.get("/")
 async def root():

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 
-type Channel = 'trades' | 'positions' | 'trends' | 'indicators';
+type Channel = 'trades' | 'positions' | 'trends' | 'indicators' | 'ticker';
 
 interface WebSocketData {
   trades?: any[];
   position?: any;
   trend?: any;
   indicators?: any[];
+  ticker?: any;
   updated_at?: string;
 }
 

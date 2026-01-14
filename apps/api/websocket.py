@@ -12,6 +12,7 @@ from apps.api.services.indicator_service import IndicatorService
 from apps.api.services.position_service import PositionService
 from apps.api.services.trade_service import TradeService
 from apps.api.services.trend_service import TrendService
+from apps.api.services.ticker_service import ticker_service
 
 router = APIRouter()
 
@@ -25,7 +26,7 @@ class ConnectionManager:
     """WebSocket 连接管理器，支持频道订阅"""
 
     # 支持的频道列表
-    AVAILABLE_CHANNELS = ["trades", "positions", "trends", "indicators"]
+    AVAILABLE_CHANNELS = ["trades", "positions", "trends", "indicators", "ticker"]
 
     def __init__(self) -> None:
         self.active_connections: Set[WebSocket] = set()
@@ -222,6 +223,8 @@ async def _build_payload(subscribed_channels: Set[str]) -> Dict[str, Any]:
         tasks["trends"] = asyncio.create_task(trend_service.latest_trend())
     if "indicators" in subscribed_channels:
         tasks["indicators"] = asyncio.create_task(indicator_service.get_active_indicators())
+    if "ticker" in subscribed_channels:
+        tasks["ticker"] = asyncio.create_task(ticker_service.get_ticker())
 
     # 等待所有任务完成
     for channel, task in tasks.items():
@@ -235,6 +238,8 @@ async def _build_payload(subscribed_channels: Set[str]) -> Dict[str, Any]:
                 payload["trend"] = result.model_dump()
             elif channel == "indicators":
                 payload["indicators"] = [indicator.model_dump() for indicator in result]
+            elif channel == "ticker":
+                payload["ticker"] = result.model_dump() if result else None
         except Exception:
             # 如果某个频道数据获取失败，跳过该频道
             pass
