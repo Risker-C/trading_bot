@@ -1,6 +1,7 @@
 'use client';
 
 import { StatCard } from './StatCard';
+import { TrendingUp, DollarSign, Activity } from 'lucide-react';
 
 interface MarketOverviewProps {
   ticker?: {
@@ -49,36 +50,43 @@ export function MarketOverview({ ticker }: MarketOverviewProps) {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard
-          label="当前价格"
+          title="当前价格"
           value={`$${ticker.last.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          trend={ticker.change_24h >= 0 ? 'up' : 'down'}
+          icon={TrendingUp}
+          trend={ticker.change_24h}
         />
         <StatCard
-          label="买价"
+          title="买价"
           value={`$${ticker.bid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          icon={DollarSign}
         />
         <StatCard
-          label="卖价"
+          title="卖价"
           value={`$${ticker.ask.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          icon={DollarSign}
         />
         <StatCard
-          label="买卖价差"
+          title="买卖价差"
           value={`$${spread.toFixed(2)} (${spreadPercent.toFixed(3)}%)`}
+          icon={Activity}
         />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard
-          label="24h 成交量"
+          title="24h 成交量"
           value={ticker.volume.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+          icon={Activity}
         />
         <StatCard
-          label="24h 最高"
+          title="24h 最高"
           value={`$${ticker.high_24h.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          icon={TrendingUp}
         />
         <StatCard
-          label="24h 最低"
+          title="24h 最低"
           value={`$${ticker.low_24h.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          icon={TrendingUp}
         />
       </div>
 
