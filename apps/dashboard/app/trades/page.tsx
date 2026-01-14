@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import apiClient from '@/lib/api-client';
+import dayjs from 'dayjs';
 
 async function fetchTrades(limit: number, offset: number) {
   const { data } = await apiClient.get(`/api/trades?limit=${limit}&offset=${offset}`);
@@ -16,18 +17,22 @@ async function fetchTrades(limit: number, offset: number) {
 export default function TradesPage() {
   const router = useRouter();
   const [page, setPage] = useState(0);
+  const [hasToken, setHasToken] = useState(false);
   const limit = 20;
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     if (!token) {
       router.push('/login');
+    } else {
+      setHasToken(true);
     }
   }, [router]);
 
   const { data: trades, isLoading } = useQuery({
     queryKey: ['trades', page],
     queryFn: () => fetchTrades(limit, page * limit),
+    enabled: hasToken
   });
 
   return (
@@ -65,7 +70,7 @@ export default function TradesPage() {
             ) : (
               trades?.map((trade: any) => (
                 <TableRow key={trade.id} className="hover:bg-muted/50 transition-colors">
-                  <TableCell>{new Date(trade.timestamp).toLocaleString()}</TableCell>
+                  <TableCell>{dayjs(trade.created_at).format('YYYY-MM-DD HH:mm:ss')}</TableCell>
                   <TableCell className="font-medium">{trade.symbol}</TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded text-xs font-semibold ${

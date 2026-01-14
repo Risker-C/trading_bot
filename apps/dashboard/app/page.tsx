@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, TrendingDown, DollarSign, Target } from 'lucide-react';
@@ -11,6 +11,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'rec
 import apiClient from '@/lib/api-client';
 import { MarketOverview } from '@/components/MarketOverview';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import dayjs from 'dayjs';
 
 async function fetchStats() {
   const { data } = await apiClient.get('/api/statistics/daily');
@@ -25,16 +26,27 @@ async function fetchTrades() {
 export default function HomePage() {
   const router = useRouter();
   const { data: wsData } = useWebSocket(['ticker']);
+  const [hasToken, setHasToken] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     if (!token) {
       router.push('/login');
+    } else {
+      setHasToken(true);
     }
   }, [router]);
 
-  const { data: stats } = useQuery({ queryKey: ['stats'], queryFn: fetchStats });
-  const { data: trades } = useQuery({ queryKey: ['trades'], queryFn: fetchTrades });
+  const { data: stats } = useQuery({
+    queryKey: ['stats'],
+    queryFn: fetchStats,
+    enabled: hasToken
+  });
+  const { data: trades } = useQuery({
+    queryKey: ['trades'],
+    queryFn: fetchTrades,
+    enabled: hasToken
+  });
 
   const chartData = stats?.pnl_history || [];
 
@@ -101,7 +113,7 @@ export default function HomePage() {
           <TableBody>
             {trades?.map((trade: any) => (
               <TableRow key={trade.id}>
-                <TableCell>{new Date(trade.timestamp).toLocaleString()}</TableCell>
+                <TableCell>{dayjs(trade.created_at).format('YYYY-MM-DD HH:mm:ss')}</TableCell>
                 <TableCell>{trade.symbol}</TableCell>
                 <TableCell>
                   <span className={trade.side === 'buy' ? 'text-trading-up' : 'text-trading-down'}>
