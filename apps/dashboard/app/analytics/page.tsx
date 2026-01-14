@@ -1,27 +1,35 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, LineChart, Line, XAxis, YAxis } from 'recharts';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import apiClient from '@/lib/api-client';
 
 async function fetchDailyStats() {
-  const res = await fetch(`${API_URL}/api/statistics/daily`);
-  return res.json();
+  const { data } = await apiClient.get('/api/statistics/daily');
+  return data;
 }
 
 async function fetchWeeklyStats() {
-  const res = await fetch(`${API_URL}/api/statistics/weekly`);
-  return res.json();
+  const { data } = await apiClient.get('/api/statistics/weekly');
+  return data;
 }
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(142 76% 36%)', 'hsl(346 87% 43%)'];
 
 export default function AnalyticsPage() {
+  const router = useRouter();
   const [period, setPeriod] = useState<'daily' | 'weekly'>('daily');
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router]);
 
   const { data: dailyStats } = useQuery({ queryKey: ['daily-stats'], queryFn: fetchDailyStats });
   const { data: weeklyStats } = useQuery({ queryKey: ['weekly-stats'], queryFn: fetchWeeklyStats });

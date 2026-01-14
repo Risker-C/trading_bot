@@ -1,25 +1,35 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, TrendingDown, DollarSign, Target } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import apiClient from '@/lib/api-client';
 
 async function fetchStats() {
-  const res = await fetch(`${API_URL}/api/statistics/daily`);
-  return res.json();
+  const { data } = await apiClient.get('/api/statistics/daily');
+  return data;
 }
 
 async function fetchTrades() {
-  const res = await fetch(`${API_URL}/api/trades?limit=10`);
-  return res.json();
+  const { data } = await apiClient.get('/api/trades?limit=10');
+  return data;
 }
 
 export default function HomePage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router]);
+
   const { data: stats } = useQuery({ queryKey: ['stats'], queryFn: fetchStats });
   const { data: trades } = useQuery({ queryKey: ['trades'], queryFn: fetchTrades });
 

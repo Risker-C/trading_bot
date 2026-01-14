@@ -1,21 +1,29 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import apiClient from '@/lib/api-client';
 
 async function fetchTrades(limit: number, offset: number) {
-  const res = await fetch(`${API_URL}/api/trades?limit=${limit}&offset=${offset}`);
-  return res.json();
+  const { data } = await apiClient.get(`/api/trades?limit=${limit}&offset=${offset}`);
+  return data;
 }
 
 export default function TradesPage() {
+  const router = useRouter();
   const [page, setPage] = useState(0);
   const limit = 20;
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router]);
 
   const { data: trades, isLoading } = useQuery({
     queryKey: ['trades', page],
