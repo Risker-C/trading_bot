@@ -3,7 +3,7 @@
 使用 tradeSide="open" + 反向订单
 """
 from trader import BitgetTrader
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("close_one_way")
 

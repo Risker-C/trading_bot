@@ -21,7 +21,7 @@ from typing import Dict, Optional
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
-from logger_utils import db, get_logger
+from utils.logger_utils import db, get_logger
 from risk_manager import RiskManager, PositionInfo
 
 logger = get_logger("test_position_history")

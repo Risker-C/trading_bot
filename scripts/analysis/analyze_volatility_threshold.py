@@ -12,7 +12,7 @@ from trader import BitgetTrader
 from market_regime import MarketRegimeDetector
 from claude_policy_analyzer import ClaudePolicyAnalyzer
 from policy_layer import TradingContext, MarketRegime as PolicyMarketRegime
-from logger_utils import get_logger, db
+from utils.logger_utils import get_logger, db
 
 logger = get_logger("volatility_analysis")
 

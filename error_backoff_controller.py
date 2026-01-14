@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Dict, Optional, Tuple
 import time
 import config
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("error_backoff")
 

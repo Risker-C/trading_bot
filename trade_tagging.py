@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict, field
 
-from logger_utils import get_logger, db
+from utils.logger_utils import get_logger, db
 
 logger = get_logger("trade_tagging")
 

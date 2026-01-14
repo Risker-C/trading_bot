@@ -22,7 +22,7 @@ from datetime import datetime
 import time
 
 import config
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 from feature_engineer_lite import LightweightFeatureEngineer, PandasCompatibleWrapper
 from strategies import TradeSignal
 

@@ -15,8 +15,8 @@ from strategies import (
     get_strategy, analyze_all_strategies, STRATEGY_MAP
 )
 from market_regime import MarketRegimeDetector
-from logger_utils import get_logger, db, notifier, MetricsLogger
-from status_monitor import StatusMonitorScheduler
+from utils.logger_utils import get_logger, db, notifier, MetricsLogger
+from monitoring.status_monitor import StatusMonitorScheduler
 from claude_analyzer import get_claude_analyzer
 from claude_periodic_analyzer import get_claude_periodic_analyzer
 from trend_filter import get_trend_filter
@@ -30,7 +30,7 @@ from trading_context_builder import get_context_builder
 from ml_predictor import get_ml_predictor  # 原版ML预测器
 from ml_predictor_lite import get_ml_predictor_lite  # 优化版ML预测器
 from execution_filter import ExecutionFilter  # 执行层风控
-from order_health_monitor import get_order_health_monitor  # 订单健康监控
+from monitoring.order_health_monitor import get_order_health_monitor  # 订单健康监控
 
 # 套利引擎（可选）
 if getattr(config, 'ENABLE_ARBITRAGE', False):

@@ -3,7 +3,7 @@
 直接调用 Bitget 的平仓接口
 """
 from trader import BitgetTrader
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("close_raw")
 

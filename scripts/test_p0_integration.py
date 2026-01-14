@@ -20,7 +20,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
-from logger_utils import get_logger, db
+from utils.logger_utils import get_logger, db
 
 logger = get_logger("test_p0_integration")
 
@@ -115,7 +115,7 @@ def test_module_imports():
 
     # 测试性能分析器导入
     try:
-        from performance_analyzer import PerformanceAnalyzer
+        from analysis.performance_analyzer import PerformanceAnalyzer
         analyzer = PerformanceAnalyzer()
         assert analyzer is not None
         print("  ✓ performance_analyzer 导入成功")
@@ -232,7 +232,7 @@ def test_performance_analyzer_functionality():
     """测试5: 性能分析器功能"""
     print("测试性能分析器功能...")
 
-    from performance_analyzer import PerformanceAnalyzer
+    from analysis.performance_analyzer import PerformanceAnalyzer
 
     analyzer = PerformanceAnalyzer()
 

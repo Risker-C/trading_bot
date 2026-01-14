@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 
 import config
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("feature_engineer")
 

@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 from collections import defaultdict
 
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 from exchange.manager import ExchangeManager
 
 logger = get_logger("position_tracker")

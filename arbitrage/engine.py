@@ -6,7 +6,7 @@ import threading
 from typing import Dict, List, Optional
 from datetime import datetime
 
-from logger_utils import get_logger, db
+from utils.logger_utils import get_logger, db
 from exchange.manager import ExchangeManager
 from .spread_monitor import SpreadMonitor
 from .opportunity_detector import OpportunityDetector

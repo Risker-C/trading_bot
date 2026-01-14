@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from claude_analyzer import ClaudeAnalyzer
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 from apps.api.services.indicator_service import IndicatorService
 from apps.api.services.trade_service import TradeService

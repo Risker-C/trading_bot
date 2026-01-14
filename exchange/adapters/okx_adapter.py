@@ -7,7 +7,7 @@ import pandas as pd
 from typing import Optional, List, Dict
 from datetime import datetime
 
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 from ..interface import ExchangeInterface, TickerData, PositionData, OrderResult
 from ..errors import (
     ExchangeError, NetworkError, AuthenticationError,

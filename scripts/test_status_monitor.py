@@ -20,7 +20,7 @@ from typing import Dict, Any
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
-from status_monitor import (
+from monitoring.status_monitor import (
     PriceHistory,
     StatusMonitorScheduler,
     StatusMonitorCollector,
@@ -28,7 +28,7 @@ from status_monitor import (
 )
 from trader import BitgetTrader
 from risk_manager import RiskManager
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("test_status_monitor")
 

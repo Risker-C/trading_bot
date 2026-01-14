@@ -3,7 +3,7 @@
 测试通知功能 - 详细版本
 """
 import config
-from logger_utils import get_logger, FeishuNotifier, EmailNotifier
+from utils.logger_utils import get_logger, FeishuNotifier, EmailNotifier
 
 logger = get_logger("test_notification")
 

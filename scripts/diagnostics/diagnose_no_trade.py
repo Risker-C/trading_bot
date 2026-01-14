@@ -17,7 +17,7 @@ import config
 from trader import BitgetTrader
 from strategies import analyze_all_strategies, Signal
 from market_regime import MarketRegimeDetector
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("diagnose_no_trade")
 

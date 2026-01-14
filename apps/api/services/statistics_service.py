@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 
-from logger_utils import TradeDatabase, get_logger
+from utils.logger_utils import TradeDatabase, get_logger
 
 
 class StatisticsService:

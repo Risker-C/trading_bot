@@ -5,7 +5,7 @@
 from decimal import Decimal
 from typing import Tuple, Optional, Dict, Any
 import config
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("liquidity_validator")
 

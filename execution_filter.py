@@ -10,7 +10,7 @@ import numpy as np
 import time
 
 import config
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 from indicators import IndicatorCalculator
 from liquidity_validator import get_liquidity_validator
 

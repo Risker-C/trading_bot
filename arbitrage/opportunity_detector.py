@@ -2,7 +2,7 @@
 套利机会检测器 - 盈利能力计算、机会过滤和排序
 """
 from typing import List, Dict, Optional, Tuple
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 from exchange.manager import ExchangeManager
 from .models import SpreadData, ArbitrageOpportunity
 

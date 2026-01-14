@@ -44,14 +44,14 @@ def test_imports():
         return False
     
     try:
-        import backtest
+        import analysis.backtest
         print("  ✅ backtest")
     except Exception as e:
         print(f"  ❌ backtest: {e}")
         return False
     
     try:
-        import logger_utils
+        import utils.logger_utils
         print("  ✅ logger_utils")
     except Exception as e:
         print(f"  ❌ logger_utils: {e}")
@@ -204,7 +204,7 @@ def test_database():
     """测试数据库"""
     print("\n测试数据库...")
     
-    from logger_utils import TradeDatabase
+    from utils.logger_utils import TradeDatabase
     import os
     
     test_db = "test_trading.db"

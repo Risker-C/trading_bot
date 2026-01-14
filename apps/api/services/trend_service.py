@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 
 import config
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 from apps.api.models.trend import Trend
 from apps.api.services.trade_service import TradeService

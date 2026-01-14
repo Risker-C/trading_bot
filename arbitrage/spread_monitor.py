@@ -8,7 +8,7 @@ from collections import deque
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 from exchange.manager import ExchangeManager
 from exchange.interface import TickerData
 from .models import SpreadData

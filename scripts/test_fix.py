@@ -4,7 +4,7 @@
 """
 import numpy as np
 import pandas as pd
-from logger_utils import db, get_logger
+from utils.logger_utils import db, get_logger
 
 logger = get_logger("test_fix")
 

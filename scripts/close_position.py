@@ -3,7 +3,7 @@
 用于关闭当前持仓
 """
 from trader import BitgetTrader
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("close_position")
 

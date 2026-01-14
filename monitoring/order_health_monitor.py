@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import time
 
 import config
-from logger_utils import get_logger, db
+from utils.logger_utils import get_logger, db
 
 logger = get_logger("order_health_monitor")
 

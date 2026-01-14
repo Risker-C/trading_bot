@@ -20,7 +20,7 @@ from enum import Enum
 import json
 
 import config
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("policy_layer")
 

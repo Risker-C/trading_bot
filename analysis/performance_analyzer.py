@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 import json
 
-from logger_utils import get_logger, db
+from utils.logger_utils import get_logger, db
 
 logger = get_logger("performance_analyzer")
 

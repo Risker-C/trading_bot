@@ -13,7 +13,7 @@ from trader import BitgetTrader
 from indicators import IndicatorCalculator
 from market_regime import MarketRegimeDetector
 from strategies import analyze_all_strategies, get_consensus_signal
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("market_snapshot")
 

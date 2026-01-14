@@ -17,7 +17,7 @@ import os
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("test_position_fix")
 

@@ -4,7 +4,7 @@
 """
 import time
 from trader import BitgetTrader
-from logger_utils import get_logger, notifier
+from utils.logger_utils import get_logger, notifier
 
 logger = get_logger("test_trading")
 

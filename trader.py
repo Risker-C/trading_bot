@@ -10,7 +10,7 @@ from typing import Optional, Dict, List, Tuple
 import pandas as pd
 
 import config
-from logger_utils import get_logger, db
+from utils.logger_utils import get_logger, db
 from strategies import (
     Signal, TradeSignal, get_strategy, analyze_all_strategies,
     get_consensus_signal, STRATEGY_MAP

@@ -21,8 +21,8 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
-from status_monitor import FeishuPushFilter
-from logger_utils import get_logger
+from monitoring.status_monitor import FeishuPushFilter
+from utils.logger_utils import get_logger
 
 logger = get_logger("test_feishu_push_filter")
 

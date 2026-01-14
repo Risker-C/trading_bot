@@ -6,7 +6,7 @@ from typing import Dict, Tuple
 import pandas as pd
 
 import config
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 from strategies import Signal, TradeSignal
 from indicators import IndicatorCalculator
 

@@ -5,7 +5,7 @@ import time
 from typing import Dict, Optional, Tuple
 from datetime import datetime
 
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 from exchange.manager import ExchangeManager
 from exchange.interface import OrderResult
 from .models import ArbitrageOpportunity, ArbitrageTrade, TradeStatus

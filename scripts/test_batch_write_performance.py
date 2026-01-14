@@ -19,7 +19,7 @@ from typing import List, Dict, Any
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
-from logger_utils import DatabaseLogger, get_logger
+from utils.logger_utils import DatabaseLogger, get_logger
 
 logger = get_logger("test_batch_write")
 

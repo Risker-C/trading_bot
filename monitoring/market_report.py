@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 import time
 import config
-from logger_utils import get_logger, notifier
+from utils.logger_utils import get_logger, notifier
 
 
 class PeriodicReportScheduler:
@@ -618,7 +618,7 @@ class MarketReportGenerator:
     def _collect_trade_stats(self) -> Dict[str, Any]:
         """收集交易统计"""
         try:
-            from logger_utils import TradeDatabase
+            from utils.logger_utils import TradeDatabase
             from datetime import datetime, timedelta
 
             db = TradeDatabase()

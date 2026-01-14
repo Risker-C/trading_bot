@@ -7,7 +7,7 @@ import config
 from trader import BitgetTrader
 from market_regime import MarketRegimeDetector, MarketRegime
 from strategies import analyze_all_strategies, get_strategy, Signal
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("test_dynamic_strategy")
 

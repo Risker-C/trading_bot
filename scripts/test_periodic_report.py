@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import time
 from datetime import datetime, timedelta
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("test_periodic_report")
 
@@ -126,7 +126,7 @@ def test_scheduler_basic():
     result = TestResult()
 
     try:
-        from market_report import PeriodicReportScheduler
+        from monitoring.market_report import PeriodicReportScheduler
 
         # 测试2.1: 创建调度器
         try:
@@ -215,7 +215,7 @@ def test_report_generator():
     result = TestResult()
 
     try:
-        from market_report import MarketReportGenerator
+        from monitoring.market_report import MarketReportGenerator
         from trader import BitgetTrader
         from risk_manager import RiskManager
 
@@ -306,7 +306,7 @@ def test_complete_flow():
     result = TestResult()
 
     try:
-        from market_report import PeriodicReportScheduler
+        from monitoring.market_report import PeriodicReportScheduler
         from trader import BitgetTrader
         from risk_manager import RiskManager
         import config

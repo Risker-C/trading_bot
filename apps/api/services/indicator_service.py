@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 from apps.api.models.indicator import Indicator
 from apps.api.services.trade_service import TradeService

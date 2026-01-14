@@ -7,7 +7,7 @@ from datetime import datetime
 import pandas as pd
 
 import config
-from logger_utils import get_logger, db
+from utils.logger_utils import get_logger, db
 from strategies import Signal, TradeSignal
 
 logger = get_logger("shadow_mode")

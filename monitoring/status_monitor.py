@@ -18,7 +18,7 @@ from collections import deque
 import hashlib
 
 import config
-from logger_utils import get_logger, notifier, db
+from utils.logger_utils import get_logger, notifier, db
 
 
 class PriceHistory:

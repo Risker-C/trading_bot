@@ -18,7 +18,7 @@ except ImportError:
     print("安装命令: pip install anthropic")
 
 import config
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 from strategies import Signal, TradeSignal
 
 logger = get_logger("claude_analyzer")

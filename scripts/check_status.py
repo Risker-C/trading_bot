@@ -2,7 +2,7 @@
 检查账户状态
 """
 from trader import BitgetTrader
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("check_status")
 

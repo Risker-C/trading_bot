@@ -7,7 +7,7 @@ import argparse
 from datetime import datetime
 
 import config
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("main")
 
@@ -34,7 +34,7 @@ def run_backtest(args):
     """运行回测"""
     import pandas as pd
     import ccxt
-    from backtest import Backtester, compare_strategies
+    from analysis.backtest import Backtester, compare_strategies
     
     # 获取数据
     print("获取历史数据...")
@@ -80,7 +80,7 @@ def run_optimize(args):
     """运行参数优化"""
     import pandas as pd
     import ccxt
-    from backtest import optimize_parameters
+    from analysis.backtest import optimize_parameters
     
     # 获取数据
     exchange = ccxt.binance()

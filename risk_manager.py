@@ -11,7 +11,7 @@ import pandas as pd
 
 import config
 from indicators import calc_atr, calc_volatility
-from logger_utils import get_logger, db
+from utils.logger_utils import get_logger, db
 
 logger = get_logger("risk_manager")
 

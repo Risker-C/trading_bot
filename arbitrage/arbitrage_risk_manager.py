@@ -6,7 +6,7 @@ from typing import Dict, Tuple, Optional
 from collections import deque
 from datetime import datetime, timedelta
 
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 from exchange.manager import ExchangeManager
 from .models import ArbitrageOpportunity
 

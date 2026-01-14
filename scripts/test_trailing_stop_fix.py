@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
 from risk_manager import RiskManager, PositionInfo
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("test_trailing_stop_fix")
 

@@ -20,7 +20,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
-from logger_utils import get_logger, db
+from utils.logger_utils import get_logger, db
 from exchange.manager import ExchangeManager
 
 logger = get_logger("test_arbitrage")

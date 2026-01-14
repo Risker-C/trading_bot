@@ -15,7 +15,7 @@ from .contracts import (
 )
 from strategies import analyze_all_strategies, get_consensus_signal, TradeSignal
 from risk_manager import RiskManager
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("adapters")
 

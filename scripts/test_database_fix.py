@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from logger_utils import TradeDatabase, get_logger
+from utils.logger_utils import TradeDatabase, get_logger
 import tempfile
 import sqlite3
 

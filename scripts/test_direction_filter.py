@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from direction_filter import DirectionFilter, get_direction_filter
 from strategies import Signal, TradeSignal
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("test_direction_filter")
 

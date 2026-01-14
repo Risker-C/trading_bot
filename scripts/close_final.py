@@ -2,7 +2,7 @@
 平掉最后的持仓
 """
 from trader import BitgetTrader
-from logger_utils import get_logger
+from utils.logger_utils import get_logger
 
 logger = get_logger("close_final")
 

@@ -9,7 +9,7 @@ from datetime import datetime
 import config
 from trader import BitgetTrader
 from bot import TradingBot
-from logger_utils import db, notifier, get_logger
+from utils.logger_utils import db, notifier, get_logger
 # from backtest import run_backtest_from_exchange  # 暂时注释，函数不存在
 # from monitor import run_monitor  # 暂时注释，函数不存在
 
@@ -187,7 +187,7 @@ def cmd_test_notify():
 
 def cmd_market(format_type='dashboard', timeframes=None):
     """查看市场快照"""
-    from market_snapshot import MarketSnapshot
+    from monitoring.market_snapshot import MarketSnapshot
 
     trader = BitgetTrader()
     if trader.exchange is None:

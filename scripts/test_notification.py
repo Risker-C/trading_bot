@@ -3,7 +3,7 @@
 测试通知功能
 """
 import config
-from logger_utils import notifier
+from utils.logger_utils import notifier
 
 print("=" * 60)
 print("🧪 测试通知功能")

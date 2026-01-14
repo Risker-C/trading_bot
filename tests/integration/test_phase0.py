@@ -35,7 +35,7 @@ for switch in switches:
 # 测试3: 导入MetricsLogger
 print("\n3. 测试MetricsLogger导入...")
 try:
-    from logger_utils import MetricsLogger
+    from utils.logger_utils import MetricsLogger
     print("✅ MetricsLogger导入成功")
 
     # 测试实例化
