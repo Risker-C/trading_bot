@@ -3,6 +3,12 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
 
+  // 环境变量配置（确保Vercel构建时正确注入）
+  env: {
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+    NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL,
+  },
+
   // 生产环境优化：移除 console.log，保留 console.error
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error'] } : false,
