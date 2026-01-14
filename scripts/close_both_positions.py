@@ -1,7 +1,7 @@
 """
 平掉所有持仓（双向持仓模式）
 """
-from trader import BitgetTrader
+from core.trader import BitgetTrader
 from utils.logger_utils import get_logger
 
 logger = get_logger("close_both")

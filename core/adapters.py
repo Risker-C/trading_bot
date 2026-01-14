@@ -13,8 +13,8 @@ from .contracts import (
     ExecutionEngineInterface,
     MonitoringEngineInterface,
 )
-from strategies import analyze_all_strategies, get_consensus_signal, TradeSignal
-from risk_manager import RiskManager
+from strategies.strategies import analyze_all_strategies, get_consensus_signal, TradeSignal
+from risk.risk_manager import RiskManager
 from utils.logger_utils import get_logger
 
 logger = get_logger("adapters")

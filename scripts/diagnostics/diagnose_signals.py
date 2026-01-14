@@ -5,9 +5,9 @@
 import sys
 sys.path.insert(0, '/root/trading_bot')
 
-from trader import BitgetTrader
-from market_regime import MarketRegimeDetector
-from strategies import analyze_all_strategies
+from core.trader import BitgetTrader
+from strategies.market_regime import MarketRegimeDetector
+from strategies.strategies import analyze_all_strategies
 import config
 
 def main():

@@ -22,9 +22,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # 导入必要的模块
 import config
 from utils.logger_utils import get_logger
-from direction_filter import DirectionFilter
-from trend_filter import TrendFilter
-from strategies import BollingerTrendStrategy, MACDCrossStrategy, Signal
+from strategies.direction_filter import DirectionFilter
+from strategies.trend_filter import TrendFilter
+from strategies.strategies import BollingerTrendStrategy, MACDCrossStrategy, Signal
 
 logger = get_logger("test_long_win_rate_fix")
 
@@ -239,7 +239,7 @@ def test_oscillation_market_protection():
     """测试5: 震荡市场保护"""
     print("测试震荡市场保护规则...")
 
-    from indicators import Indicators
+    from strategies.indicators import Indicators
 
     # 创建震荡下跌的测试数据
     df = create_sample_df(trend="down", volume_spike=False, candle_pattern="bearish")
@@ -315,7 +315,7 @@ def test_direction_filter():
     """测试6: 方向过滤器"""
     print("测试方向过滤器逻辑...")
 
-    from strategies import TradeSignal
+    from strategies.strategies import TradeSignal
 
     direction_filter = DirectionFilter()
 

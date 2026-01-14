@@ -8,10 +8,10 @@ from datetime import datetime
 import pandas as pd
 
 import config
-from trader import BitgetTrader
-from market_regime import MarketRegimeDetector
-from claude_policy_analyzer import ClaudePolicyAnalyzer
-from policy_layer import TradingContext, MarketRegime as PolicyMarketRegime
+from core.trader import BitgetTrader
+from strategies.market_regime import MarketRegimeDetector
+from ai.claude_policy_analyzer import ClaudePolicyAnalyzer
+from ai.policy_layer import TradingContext, MarketRegime as PolicyMarketRegime
 from utils.logger_utils import get_logger, db
 
 logger = get_logger("volatility_analysis")
@@ -91,7 +91,7 @@ async def analyze_volatility_threshold():
     print()
 
     # 获取技术指标
-    from indicators import IndicatorCalculator
+    from strategies.indicators import IndicatorCalculator
     calc = IndicatorCalculator(df)
 
     # 计算所需的技术指标
@@ -118,7 +118,7 @@ async def analyze_volatility_threshold():
     }
 
     # 计算历史交易统计
-    from policy_layer import RiskMode
+    from ai.policy_layer import RiskMode
 
     if recent_trades:
         winning_trades_list = [t for t in recent_trades if t['pnl'] > 0]

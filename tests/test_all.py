@@ -16,28 +16,28 @@ def test_imports():
         return False
     
     try:
-        import indicators
+        import strategies.indicators
         print("  ✅ indicators")
     except Exception as e:
         print(f"  ❌ indicators: {e}")
         return False
     
     try:
-        import strategies
+        import strategies.strategies
         print("  ✅ strategies")
     except Exception as e:
         print(f"  ❌ strategies: {e}")
         return False
     
     try:
-        import risk_manager
+        import risk.risk_manager
         print("  ✅ risk_manager")
     except Exception as e:
         print(f"  ❌ risk_manager: {e}")
         return False
     
     try:
-        import trader
+        import core.trader
         print("  ✅ trader")
     except Exception as e:
         print(f"  ❌ trader: {e}")
@@ -83,7 +83,7 @@ def test_indicators():
     
     import pandas as pd
     import numpy as np
-    from indicators import IndicatorCalculator
+    from strategies.indicators import IndicatorCalculator
     
     # 创建测试数据
     np.random.seed(42)
@@ -128,8 +128,8 @@ def test_strategies():
     
     import pandas as pd
     import numpy as np
-    from indicators import IndicatorCalculator
-    from strategies import analyze_all_strategies, STRATEGY_MAP
+    from strategies.indicators import IndicatorCalculator
+    from strategies.strategies import analyze_all_strategies, STRATEGY_MAP
     
     # 创建测试数据
     np.random.seed(42)
@@ -170,7 +170,7 @@ def test_risk_manager():
     """测试风险管理"""
     print("\n测试风险管理...")
     
-    from risk_manager import RiskManager, Position
+    from risk.risk_manager import RiskManager, Position
     
     try:
         rm = RiskManager()
@@ -184,7 +184,7 @@ def test_risk_manager():
         print(f"  ✅ 开仓记录")
         
         # 测试止损检查
-        from risk_manager import StopLossResult
+        from risk.risk_manager import StopLossResult
         result = rm.check_stop_loss(48000, rm.position, None)
         print(f"  ✅ 止损检查: should_stop={result.should_stop}")
         

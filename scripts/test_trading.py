@@ -3,7 +3,7 @@
 测试开仓、止盈止损、平仓等功能
 """
 import time
-from trader import BitgetTrader
+from core.trader import BitgetTrader
 from utils.logger_utils import get_logger, notifier
 
 logger = get_logger("test_trading")

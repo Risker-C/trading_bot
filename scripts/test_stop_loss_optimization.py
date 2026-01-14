@@ -110,7 +110,7 @@ def test_stop_loss_calculation():
     """测试2: 止损价格计算"""
     print("测试止损价格计算...")
 
-    from risk_manager import RiskManager
+    from risk.risk_manager import RiskManager
 
     risk_manager = RiskManager()
 

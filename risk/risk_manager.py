@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 import config
-from indicators import calc_atr, calc_volatility
+from strategies.indicators import calc_atr, calc_volatility
 from utils.logger_utils import get_logger, db
 
 logger = get_logger("risk_manager")
@@ -301,7 +301,7 @@ class RiskManager:
             止损价格
         """
         try:
-            from policy_layer import get_policy_layer
+            from ai.policy_layer import get_policy_layer
 
             policy = get_policy_layer()
             stop_loss_pct = policy.get_stop_loss_percent()
@@ -328,7 +328,7 @@ class RiskManager:
             止盈价格
         """
         try:
-            from policy_layer import get_policy_layer
+            from ai.policy_layer import get_policy_layer
 
             policy = get_policy_layer()
             take_profit_pct = policy.get_take_profit_percent()
@@ -357,7 +357,7 @@ class RiskManager:
             调整后的仓位数量
         """
         try:
-            from policy_layer import get_policy_layer
+            from ai.policy_layer import get_policy_layer
 
             policy = get_policy_layer()
             multiplier = policy.get_position_size_multiplier()

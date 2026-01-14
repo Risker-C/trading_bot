@@ -21,9 +21,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
 from utils.logger_utils import get_logger
-from feature_engineer import FeatureEngineer
-from ml_predictor import MLSignalPredictor, reset_ml_predictor
-from strategies import Signal, TradeSignal
+from ai.feature_engineer import FeatureEngineer
+from ai.ml_predictor import MLSignalPredictor, reset_ml_predictor
+from strategies.strategies import Signal, TradeSignal
 
 logger = get_logger("test_ml_signal_filter")
 
@@ -304,7 +304,7 @@ def test_model_trainer_exists():
 
     # 检查是否可以导入
     try:
-        from model_trainer import ModelTrainer
+        from ai.model_trainer import ModelTrainer
         print("  ✓ model_trainer.py可以正常导入")
         print("  ✓ ModelTrainer类存在")
     except ImportError as e:

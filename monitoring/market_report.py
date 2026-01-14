@@ -444,7 +444,7 @@ class MarketReportGenerator:
                 return {'error': '数据获取失败'}
 
             # 检测市场状态
-            from market_regime import MarketRegimeDetector
+            from strategies.market_regime import MarketRegimeDetector
             detector = MarketRegimeDetector(df)
             regime_info = detector.detect()
 
@@ -500,7 +500,7 @@ class MarketReportGenerator:
             try:
                 df = self.trader.get_klines(limit=200)
                 if df is not None and not df.empty:
-                    from market_regime import MarketRegimeDetector
+                    from strategies.market_regime import MarketRegimeDetector
                     detector = MarketRegimeDetector(df)
                     regime_info = detector.detect()
 

@@ -5,9 +5,9 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-from claude_analyzer import get_claude_analyzer
-from trend_filter import get_trend_filter
-from strategies import Signal, TradeSignal
+from ai.claude_analyzer import get_claude_analyzer
+from strategies.trend_filter import get_trend_filter
+from strategies.strategies import Signal, TradeSignal
 import config
 
 

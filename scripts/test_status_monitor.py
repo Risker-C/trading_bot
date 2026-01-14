@@ -26,8 +26,8 @@ from monitoring.status_monitor import (
     StatusMonitorCollector,
     AIAnalyzer
 )
-from trader import BitgetTrader
-from risk_manager import RiskManager
+from core.trader import BitgetTrader
+from risk.risk_manager import RiskManager
 from utils.logger_utils import get_logger
 
 logger = get_logger("test_status_monitor")

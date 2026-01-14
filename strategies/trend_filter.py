@@ -7,8 +7,8 @@ import pandas as pd
 
 import config
 from utils.logger_utils import get_logger
-from strategies import Signal, TradeSignal
-from indicators import IndicatorCalculator
+from strategies.strategies import Signal, TradeSignal
+from strategies.indicators import IndicatorCalculator
 
 logger = get_logger("trend_filter")
 

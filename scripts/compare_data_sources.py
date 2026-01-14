@@ -2,9 +2,9 @@
 """
 对比不同数据源的布林带计算
 """
-from trader import BitgetTrader
-from indicators import IndicatorCalculator
-from market_regime import MarketRegimeDetector
+from core.trader import BitgetTrader
+from strategies.indicators import IndicatorCalculator
+from strategies.market_regime import MarketRegimeDetector
 import config
 
 def compare_data_sources():

@@ -8,7 +8,7 @@ import pandas as pd
 
 import config
 from utils.logger_utils import get_logger, db
-from strategies import Signal, TradeSignal
+from strategies.strategies import Signal, TradeSignal
 
 logger = get_logger("shadow_mode")
 

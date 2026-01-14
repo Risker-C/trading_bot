@@ -6,13 +6,13 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
-from trade_tagging import get_tag_manager, TradeTag
-from execution_filter import (
+from core.trade_tagging import get_tag_manager, TradeTag
+from risk.execution_filter import (
     get_execution_filter,
     get_position_sizer,
     get_kill_switch
 )
-from strategies import Signal, TradeSignal
+from strategies.strategies import Signal, TradeSignal
 import config
 
 

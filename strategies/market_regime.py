@@ -9,7 +9,7 @@ import numpy as np
 from typing import Dict, Optional
 
 import config
-from indicators import IndicatorCalculator
+from strategies.indicators import IndicatorCalculator
 from utils.logger_utils import get_logger
 
 logger = get_logger("market_regime")
@@ -270,7 +270,7 @@ def get_regime_strategies(df: pd.DataFrame) -> list[str]:
 # 测试代码
 if __name__ == "__main__":
     import ccxt
-    from trader import BitgetTrader
+    from core.trader import BitgetTrader
 
     print("=" * 50)
     print("市场状态检测测试")

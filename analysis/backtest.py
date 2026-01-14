@@ -10,11 +10,11 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 
 import config
-from strategies import (
+from strategies.strategies import (
     Signal, TradeSignal, get_strategy, 
     analyze_all_strategies, STRATEGY_MAP
 )
-from indicators import IndicatorCalculator
+from strategies.indicators import IndicatorCalculator
 from utils.logger_utils import get_logger
 
 logger = get_logger("backtest")
@@ -203,7 +203,7 @@ class Backtester:
         """获取交易信号"""
         try:
             if use_consensus:
-                from strategies import get_consensus_signal
+                from strategies.strategies import get_consensus_signal
                 return get_consensus_signal(df, strategies)
             else:
                 signals = analyze_all_strategies(df, strategies)

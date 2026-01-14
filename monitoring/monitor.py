@@ -6,7 +6,7 @@ import sys
 from datetime import datetime, timedelta
 
 import config
-from trader import BitgetTrader
+from core.trader import BitgetTrader
 from utils.logger_utils import db, notifier, get_logger
 
 logger = get_logger("monitor")

@@ -631,7 +631,7 @@ class StatusMonitorCollector:
                 return {'error': '数据获取失败'}
 
             # 检测市场状态
-            from market_regime import MarketRegimeDetector
+            from strategies.market_regime import MarketRegimeDetector
             detector = MarketRegimeDetector(df)
             regime_info = detector.detect()
 

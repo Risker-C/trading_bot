@@ -4,7 +4,7 @@
 """
 import pandas as pd
 from typing import Tuple
-from strategies import Signal, TradeSignal
+from strategies.strategies import Signal, TradeSignal
 from utils.logger_utils import get_logger
 
 logger = get_logger("direction_filter")

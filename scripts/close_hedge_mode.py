@@ -2,7 +2,7 @@
 双向持仓模式平仓
 需要指定 holdSide 参数
 """
-from trader import BitgetTrader
+from core.trader import BitgetTrader
 from utils.logger_utils import get_logger
 
 logger = get_logger("close_hedge")

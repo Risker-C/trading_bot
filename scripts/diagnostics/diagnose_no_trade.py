@@ -14,9 +14,9 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
-from trader import BitgetTrader
-from strategies import analyze_all_strategies, Signal
-from market_regime import MarketRegimeDetector
+from core.trader import BitgetTrader
+from strategies.strategies import analyze_all_strategies, Signal
+from strategies.market_regime import MarketRegimeDetector
 from utils.logger_utils import get_logger
 
 logger = get_logger("diagnose_no_trade")

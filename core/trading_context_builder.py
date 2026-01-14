@@ -8,8 +8,8 @@ from datetime import datetime
 from typing import Dict, Optional
 import pandas as pd
 
-from policy_layer import TradingContext, MarketRegime, RiskMode
-from risk_manager import RiskManager
+from ai.policy_layer import TradingContext, MarketRegime, RiskMode
+from risk.risk_manager import RiskManager
 import config
 from utils.logger_utils import get_logger
 

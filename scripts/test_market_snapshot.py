@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 导入必要的模块
 import config
-from trader import BitgetTrader
+from core.trader import BitgetTrader
 from monitoring.market_snapshot import MarketSnapshot
 from utils.market_formatter import MarketFormatter
 from utils.logger_utils import get_logger

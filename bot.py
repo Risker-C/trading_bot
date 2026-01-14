@@ -9,27 +9,27 @@ import config
 from config_validator import validate_config
 from exchange.manager import ExchangeManager
 from exchange.legacy_adapter import LegacyAdapter
-from risk_manager import RiskManager
-from strategies import (
+from risk.risk_manager import RiskManager
+from strategies.strategies import (
     Signal, TradeSignal,
     get_strategy, analyze_all_strategies, STRATEGY_MAP
 )
-from market_regime import MarketRegimeDetector
+from strategies.market_regime import MarketRegimeDetector
 from utils.logger_utils import get_logger, db, notifier, MetricsLogger
 from monitoring.status_monitor import StatusMonitorScheduler
-from claude_analyzer import get_claude_analyzer
-from claude_periodic_analyzer import get_claude_periodic_analyzer
-from trend_filter import get_trend_filter
-from direction_filter import get_direction_filter
-from indicators import IndicatorCalculator
-from shadow_mode import get_shadow_tracker
-from claude_guardrails import get_guardrails
-from policy_layer import get_policy_layer
-from claude_policy_analyzer import get_claude_policy_analyzer
-from trading_context_builder import get_context_builder
-from ml_predictor import get_ml_predictor  # 原版ML预测器
-from ml_predictor_lite import get_ml_predictor_lite  # 优化版ML预测器
-from execution_filter import ExecutionFilter  # 执行层风控
+from ai.claude_analyzer import get_claude_analyzer
+from ai.claude_periodic_analyzer import get_claude_periodic_analyzer
+from strategies.trend_filter import get_trend_filter
+from strategies.direction_filter import get_direction_filter
+from strategies.indicators import IndicatorCalculator
+from core.shadow_mode import get_shadow_tracker
+from ai.claude_guardrails import get_guardrails
+from ai.policy_layer import get_policy_layer
+from ai.claude_policy_analyzer import get_claude_policy_analyzer
+from core.trading_context_builder import get_context_builder
+from ai.ml_predictor import get_ml_predictor  # 原版ML预测器
+from ai.ml_predictor_lite import get_ml_predictor_lite  # 优化版ML预测器
+from risk.execution_filter import ExecutionFilter  # 执行层风控
 from monitoring.order_health_monitor import get_order_health_monitor  # 订单健康监控
 
 # 套利引擎（可选）
@@ -1438,7 +1438,7 @@ def create_trading_engine_demo(run_once: bool = False):
         ExecutionEngineAdapter,
         MonitoringEngineAdapter,
     )
-    from trader import BitgetTrader
+    from core.trader import BitgetTrader
 
     # 使用现有模块构建四层适配器
     trader = BitgetTrader()

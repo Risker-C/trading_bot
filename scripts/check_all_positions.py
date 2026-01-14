@@ -1,7 +1,7 @@
 """
 检查所有持仓（包括多空双向）
 """
-from trader import BitgetTrader
+from core.trader import BitgetTrader
 from utils.logger_utils import get_logger
 import json
 

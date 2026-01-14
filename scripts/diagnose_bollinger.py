@@ -3,8 +3,8 @@
 布林带宽度诊断工具
 """
 import pandas as pd
-from trader import BitgetTrader
-from indicators import IndicatorCalculator
+from core.trader import BitgetTrader
+from strategies.indicators import IndicatorCalculator
 import config
 
 def diagnose_bollinger_bands():

@@ -2,7 +2,7 @@
 紧急平仓脚本
 用于关闭当前持仓
 """
-from trader import BitgetTrader
+from core.trader import BitgetTrader
 from utils.logger_utils import get_logger
 
 logger = get_logger("close_position")

@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 导入必要的模块
 import config
-from market_regime import MarketRegimeDetector, MarketRegime
+from strategies.market_regime import MarketRegimeDetector, MarketRegime
 from utils.logger_utils import get_logger
 
 logger = get_logger("test_market_state_fix")
@@ -287,7 +287,7 @@ def test_real_market_data():
     print("\n场景: 使用真实市场数据测试")
 
     try:
-        from trader import BitgetTrader
+        from core.trader import BitgetTrader
 
         trader = BitgetTrader()
         df = trader.get_klines()

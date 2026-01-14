@@ -7,7 +7,7 @@ import asyncio
 from datetime import datetime
 
 import config
-from trader import BitgetTrader
+from core.trader import BitgetTrader
 from bot import TradingBot
 from utils.logger_utils import db, notifier, get_logger
 # from backtest import run_backtest_from_exchange  # 暂时注释，函数不存在

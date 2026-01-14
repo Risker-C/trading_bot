@@ -13,9 +13,9 @@ print("="*80)
 # 1. 导入模块
 print("\n[1/5] 导入模块...")
 try:
-    from ml_predictor import get_ml_predictor
-    from strategies import TradeSignal, Signal
-    from feature_engineer import FeatureEngineer
+    from ai.ml_predictor import get_ml_predictor
+    from strategies.strategies import TradeSignal, Signal
+    from ai.feature_engineer import FeatureEngineer
     print("✅ 模块导入成功")
 except Exception as e:
     print(f"❌ 模块导入失败: {e}")

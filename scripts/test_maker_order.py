@@ -108,7 +108,7 @@ def test_trader_methods():
     """测试2: Trader方法存在性检查"""
     print("检查Trader类的Maker订单相关方法...")
 
-    from trader import BitgetTrader
+    from core.trader import BitgetTrader
 
     # 检查方法是否存在
     assert hasattr(BitgetTrader, 'create_limit_order'), "缺少 create_limit_order 方法"

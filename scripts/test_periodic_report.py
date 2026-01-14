@@ -216,8 +216,8 @@ def test_report_generator():
 
     try:
         from monitoring.market_report import MarketReportGenerator
-        from trader import BitgetTrader
-        from risk_manager import RiskManager
+        from core.trader import BitgetTrader
+        from risk.risk_manager import RiskManager
 
         # 初始化依赖组件
         try:
@@ -307,8 +307,8 @@ def test_complete_flow():
 
     try:
         from monitoring.market_report import PeriodicReportScheduler
-        from trader import BitgetTrader
-        from risk_manager import RiskManager
+        from core.trader import BitgetTrader
+        from risk.risk_manager import RiskManager
         import config
 
         # 初始化组件

@@ -11,17 +11,17 @@ import pandas as pd
 
 import config
 from utils.logger_utils import get_logger, db
-from strategies import (
+from strategies.strategies import (
     Signal, TradeSignal, get_strategy, analyze_all_strategies,
     get_consensus_signal, STRATEGY_MAP
 )
-from risk_manager import (
+from risk.risk_manager import (
     RiskManager, PositionInfo, PositionBuilder,
     PositionCloser, DrawdownController
 )
-from indicators import IndicatorCalculator
-from error_backoff_controller import get_backoff_controller
-from liquidity_validator import get_liquidity_validator
+from strategies.indicators import IndicatorCalculator
+from risk.error_backoff_controller import get_backoff_controller
+from risk.liquidity_validator import get_liquidity_validator
 
 logger = get_logger("trader")
 

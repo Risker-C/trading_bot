@@ -23,8 +23,8 @@ except ImportError:
     ORIGINAL_AVAILABLE = False
     print("⚠️  原版预测器不可用，将只测试优化版")
 
-from ml_predictor_lite import LightweightMLPredictor
-from feature_engineer_lite import LightweightFeatureEngineer
+from ai.ml_predictor_lite import LightweightMLPredictor
+from ai.feature_engineer_lite import LightweightFeatureEngineer
 
 
 def format_memory(bytes_value: float) -> str:
@@ -107,7 +107,7 @@ def test_feature_extraction_speed():
 
     # 如果原版可用，进行对比
     if ORIGINAL_AVAILABLE:
-        from feature_engineer import FeatureEngineer
+        from ai.feature_engineer import FeatureEngineer
         print("\n原版（完整特征工程器）:")
         print("-" * 70)
         engineer_original = FeatureEngineer()

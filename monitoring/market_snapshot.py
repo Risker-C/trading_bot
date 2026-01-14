@@ -9,10 +9,10 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 import config
-from trader import BitgetTrader
-from indicators import IndicatorCalculator
-from market_regime import MarketRegimeDetector
-from strategies import analyze_all_strategies, get_consensus_signal
+from core.trader import BitgetTrader
+from strategies.indicators import IndicatorCalculator
+from strategies.market_regime import MarketRegimeDetector
+from strategies.strategies import analyze_all_strategies, get_consensus_signal
 from utils.logger_utils import get_logger
 
 logger = get_logger("market_snapshot")

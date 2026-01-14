@@ -5,8 +5,8 @@
 import sys
 sys.path.insert(0, '/root/trading_bot')
 
-from trader import BitgetTrader
-from indicators import IndicatorCalculator
+from core.trader import BitgetTrader
+from strategies.indicators import IndicatorCalculator
 import config
 
 def main():

@@ -13,8 +13,8 @@ from datetime import datetime, timedelta
 import time
 
 # 导入待测试模块
-from error_backoff_controller import ErrorBackoffController, ErrorType, BackoffState
-from execution_filter import ExecutionFilter
+from risk.error_backoff_controller import ErrorBackoffController, ErrorType, BackoffState
+from risk.execution_filter import ExecutionFilter
 from monitoring.order_health_monitor import OrderHealthMonitor
 import config
 
@@ -247,7 +247,7 @@ class TestIntegration(unittest.TestCase):
 
     def test_error_backoff_integration_with_health_monitor(self):
         """测试错误退避与健康监控器集成"""
-        from trader import HealthMonitor
+        from core.trader import HealthMonitor
 
         health_monitor = HealthMonitor(exchange_name="test")
 

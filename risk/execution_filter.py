@@ -11,8 +11,8 @@ import time
 
 import config
 from utils.logger_utils import get_logger
-from indicators import IndicatorCalculator
-from liquidity_validator import get_liquidity_validator
+from strategies.indicators import IndicatorCalculator
+from risk.liquidity_validator import get_liquidity_validator
 
 logger = get_logger("execution_filter")
 

@@ -23,8 +23,8 @@ import time
 
 import config
 from utils.logger_utils import get_logger
-from feature_engineer_lite import LightweightFeatureEngineer, PandasCompatibleWrapper
-from strategies import TradeSignal
+from ai.feature_engineer_lite import LightweightFeatureEngineer, PandasCompatibleWrapper
+from strategies.strategies import TradeSignal
 
 logger = get_logger("ml_predictor_lite")
 

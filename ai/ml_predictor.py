@@ -19,8 +19,8 @@ from datetime import datetime
 
 import config
 from utils.logger_utils import get_logger
-from feature_engineer import FeatureEngineer
-from strategies import TradeSignal
+from ai.feature_engineer import FeatureEngineer
+from strategies.strategies import TradeSignal
 
 logger = get_logger("ml_predictor")
 
@@ -321,7 +321,7 @@ def reset_ml_predictor():
 # ==================== 使用示例 ====================
 
 if __name__ == "__main__":
-    from strategies import Signal
+    from strategies.strategies import Signal
 
     # 测试ML预测器
     predictor = MLSignalPredictor(mode='shadow')

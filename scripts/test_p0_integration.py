@@ -97,7 +97,7 @@ def test_module_imports():
 
     # 测试影子模式导入
     try:
-        from shadow_mode import get_shadow_tracker
+        from core.shadow_mode import get_shadow_tracker
         tracker = get_shadow_tracker()
         assert tracker is not None
         print("  ✓ shadow_mode 导入成功")
@@ -106,7 +106,7 @@ def test_module_imports():
 
     # 测试Claude护栏导入
     try:
-        from claude_guardrails import get_guardrails
+        from ai.claude_guardrails import get_guardrails
         guardrails = get_guardrails()
         assert guardrails is not None
         print("  ✓ claude_guardrails 导入成功")
@@ -129,8 +129,8 @@ def test_shadow_mode_functionality():
     """测试3: 影子模式功能"""
     print("测试影子模式功能...")
 
-    from shadow_mode import get_shadow_tracker
-    from strategies import Signal, TradeSignal
+    from core.shadow_mode import get_shadow_tracker
+    from strategies.strategies import Signal, TradeSignal
 
     tracker = get_shadow_tracker()
     # 临时启用影子模式用于测试
@@ -184,7 +184,7 @@ def test_claude_guardrails_functionality():
     """测试4: Claude护栏功能"""
     print("测试Claude护栏功能...")
 
-    from claude_guardrails import get_guardrails
+    from ai.claude_guardrails import get_guardrails
 
     guardrails = get_guardrails()
 
@@ -300,9 +300,9 @@ def test_integration_flow():
     """测试7: 集成流程"""
     print("测试集成流程...")
 
-    from shadow_mode import get_shadow_tracker
-    from claude_guardrails import get_guardrails
-    from strategies import Signal, TradeSignal
+    from core.shadow_mode import get_shadow_tracker
+    from ai.claude_guardrails import get_guardrails
+    from strategies.strategies import Signal, TradeSignal
 
     tracker = get_shadow_tracker()
     # 临时启用影子模式用于测试

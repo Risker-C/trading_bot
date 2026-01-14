@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
 from utils.logger_utils import get_logger
-from feature_engineer import FeatureEngineer
+from ai.feature_engineer import FeatureEngineer
 
 logger = get_logger("model_trainer")
 

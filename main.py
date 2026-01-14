@@ -14,7 +14,7 @@ logger = get_logger("main")
 
 def run_live():
     """运行实盘交易"""
-    from trader import BitgetTrader
+    from core.trader import BitgetTrader
     
     # 验证配置
     errors = config.validate_config()
@@ -109,7 +109,7 @@ def run_optimize(args):
 
 def show_status():
     """显示状态"""
-    from trader import BitgetTrader
+    from core.trader import BitgetTrader
     
     trader = BitgetTrader()
     status = trader.get_status()

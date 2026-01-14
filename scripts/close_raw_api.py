@@ -2,7 +2,7 @@
 使用 Bitget 原始 API 平仓
 直接调用 Bitget 的平仓接口
 """
-from trader import BitgetTrader
+from core.trader import BitgetTrader
 from utils.logger_utils import get_logger
 
 logger = get_logger("close_raw")

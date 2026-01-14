@@ -6,8 +6,8 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from trader import BitgetTrader
-from market_regime import MarketRegimeDetector, MarketRegime
+from core.trader import BitgetTrader
+from strategies.market_regime import MarketRegimeDetector, MarketRegime
 import config
 from utils.logger_utils import get_logger
 

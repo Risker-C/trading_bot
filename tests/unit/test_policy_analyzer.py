@@ -7,8 +7,8 @@ import numpy as np
 from datetime import datetime, timedelta
 
 # 导入必要的模块
-from claude_policy_analyzer import get_claude_policy_analyzer
-from policy_layer import TradingContext, MarketRegime, RiskMode
+from ai.claude_policy_analyzer import get_claude_policy_analyzer
+from ai.policy_layer import TradingContext, MarketRegime, RiskMode
 
 print("="*80)
 print("测试 Claude Policy Analyzer")

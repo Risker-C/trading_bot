@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
 from utils.logger_utils import get_logger
-from policy_layer import (
+from ai.policy_layer import (
     PolicyLayer, PolicyDecision, TradingContext,
     MarketRegime, RiskMode, get_policy_layer
 )

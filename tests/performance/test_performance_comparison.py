@@ -12,7 +12,7 @@ original_async_fetch = getattr(config, 'USE_ASYNC_DATA_FETCH', True)
 
 def test_sync_fetch():
     """测试同步数据获取"""
-    from trader import BitgetTrader
+    from core.trader import BitgetTrader
     
     # 禁用异步模式
     config.USE_ASYNC_DATA_FETCH = False
@@ -31,7 +31,7 @@ def test_sync_fetch():
 
 def test_async_fetch():
     """测试异步数据获取"""
-    from trader import BitgetTrader
+    from core.trader import BitgetTrader
     
     # 启用异步模式
     config.USE_ASYNC_DATA_FETCH = True

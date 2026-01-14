@@ -161,7 +161,7 @@ def test_trader_methods():
     """测试4: Trader方法存在性"""
     print("检查Trader类的动态Maker订单方法...")
 
-    from trader import BitgetTrader
+    from core.trader import BitgetTrader
 
     # 检查方法是否存在
     assert hasattr(BitgetTrader, '_calculate_dynamic_maker_params'), "缺少 _calculate_dynamic_maker_params 方法"
