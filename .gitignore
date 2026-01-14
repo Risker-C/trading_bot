@@ -21,6 +21,13 @@ logs/
 
 # 运行时文件
 bot.pid
+nohup.out
+
+# 备份文件
+*.backup_*
+*.bak
+*~
+config_backups/
 
 # 回测结果
 backtest_*.png
