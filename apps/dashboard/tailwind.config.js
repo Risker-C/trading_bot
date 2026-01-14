@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+const { fontFamily } = require("tailwindcss/defaultTheme")
+
 module.exports = {
   darkMode: ["class"],
   content: [
@@ -16,7 +18,21 @@ module.exports = {
   		}
   	},
   	extend: {
+  		fontFamily: {
+  			sans: ["var(--font-sans)", ...fontFamily.sans],
+  			mono: ["var(--font-mono)", ...fontFamily.mono],
+  		},
   		colors: {
+  			trading: {
+  				up: {
+  					DEFAULT: "hsl(var(--trading-up))",
+  					foreground: "hsl(var(--trading-up-foreground))",
+  				},
+  				down: {
+  					DEFAULT: "hsl(var(--trading-down))",
+  					foreground: "hsl(var(--trading-down-foreground))",
+  				},
+  			},
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',
@@ -63,7 +79,22 @@ module.exports = {
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
+  		boxShadow: {
+  			'soft-xl': '0 10px 25px -5px rgba(0, 0, 0, 0.04), 0 8px 10px -6px rgba(0, 0, 0, 0.04)',
+  		},
+  		backgroundImage: {
+  			'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+  			'card-gradient': 'linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 100%)',
+  		},
   		keyframes: {
+  			'flash-up': {
+  				'0%': { backgroundColor: 'rgba(16, 185, 129, 0.2)' },
+  				'100%': { backgroundColor: 'transparent' },
+  			},
+  			'flash-down': {
+  				'0%': { backgroundColor: 'rgba(244, 63, 94, 0.2)' },
+  				'100%': { backgroundColor: 'transparent' },
+  			},
   			'accordion-down': {
   				from: {
   					height: 0
@@ -82,6 +113,8 @@ module.exports = {
   			}
   		},
   		animation: {
+  			'value-flash-up': 'flash-up 1s ease-out',
+  			'value-flash-down': 'flash-down 1s ease-out',
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out'
   		}
