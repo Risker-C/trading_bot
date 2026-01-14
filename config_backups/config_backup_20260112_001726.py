@@ -68,10 +68,6 @@ TIMEFRAME_WEIGHTS = {
     "4h": 0.20,
 }
 
-
-# 异步数据获取配置
-USE_ASYNC_DATA_FETCH = True  # 启用异步并发获取多时间周期数据
-USE_ASYNC_MAIN_LOOP = False  # 启用异步主循环（实验性功能）
 # ==================== 杠杆和保证金 ====================
 
 LEVERAGE = 10
@@ -79,7 +75,7 @@ MARGIN_MODE = "crossed"  # isolated / crossed
 
 # ==================== 仓位管理 ====================
 
-POSITION_SIZE_PERCENT = 0.05   # Phase 1 优化: 提升至5%以增加收益基数（目标日收益2-3%）
+POSITION_SIZE_PERCENT = 0.03   # Phase 1: 降低到3%以控制风险（测试期间）
 MIN_ORDER_USDT = 10            # 最小订单金额
 MAX_ORDER_USDT = 1000          # 最大订单金额
 
@@ -91,22 +87,22 @@ POSITION_ENTRY_TYPE = "pyramid"  # pyramid / equal / reverse_pyramid
 # ==================== Kelly 公式配置（新增）====================
 
 USE_KELLY_CRITERION = True     # 是否使用 Kelly 公式
-KELLY_FRACTION = 0.6           # Phase 1 优化: 提升至0.6（更激进的Kelly系数）
-MIN_WIN_RATE_FOR_KELLY = 0.35  # Phase 1 优化: 降至0.35（更早启用Kelly）
+KELLY_FRACTION = 0.5           # Kelly 分数（更保守）
+MIN_WIN_RATE_FOR_KELLY = 0.4   # 使用 Kelly 的最低胜率要求
 
 # ==================== 波动率配置（新增）====================
 
 REDUCE_SIZE_ON_HIGH_VOL = True        # 高波动时减仓
-HIGH_VOLATILITY_THRESHOLD = 0.08      # Phase 1 优化: 提升至8%（提高高波动阈值）
+HIGH_VOLATILITY_THRESHOLD = 0.06      # 高波动阈值（6%）（优化：从4%提高，加密货币市场波动本身较大）
 LOW_VOLATILITY_THRESHOLD = 0.01       # 低波动阈值（1%）
-VOLATILITY_SIZE_FACTOR = 0.8          # Phase 1 优化: 提升至0.8（减少高波动减仓幅度）
+VOLATILITY_SIZE_FACTOR = 0.7          # 高波动时仓位系数
 VOLATILITY_LOOKBACK = 20              # 波动率计算周期
 
 # ==================== 止损止盈配置 ====================
 
-STOP_LOSS_PERCENT = 0.045      # 止损比例 4.5% (保持不变)
-TAKE_PROFIT_PERCENT = 0.05     # Phase 1 优化: 提升至5%（扩大止盈空间，单笔收益+67%）
-TRAILING_STOP_PERCENT = 0.04   # Phase 1 优化: 提升至4%（给盈利单更多空间）
+STOP_LOSS_PERCENT = 0.045      # 止损比例 4.5% (优化：从4%放宽到4.5%，根据策略分析结果调整)
+TAKE_PROFIT_PERCENT = 0.03     # 止盈比例 3% (保持不变，实际表现良好)
+TRAILING_STOP_PERCENT = 0.03   # 移动止损回撤比例 3% (优化：从2.5%放宽到3%，给盈利单更多空间)
 
 # ATR 动态止损（新增）
 USE_ATR_STOP_LOSS = True       # 是否使用 ATR 止损
@@ -126,15 +122,15 @@ STRATEGY_STOP_CONFIGS = {
     # 表现优秀的策略 - 给予更多空间
     "multi_timeframe": {
         "stop_loss_pct": 0.05,      # 5% 止损（盈亏比1.76，需要更多空间）
-        "take_profit_pct": 0.06,    # Phase 1 优化: 提升至6%（最大化优秀策略收益）
-        "trailing_stop_pct": 0.04,  # Phase 1 优化: 提升至4%
+        "take_profit_pct": 0.04,    # 4% 止盈
+        "trailing_stop_pct": 0.035, # 3.5% 移动止损
         "atr_multiplier": 4.5,      # ATR倍数4.5
     },
     # 表现中等的策略 - 标准配置
     "adx_trend": {
         "stop_loss_pct": 0.045,     # 4.5% 止损（盈亏比0.97，标准配置）
-        "take_profit_pct": 0.05,    # Phase 1 优化: 提升至5%（与全局一致）
-        "trailing_stop_pct": 0.04,  # Phase 1 优化: 提升至4%
+        "take_profit_pct": 0.03,    # 3% 止盈
+        "trailing_stop_pct": 0.03,  # 3% 移动止损
         "atr_multiplier": 4.0,      # ATR倍数4.0
     },
     # 其他策略使用默认配置
@@ -153,7 +149,7 @@ MIN_PROFIT_THRESHOLD_USDT = 0.08  # 保留作为后备值，实际使用动态�
 # 动态止盈门槛倍数（基于总手续费）
 # 例如：1.5表示盈利必须超过总手续费的1.5倍才启用动态止盈
 # 对于10 USDT仓位，总手续费约0.012 USDT，门槛为0.018 USDT（约0.18%盈利）
-MIN_PROFIT_THRESHOLD_MULTIPLIER = 1.2  # Phase 1 优化: 降至1.2倍（更早启用动态止盈）
+MIN_PROFIT_THRESHOLD_MULTIPLIER = 1.5  # 保守方案：1.5倍手续费
 
 # 价格均值窗口大小（N次价格）
 # 建议：5-10次，平衡灵敏度和稳定性
@@ -161,7 +157,7 @@ TRAILING_TP_PRICE_WINDOW = 5
 
 # 跌破均值的百分比阈值（例如：0.0008 表示跌破0.08%）
 # 修复说明：从0.4%降低到0.08%，提高动态止盈灵敏度，避免盈利变亏损
-TRAILING_TP_FALLBACK_PERCENT = 0.001  # Phase 1 优化: 提升至0.1%（放宽回撤阈值）
+TRAILING_TP_FALLBACK_PERCENT = 0.0008
 
 # ==================== Maker订单配置（新增）====================
 
@@ -283,7 +279,6 @@ ORDERBOOK_DATA_FRESHNESS_SECONDS = 5.0  # 只使用5秒内的数据
 LIQUIDITY_INSUFFICIENT_ACTION = "reject"  # reject=拒绝订单, reduce=减少订单量, ignore=忽略
 
 # ==================== 策略配置 ====================
-# 注：已统一配置管理，移除config/strategies.py中的重复配置
 
 ENABLE_STRATEGIES: List[str] = [
     "bollinger_trend",        # 顺势策略：突破上轨做多（替代抄底策略）
@@ -296,14 +291,14 @@ ENABLE_STRATEGIES: List[str] = [
     "adx_trend",              # 启用：ADX趋势策略，胜率50%，盈亏比0.97，表现中等
 ]
 
-# 共识信号配置
+# 共识信号配置（新增）
 USE_CONSENSUS_SIGNAL = True        # 是否使用共识信号
-MIN_STRATEGY_AGREEMENT = 0.35      # 最小策略一致性（降至0.35提升交易频率）
-MIN_SIGNAL_STRENGTH = 0.30         # 最小信号强度（降至0.30增加交易机会）
-MIN_SIGNAL_CONFIDENCE = 0.25       # 最小信号置信度（降至0.25放宽过滤）
+MIN_STRATEGY_AGREEMENT = 0.4       # Phase 2: 进一步降低到0.4以恢复交易（修复策略选择后）
+MIN_SIGNAL_STRENGTH = 0.45         # Phase 2: 降低到0.45
+MIN_SIGNAL_CONFIDENCE = 0.35       # Phase 2: 降低到0.35
 
-# 动态策略选择配置
-USE_DYNAMIC_STRATEGY = False       # 禁用动态策略（震荡市策略不生成信号）
+# 动态策略选择配置（新增）
+USE_DYNAMIC_STRATEGY = True        # 启用市场状态感知的动态策略选择
 # 当启用时,系统会根据市场状态(震荡/过渡/趋势)自动选择合适的策略
 # 当禁用时,使用上面 ENABLE_STRATEGIES 中的固定策略列表
 
@@ -378,16 +373,6 @@ LOG_DIR = "logs"
 LOG_FILE = "trading_bot.log"       # 主日志文件（已废弃，保留兼容性）
 LOG_LEVEL = "DEBUG"
 SAVE_EQUITY_CURVE = True
-
-# 数据库批量写入配置（性能优化）
-DB_BATCH_SIZE = 20                 # 批量写入缓冲区大小
-DB_BATCH_FLUSH_INTERVAL = 5.0      # 批量写入刷新间隔（秒）
-
-# ==================== 错误处理配置 ====================
-
-# 主循环错误处理
-MAX_CONSECUTIVE_ERRORS = 5         # 最大连续错误次数
-ERROR_BACKOFF_SECONDS = 10         # 错误退避基础时间（秒）
 
 # ==================== 日志分流配置 ====================
 
@@ -528,11 +513,11 @@ CLAUDE_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "")  # 自定义API端点
 # 可选: claude-opus-4-5-20251101 (最强), claude-sonnet-4-5-20250929 (平衡), claude-haiku-4-20250514 (快速)
 CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
 
-# Claude API超时配置（秒）
-CLAUDE_TIMEOUT = 30  # API调用超时时间，避免阻塞
-
 # Claude 分析的最小信号强度阈值（低于此值不调用 Claude）
 CLAUDE_MIN_SIGNAL_STRENGTH = 0.3
+
+# Claude 分析超时时间（秒）
+CLAUDE_TIMEOUT = 30  # 增加到30秒,避免API调用阻塞
 
 # Claude 分析失败时的默认行为
 # "pass": 分析失败时默认通过信号
@@ -641,7 +626,7 @@ POLICY_AGGRESSIVE_WIN_THRESHOLD = 5
 # ==================== 执行层风控配置（新增）====================
 
 # 是否启用执行层风控
-ENABLE_EXECUTION_FILTER = False  # Phase 1 优化: 临时禁用执行层风控（提升交易通过率20%）
+ENABLE_EXECUTION_FILTER = True
 
 # 点差阈值（超过此值拒绝交易）
 MAX_SPREAD_PCT = 0.001  # 0.1%
@@ -735,7 +720,7 @@ ML_MIN_TRAINING_SAMPLES = 100  # 最小训练样本数
 # ==================== 跨交易所套利配置 ====================
 
 # 是否启用套利引擎
-ENABLE_ARBITRAGE = True  # Phase 1 优化: 启用套利引擎（预期+0.5%日收益）
+ENABLE_ARBITRAGE = False  # 默认关闭，需要手动启用
 
 # 套利模式
 ARBITRAGE_MODE = "conservative"  # conservative: 保守模式, balanced: 平衡模式, aggressive: 激进模式
@@ -750,19 +735,19 @@ SPREAD_HISTORY_SIZE = 100  # 价差历史记录大小
 SPREAD_ALERT_THRESHOLD = 1.0  # 价差告警阈值（%）
 
 # 机会检测配置
-MIN_SPREAD_THRESHOLD = 0.25  # Phase 1 优化: 降至0.25%（增加套利机会）
+MIN_SPREAD_THRESHOLD = 0.3  # 最小价差阈值（%）
 MIN_NET_PROFIT_THRESHOLD = 1.0  # 最小净利润阈值（USDT）
 MIN_PROFIT_RATIO = 0.5  # 最小利润比例（净利润/毛利润）
 OPPORTUNITY_SCAN_INTERVAL = 2  # 机会扫描间隔（秒）
 
 # 仓位管理配置
-ARBITRAGE_POSITION_SIZE = 150  # Phase 1 优化: 提升至150 USDT（增加套利收益）
+ARBITRAGE_POSITION_SIZE = 100  # 单次套利交易金额（USDT）
 MAX_POSITION_PER_EXCHANGE = 500  # 单交易所最大持仓（USDT）
 MAX_TOTAL_ARBITRAGE_EXPOSURE = 1000  # 总套利敞口限制（USDT）
 MAX_POSITION_COUNT_PER_EXCHANGE = 3  # 单交易所最大持仓数量
 
 # 频率限制配置
-MAX_ARBITRAGE_PER_HOUR = 15  # Phase 1 优化: 提升至15次（增加套利频率）
+MAX_ARBITRAGE_PER_HOUR = 10  # 每小时最大套利次数
 MAX_ARBITRAGE_PER_DAY = 50  # 每日最大套利次数
 MIN_INTERVAL_BETWEEN_ARBITRAGE = 30  # 套利最小间隔（秒）
 
@@ -801,19 +786,6 @@ LOG_ALL_SPREADS = False  # 是否记录所有价差
 LOG_ALL_OPPORTUNITIES = True  # 是否记录所有机会
 LOG_ALL_EXECUTIONS = True  # 是否记录所有执行
 
-# ==================== Phase 0: 特性开关（用于渐进式优化）====================
-
-# AI异步化开关
-ASYNC_AI_ENABLED = False  # 是否启用AI异步调用（避免阻塞交易链路）
-
-# 数据库批量写入开关
-DB_BATCH_WRITES_ENABLED = False  # 是否启用数据库批量写入
-
-# ML强制轻量化开关
-ML_FORCE_LITE = False  # 是否强制使用轻量级ML预测器（生产环境推荐）
-
-# 配置拆分开关
-CONFIG_SPLIT_ENABLED = False  # 是否启用配置拆分（从config/目录加载）
 
 # ==================== 配置验证 ====================
 

@@ -241,16 +241,42 @@ class TradingBot:
             self.arbitrage_engine.start()
             logger.info("✅ 套利引擎已启动")
 
+        consecutive_errors = 0
+        max_consecutive_errors = getattr(config, 'MAX_CONSECUTIVE_ERRORS', 5)
+        error_backoff_seconds = getattr(config, 'ERROR_BACKOFF_SECONDS', 10)
+
         while self.running:
             try:
                 self._main_loop()
+                consecutive_errors = 0  # 成功执行，重置错误计数
+            except KeyboardInterrupt:
+                logger.info("收到中断信号，正在停止...")
+                break
             except Exception as e:
                 import traceback
-                logger.error(f"主循环异常: {e}")
+                consecutive_errors += 1
+                logger.error(f"主循环异常 (连续错误: {consecutive_errors}/{max_consecutive_errors}): {e}")
                 logger.error(traceback.format_exc())
-                notifier.notify_error(str(e))
 
-            
+                # 通知错误
+                try:
+                    notifier.notify_error(f"主循环异常: {str(e)}")
+                except Exception as notify_err:
+                    logger.warning(f"通知发送失败: {notify_err}")
+
+                # 检查是否超过最大连续错误次数
+                if consecutive_errors >= max_consecutive_errors:
+                    logger.critical(f"连续错误次数达到上限 ({max_consecutive_errors})，停止机器人")
+                    self.running = False
+                    break
+
+                # 错误退避：等待一段时间后重试
+                backoff_time = error_backoff_seconds * consecutive_errors
+                logger.warning(f"等待 {backoff_time} 秒后重试...")
+                time.sleep(backoff_time)
+                continue
+
+
             # 刷新数据库缓冲区
             try:
                 db.flush_buffers()

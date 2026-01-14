@@ -38,6 +38,7 @@ equity*.png
 .coverage
 htmlcov/
 .ace-tool/
+.claude-data/
 
 # Node.js
 node_modules/

@@ -105,7 +105,33 @@ python backtest.py
 
 ---
 
-## 4. 快速启动脚本
+## 4. Claude CLI 调试助手
+
+在某些受限环境下直接运行 `claude` 会尝试写入 `/root/.claude`，同时默认进入 `bypassPermissions` 模式，从而触发
+`--dangerously-skip-permissions cannot be used with root/sudo` 的报错。仓库内提供了一个包装脚本，它会：
+
+- 将 `CLAUDE_CONFIG_DIR` 指向项目下的 `.claude-data/`（自动创建，可安全写入、已在 `.gitignore` 中忽略）
+- 默认强制使用安全的 `--permission-mode default`
+- 阻止在 root 用户下意外拼接 `--dangerously-skip-permissions`
+
+使用方法：
+
+```bash
+# 查看帮助
+./scripts/claude.sh --help
+
+# 以默认模式启动 Claude Code
+./scripts/claude.sh
+
+# 需要其它参数时照常附加
+./scripts/claude.sh --print "explain current config"
+```
+
+之后若确实需要变更权限模式，可以显式传入 `--permission-mode acceptEdits` 等参数；脚本仅在未指定时提供默认值。
+
+---
+
+## 5. 快速启动脚本
 
 ### 4.1 Windows - `start.bat`
 
@@ -167,7 +193,7 @@ chmod +x start.sh
 
 ---
 
-## 5. 后台运行（生产环境）
+## 6. 后台运行（生产环境）
 
 ### 5.1 使用 nohup（Linux/macOS）
 

@@ -571,9 +571,328 @@ class TradeDatabase:
         signal_id = cursor.lastrowid
         conn.commit()
         conn.close()
-        
+
         return signal_id
-    
+
+    # ==================== Phase 3: 批量写入方法 ====================
+
+    def log_trade_buffered(
+        self,
+        symbol: str,
+        side: str,
+        action: str,
+        amount: float,
+        price: float,
+        order_id: str = "",
+        value_usdt: float = 0,
+        pnl: float = 0,
+        pnl_percent: float = 0,
+        strategy: str = "",
+        reason: str = "",
+        status: str = "filled",
+        filled_price: float = None,
+        filled_time: str = None,
+        fee: float = None,
+        fee_currency: str = None,
+        batch_number: int = None,
+        remaining_amount: float = None
+    ) -> Optional[int]:
+        """
+        缓冲交易记录（Phase 3优化）
+
+        如果启用批量写入，将记录添加到缓冲区；否则直接写入数据库。
+        当缓冲区满或超时时自动刷新。
+
+        Returns:
+            trade_id: 如果立即写入则返回ID，否则返回None
+        """
+        # 检查是否启用批量写入
+        if not getattr(config, 'DB_BATCH_WRITES_ENABLED', False):
+            # 未启用批量写入，直接调用原方法
+            return self.log_trade(
+                symbol=symbol, side=side, action=action, amount=amount, price=price,
+                order_id=order_id, value_usdt=value_usdt, pnl=pnl, pnl_percent=pnl_percent,
+                strategy=strategy, reason=reason, status=status,
+                filled_price=filled_price, filled_time=filled_time,
+                fee=fee, fee_currency=fee_currency,
+                batch_number=batch_number, remaining_amount=remaining_amount
+            )
+
+        # 自动计算 value_usdt
+        if value_usdt == 0:
+            value_usdt = amount * price
+
+        # 添加到缓冲区
+        trade_data = {
+            'order_id': order_id,
+            'symbol': symbol,
+            'side': side,
+            'action': action,
+            'amount': amount,
+            'price': price,
+            'value_usdt': value_usdt,
+            'pnl': pnl,
+            'pnl_percent': pnl_percent,
+            'strategy': strategy,
+            'reason': reason,
+            'status': status,
+            'filled_price': filled_price,
+            'filled_time': filled_time,
+            'fee': fee,
+            'fee_currency': fee_currency,
+            'batch_number': batch_number,
+            'remaining_amount': remaining_amount
+        }
+
+        self._trade_buffer.append(trade_data)
+
+        # 检查是否需要刷新
+        if len(self._trade_buffer) >= self._batch_size:
+            self._flush_trade_buffer(force=True)
+        elif time.time() - self._last_trade_flush >= self._batch_flush_interval:
+            self._flush_trade_buffer(force=True)
+
+        return None
+
+    def log_signal_buffered(
+        self,
+        strategy: str,
+        signal: str,
+        reason: str,
+        strength: float = 1.0,
+        confidence: float = 1.0,
+        indicators: Dict = None
+    ) -> Optional[int]:
+        """
+        缓冲信号记录（Phase 3优化）
+
+        如果启用批量写入，将记录添加到缓冲区；否则直接写入数据库。
+        当缓冲区满或超时时自动刷新。
+
+        Returns:
+            signal_id: 如果立即写入则返回ID，否则返回None
+        """
+        # 检查是否启用批量写入
+        if not getattr(config, 'DB_BATCH_WRITES_ENABLED', False):
+            # 未启用批量写入，直接调用原方法
+            return self.log_signal(
+                strategy=strategy, signal=signal, reason=reason,
+                strength=strength, confidence=confidence, indicators=indicators
+            )
+
+        # 转换 numpy 类型为 Python 类型
+        strength = float(strength) if strength is not None else 1.0
+        confidence = float(confidence) if confidence is not None else 1.0
+
+        # 转换 indicators 中的 numpy 类型
+        def convert_numpy_types(obj):
+            if obj is None:
+                return None
+            elif isinstance(obj, dict):
+                return {k: convert_numpy_types(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_numpy_types(item) for item in obj]
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, (np.integer, np.floating)):
+                return obj.item()
+            elif isinstance(obj, np.bool_):
+                return bool(obj)
+            elif hasattr(obj, 'item') and hasattr(obj, 'dtype'):
+                return obj.item()
+            else:
+                return obj
+
+        indicators_clean = convert_numpy_types(indicators or {})
+        indicators_json = json.dumps(indicators_clean)
+
+        # 添加到缓冲区
+        signal_data = {
+            'strategy': strategy,
+            'signal': signal,
+            'reason': reason,
+            'strength': strength,
+            'confidence': confidence,
+            'indicators': indicators_json
+        }
+
+        self._signal_buffer.append(signal_data)
+
+        # 检查是否需要刷新
+        if len(self._signal_buffer) >= self._batch_size:
+            self._flush_signal_buffer(force=True)
+        elif time.time() - self._last_signal_flush >= self._batch_flush_interval:
+            self._flush_signal_buffer(force=True)
+
+        return None
+
+    def log_trades_batch(self, trades_list: List[Dict[str, Any]]) -> int:
+        """
+        批量写入交易记录（Phase 3优化）
+
+        Args:
+            trades_list: 交易记录列表
+
+        Returns:
+            写入的记录数
+        """
+        if not trades_list:
+            return 0
+
+        conn = self._get_conn()
+        cursor = conn.cursor()
+
+        # 准备批量插入数据
+        values = []
+        for trade in trades_list:
+            values.append((
+                trade.get('order_id', ''),
+                trade.get('symbol', ''),
+                trade.get('side', ''),
+                trade.get('action', ''),
+                trade.get('amount', 0),
+                trade.get('price', 0),
+                trade.get('value_usdt', 0),
+                trade.get('pnl', 0),
+                trade.get('pnl_percent', 0),
+                trade.get('strategy', ''),
+                trade.get('reason', ''),
+                trade.get('status', 'filled'),
+                trade.get('filled_price'),
+                trade.get('filled_time'),
+                trade.get('fee'),
+                trade.get('fee_currency'),
+                trade.get('batch_number'),
+                trade.get('remaining_amount')
+            ))
+
+        # 批量插入
+        cursor.executemany('''
+            INSERT INTO trades (
+                order_id, symbol, side, action, amount, price,
+                value_usdt, pnl, pnl_percent, strategy, reason, status,
+                filled_price, filled_time, fee, fee_currency, batch_number, remaining_amount
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', values)
+
+        count = cursor.rowcount
+        conn.commit()
+        conn.close()
+
+        return count
+
+    def log_signals_batch(self, signals_list: List[Dict[str, Any]]) -> int:
+        """
+        批量写入信号记录（Phase 3优化）
+
+        Args:
+            signals_list: 信号记录列表
+
+        Returns:
+            写入的记录数
+        """
+        if not signals_list:
+            return 0
+
+        conn = self._get_conn()
+        cursor = conn.cursor()
+
+        # 准备批量插入数据
+        values = []
+        for signal in signals_list:
+            values.append((
+                signal.get('strategy', ''),
+                signal.get('signal', ''),
+                signal.get('reason', ''),
+                signal.get('strength', 1.0),
+                signal.get('confidence', 1.0),
+                signal.get('indicators', '{}')
+            ))
+
+        # 批量插入
+        cursor.executemany('''
+            INSERT INTO signals (strategy, signal, reason, strength, confidence, indicators)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', values)
+
+        count = cursor.rowcount
+        conn.commit()
+        conn.close()
+
+        return count
+
+    def flush_buffers(self, force: bool = False) -> None:
+        """
+        刷新所有缓冲区（Phase 3优化）
+
+        Args:
+            force: 是否强制刷新（忽略时间间隔检查）
+        """
+        self._flush_trade_buffer(force=force)
+        self._flush_signal_buffer(force=force)
+
+    def _flush_trade_buffer(self, force: bool = False) -> int:
+        """
+        刷新交易缓冲区（Phase 3优化）
+
+        Args:
+            force: 是否强制刷新
+
+        Returns:
+            写入的记录数
+        """
+        # 检查是否需要刷新
+        if not force:
+            if len(self._trade_buffer) < self._batch_size:
+                elapsed = time.time() - self._last_trade_flush
+                if elapsed < self._batch_flush_interval:
+                    return 0
+
+        # 如果缓冲区为空，直接返回
+        if not self._trade_buffer:
+            return 0
+
+        # 批量写入
+        count = self.log_trades_batch(self._trade_buffer)
+
+        # 清空缓冲区并更新时间戳
+        self._trade_buffer.clear()
+        self._last_trade_flush = time.time()
+
+        return count
+
+    def _flush_signal_buffer(self, force: bool = False) -> int:
+        """
+        刷新信号缓冲区（Phase 3优化）
+
+        Args:
+            force: 是否强制刷新
+
+        Returns:
+            写入的记录数
+        """
+        # 检查是否需要刷新
+        if not force:
+            if len(self._signal_buffer) < self._batch_size:
+                elapsed = time.time() - self._last_signal_flush
+                if elapsed < self._batch_flush_interval:
+                    return 0
+
+        # 如果缓冲区为空，直接返回
+        if not self._signal_buffer:
+            return 0
+
+        # 批量写入
+        count = self.log_signals_batch(self._signal_buffer)
+
+        # 清空缓冲区并更新时间戳
+        self._signal_buffer.clear()
+        self._last_signal_flush = time.time()
+
+        return count
+
+    # ==================== 原有方法继续 ====================
+
     def log_position_snapshot(
         self,
         symbol: str,

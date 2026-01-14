@@ -3,9 +3,11 @@ Claude AI 分析器
 集成 Claude API 进行智能交易决策分析
 """
 import json
+import asyncio
 from typing import Dict, Optional, Tuple
 from datetime import datetime
 import pandas as pd
+from concurrent.futures import ThreadPoolExecutor
 
 try:
     import anthropic
@@ -23,7 +25,7 @@ logger = get_logger("claude_analyzer")
 
 
 class ClaudeAnalyzer:
-    """Claude AI 交易分析器"""
+    """Claude AI 交易分析器（支持异步调用）"""
 
     def __init__(self, api_key: Optional[str] = None):
         """
@@ -36,6 +38,10 @@ class ClaudeAnalyzer:
         self.base_url = getattr(config, 'CLAUDE_BASE_URL', None)
         self.enabled = getattr(config, 'ENABLE_CLAUDE_ANALYSIS', False)
         self.model = getattr(config, 'CLAUDE_MODEL', 'claude-sonnet-4-5-20250929')
+        self.timeout = getattr(config, 'CLAUDE_TIMEOUT', 30)
+
+        # 线程池执行器，用于异步执行同步API调用
+        self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="claude_api")
 
         if not ANTHROPIC_AVAILABLE:
             self.enabled = False
@@ -54,21 +60,23 @@ class ClaudeAnalyzer:
                     self.client = anthropic.Anthropic(
                         api_key=self.api_key,
                         base_url=self.base_url,
+                        timeout=self.timeout,
                         default_headers={
                             "User-Agent": "claude-code-cli",
                             "X-Claude-Code": "1"
                         }
                     )
-                    logger.info(f"Claude 分析器初始化成功 (模型: {self.model}, 自定义端点: {self.base_url})")
+                    logger.info(f"Claude 分析器初始化成功 (模型: {self.model}, 自定义端点: {self.base_url}, 超时: {self.timeout}s)")
                 else:
                     self.client = anthropic.Anthropic(
                         api_key=self.api_key,
+                        timeout=self.timeout,
                         default_headers={
                             "User-Agent": "claude-code-cli",
                             "X-Claude-Code": "1"
                         }
                     )
-                    logger.info(f"Claude 分析器初始化成功 (模型: {self.model})")
+                    logger.info(f"Claude 分析器初始化成功 (模型: {self.model}, 超时: {self.timeout}s)")
             except Exception as e:
                 self.enabled = False
                 logger.error(f"Claude 客户端初始化失败: {e}")
@@ -647,7 +655,26 @@ class ClaudeAnalyzer:
 """
         return prompt
 
-    def analyze_signal(
+    def _call_claude_api_sync(self, prompt: str) -> str:
+        """
+        同步调用Claude API（内部方法，用于线程池执行）
+
+        Args:
+            prompt: 提示词
+
+        Returns:
+            API响应文本
+        """
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=2000,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response.content[0].text
+
+    async def analyze_signal_async(
         self,
         df: pd.DataFrame,
         current_price: float,
@@ -656,7 +683,7 @@ class ClaudeAnalyzer:
         position_info: Optional[Dict] = None
     ) -> Tuple[bool, str, Dict]:
         """
-        使用 Claude 分析交易信号
+        异步分析交易信号（推荐使用）
 
         Args:
             df: K线数据
@@ -669,32 +696,26 @@ class ClaudeAnalyzer:
             (是否执行, 原因, 分析详情)
         """
         if not self.enabled:
-            # Claude 未启用，直接通过
             return True, "Claude 分析未启用", {}
 
-        # 只分析开仓信号，平仓信号直接通过
         if signal.signal not in [Signal.LONG, Signal.SHORT]:
             return True, "非开仓信号，直接通过", {}
 
         try:
             # 格式化市场数据
             market_data = self._format_market_data(df, current_price, signal, indicators)
-
-            # 构建提示词
             prompt = self._build_analysis_prompt(market_data, signal, position_info)
 
-            # 调用 Claude API
-            logger.info("正在调用 Claude API 进行分析...")
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=2000,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
+            # 异步调用 Claude API（在线程池中执行）
+            logger.info("正在异步调用 Claude API 进行分析...")
+            loop = asyncio.get_event_loop()
+            response_text = await loop.run_in_executor(
+                self._executor,
+                self._call_claude_api_sync,
+                prompt
             )
 
             # 解析响应
-            response_text = response.content[0].text
             logger.debug(f"Claude 响应: {response_text}")
 
             # 提取 JSON
@@ -777,6 +798,50 @@ class ClaudeAnalyzer:
             logger.error(f"Claude 分析失败: {e}")
             # 失败时默认通过，避免阻塞交易
             return True, f"Claude 分析异常: {str(e)}", {}
+
+    def analyze_signal(
+        self,
+        df: pd.DataFrame,
+        current_price: float,
+        signal: TradeSignal,
+        indicators: Dict,
+        position_info: Optional[Dict] = None
+    ) -> Tuple[bool, str, Dict]:
+        """
+        同步分析交易信号（向后兼容方法）
+
+        注意：此方法会阻塞调用线程，建议使用 analyze_signal_async
+
+        Args:
+            df: K线数据
+            current_price: 当前价格
+            signal: 策略信号
+            indicators: 技术指标
+            position_info: 当前持仓信息
+
+        Returns:
+            (是否执行, 原因, 分析详情)
+        """
+        try:
+            # 尝试在现有事件循环中运行
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # 如果事件循环正在运行，使用线程池执行
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(
+                        asyncio.run,
+                        self.analyze_signal_async(df, current_price, signal, indicators, position_info)
+                    )
+                    return future.result(timeout=self.timeout + 5)
+            else:
+                # 如果没有运行的事件循环，直接运行
+                return asyncio.run(
+                    self.analyze_signal_async(df, current_price, signal, indicators, position_info)
+                )
+        except Exception as e:
+            logger.error(f"同步调用异步方法失败: {e}")
+            return True, f"调用失败: {str(e)}", {}
 
     def _parse_response(self, response_text: str) -> Optional[Dict]:
         """

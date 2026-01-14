@@ -44,20 +44,50 @@ def calc_bollinger_bands(
 def calc_bollinger_bandwidth(
     close: pd.Series,
     period: int = 20,
-    std_dev: float = 2
+    std_dev: float = 2,
+    bands: Optional[Tuple[pd.Series, pd.Series, pd.Series]] = None
 ) -> pd.Series:
-    """计算布林带宽度（新增 - 来自 Qbot）"""
-    upper, middle, lower = calc_bollinger_bands(close, period, std_dev)
+    """
+    计算布林带宽度（优化版：支持传入预计算的布林带）
+
+    Args:
+        close: 收盘价序列
+        period: 周期
+        std_dev: 标准差倍数
+        bands: 预计算的布林带 (upper, middle, lower)，可选
+
+    Returns:
+        布林带宽度序列
+    """
+    if bands is None:
+        upper, middle, lower = calc_bollinger_bands(close, period, std_dev)
+    else:
+        upper, middle, lower = bands
     return (upper - lower) / middle * 100
 
 
 def calc_bollinger_percent_b(
     close: pd.Series,
     period: int = 20,
-    std_dev: float = 2
+    std_dev: float = 2,
+    bands: Optional[Tuple[pd.Series, pd.Series, pd.Series]] = None
 ) -> pd.Series:
-    """计算 %B 指标（新增 - 来自 Qbot）"""
-    upper, middle, lower = calc_bollinger_bands(close, period, std_dev)
+    """
+    计算 %B 指标（优化版：支持传入预计算的布林带）
+
+    Args:
+        close: 收盘价序列
+        period: 周期
+        std_dev: 标准差倍数
+        bands: 预计算的布林带 (upper, middle, lower)，可选
+
+    Returns:
+        %B 指标序列
+    """
+    if bands is None:
+        upper, middle, lower = calc_bollinger_bands(close, period, std_dev)
+    else:
+        upper, middle, lower = bands
     return (close - lower) / (upper - lower)
 
 
