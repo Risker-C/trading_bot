@@ -128,12 +128,19 @@ class StatisticsService:
         return {
             'total_trades': total_trades,
             'total_pnl': round(total_pnl, 2),
+            'today_profit': round(total_pnl, 2),  # 前端期望字段
             'winning_trades': winning_trades,
             'losing_trades': losing_trades,
             'win_rate': round(win_rate, 2),
             'avg_profit': round(avg_profit, 2),
             'avg_loss': round(avg_loss, 2),
-            'profit_loss_ratio': round(profit_loss_ratio, 2)
+            'avg_pnl': round((total_pnl / total_trades) if total_trades > 0 else 0, 2),
+            'profit_loss_ratio': round(profit_loss_ratio, 2),
+            'pnl_trend': 'up' if total_pnl > 0 else 'down' if total_pnl < 0 else 'neutral',  # 前端期望字段
+            'win_rate_trend': 'up' if win_rate > 50 else 'down' if win_rate < 50 else 'neutral',  # 前端期望字段
+            'today_trend': 'up' if total_pnl > 0 else 'down',  # 前端期望字段
+            'position_status': 'Active' if total_trades > 0 else 'Inactive',  # 前端期望字段
+            'pnl_history': []  # 前端期望字段,暂时返回空数组
         }
 
     def _get_strategy_comparison(self, start_date: str, end_date: str) -> List[Dict[str, Any]]:

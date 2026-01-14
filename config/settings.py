@@ -373,7 +373,7 @@ AUTO_RECONNECT = True          # 自动重连
 
 # ==================== 数据存储 ====================
 
-DB_PATH = "trading_bot.db"
+DB_PATH = os.getenv("DATABASE_PATH", "trading_bot.db")
 LOG_DIR = "logs"
 LOG_FILE = "trading_bot.log"       # 主日志文件（已废弃，保留兼容性）
 LOG_LEVEL = "DEBUG"
