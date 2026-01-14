@@ -7,13 +7,15 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 async function fetchStats() {
-  const res = await fetch('http://localhost:8000/api/statistics/daily');
+  const res = await fetch(`${API_URL}/api/statistics/daily`);
   return res.json();
 }
 
 async function fetchTrades() {
-  const res = await fetch('http://localhost:8000/api/trades?limit=10');
+  const res = await fetch(`${API_URL}/api/trades?limit=10`);
   return res.json();
 }
 

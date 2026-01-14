@@ -6,13 +6,15 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, LineChart, Line, XAxis, YAxis } from 'recharts';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 async function fetchDailyStats() {
-  const res = await fetch('http://localhost:8000/api/statistics/daily');
+  const res = await fetch(`${API_URL}/api/statistics/daily`);
   return res.json();
 }
 
 async function fetchWeeklyStats() {
-  const res = await fetch('http://localhost:8000/api/statistics/weekly');
+  const res = await fetch(`${API_URL}/api/statistics/weekly`);
   return res.json();
 }
 

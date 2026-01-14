@@ -6,8 +6,10 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 async function fetchTrades(limit: number, offset: number) {
-  const res = await fetch(`http://localhost:8000/api/trades?limit=${limit}&offset=${offset}`);
+  const res = await fetch(`${API_URL}/api/trades?limit=${limit}&offset=${offset}`);
   return res.json();
 }
 
