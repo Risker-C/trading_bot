@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, LineChart, Line, XAxis, YAxis } from 'recharts';
@@ -21,28 +21,20 @@ async function fetchWeeklyStats() {
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(142 76% 36%)', 'hsl(346 87% 43%)'];
 
 export default function AnalyticsPage() {
-  const router = useRouter();
+  const { isAuthenticated, requireAuth } = useAuth();
   const [period, setPeriod] = useState<'daily' | 'weekly'>('daily');
-  const [hasToken, setHasToken] = useState(false);
 
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      router.push('/login');
-    } else {
-      setHasToken(true);
-    }
-  }, [router]);
+  useEffect(requireAuth, [requireAuth]);
 
   const { data: dailyStats } = useQuery({
     queryKey: ['daily-stats'],
     queryFn: fetchDailyStats,
-    enabled: hasToken
+    enabled: isAuthenticated
   });
   const { data: weeklyStats } = useQuery({
     queryKey: ['weekly-stats'],
     queryFn: fetchWeeklyStats,
-    enabled: hasToken
+    enabled: isAuthenticated
   });
 
   const stats = period === 'daily' ? dailyStats : weeklyStats;

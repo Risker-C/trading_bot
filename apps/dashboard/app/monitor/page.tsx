@@ -1,13 +1,18 @@
 'use client';
 
-import { useWebSocket } from '@/hooks/useWebSocket';
+import { useEffect } from 'react';
+import { useWebSocketContext } from '@/context/WebSocketContext';
+import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Activity, TrendingUp, AlertCircle } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, Legend } from 'recharts';
 
 export default function MonitorPage() {
-  const { data, isConnected } = useWebSocket(['trades', 'positions', 'trends', 'indicators', 'ticker']);
+  const { requireAuth } = useAuth();
+  const { data, isConnected } = useWebSocketContext();
+
+  useEffect(requireAuth, [requireAuth]);
 
   const indicators = data.indicators || [];
   const position = data.position;

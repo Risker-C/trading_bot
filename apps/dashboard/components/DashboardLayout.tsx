@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { LayoutDashboard, TrendingUp, BarChart3, Activity } from 'lucide-react';
 import { ThemeToggle } from './theme-toggle';
 import { TickerDisplay } from './TickerDisplay';
-import { useWebSocket } from '@/hooks/useWebSocket';
+import { useWebSocketContext } from '@/context/WebSocketContext';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -16,7 +16,7 @@ const navItems = [
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { data } = useWebSocket(['ticker']);
+  const { data } = useWebSocketContext();
 
   return (
     <div className="flex h-screen bg-background">

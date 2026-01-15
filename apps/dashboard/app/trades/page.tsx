@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -15,24 +15,16 @@ async function fetchTrades(limit: number, offset: number) {
 }
 
 export default function TradesPage() {
-  const router = useRouter();
+  const { isAuthenticated, requireAuth } = useAuth();
   const [page, setPage] = useState(0);
-  const [hasToken, setHasToken] = useState(false);
   const limit = 20;
 
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      router.push('/login');
-    } else {
-      setHasToken(true);
-    }
-  }, [router]);
+  useEffect(requireAuth, [requireAuth]);
 
   const { data: trades, isLoading } = useQuery({
     queryKey: ['trades', page],
     queryFn: () => fetchTrades(limit, page * limit),
-    enabled: hasToken
+    enabled: isAuthenticated
   });
 
   return (

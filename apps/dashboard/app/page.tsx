@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, TrendingDown, DollarSign, Target } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
@@ -10,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import apiClient from '@/lib/api-client';
 import { MarketOverview } from '@/components/MarketOverview';
-import { useWebSocket } from '@/hooks/useWebSocket';
+import { useWebSocketContext } from '@/context/WebSocketContext';
+import { useAuth } from '@/context/AuthContext';
 import dayjs from 'dayjs';
 
 async function fetchStats() {
@@ -24,28 +24,20 @@ async function fetchTrades() {
 }
 
 export default function HomePage() {
-  const router = useRouter();
-  const { data: wsData } = useWebSocket(['ticker']);
-  const [hasToken, setHasToken] = useState(false);
+  const { isAuthenticated, requireAuth } = useAuth();
+  const { data: wsData } = useWebSocketContext();
 
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      router.push('/login');
-    } else {
-      setHasToken(true);
-    }
-  }, [router]);
+  useEffect(requireAuth, [requireAuth]);
 
   const { data: stats } = useQuery({
     queryKey: ['stats'],
     queryFn: fetchStats,
-    enabled: hasToken
+    enabled: isAuthenticated
   });
   const { data: trades } = useQuery({
     queryKey: ['trades'],
     queryFn: fetchTrades,
-    enabled: hasToken
+    enabled: isAuthenticated
   });
 
   const chartData = stats?.pnl_history || [];
