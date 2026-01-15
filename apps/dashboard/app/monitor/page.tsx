@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Activity, TrendingUp, AlertCircle } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
+import { DecisionPanel } from '@/components/DecisionPanel';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, Legend } from 'recharts';
 
 export default function MonitorPage() {
@@ -96,27 +97,7 @@ export default function MonitorPage() {
         </Card>
       </div>
 
-      <Card className="p-6">
-        <h2 className="text-lg font-semibold mb-4">最新交易信号</h2>
-        <div className="space-y-2">
-          {data.trades?.slice(0, 5).map((trade: any, idx: number) => (
-            <div key={idx} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
-              <div className="flex items-center gap-3">
-                <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                  trade.side === 'buy' ? 'bg-trading-up/10 text-trading-up' : 'bg-trading-down/10 text-trading-down'
-                }`}>
-                  {trade.side === 'buy' ? '买入' : '卖出'}
-                </span>
-                <span className="font-medium">{trade.symbol}</span>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-medium font-mono tabular-nums">${trade.price?.toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground">{new Date(trade.timestamp).toLocaleTimeString()}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
+      <DecisionPanel decision={data.decision} />
     </div>
   );
 }

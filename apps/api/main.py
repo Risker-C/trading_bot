@@ -10,13 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from apps.api.routes import ai as ai_routes
 from apps.api.routes import auth as auth_routes
+from apps.api.routes import decisions as decisions_routes
 from apps.api.routes import history as history_routes
 from apps.api.routes import indicators as indicators_routes
 from apps.api.routes import positions as positions_routes
 from apps.api.routes import statistics as statistics_routes
+from apps.api.routes import stream as stream_routes
 from apps.api.routes import trades as trades_routes
 from apps.api.routes import trends as trends_routes
-from apps.api.websocket import router as websocket_router
 from apps.api.services.ticker_service import ticker_service
 
 # 加载环境变量
@@ -50,7 +51,8 @@ app.include_router(indicators_routes.router)
 app.include_router(history_routes.router)
 app.include_router(statistics_routes.router)
 app.include_router(ai_routes.router)
-app.include_router(websocket_router)
+app.include_router(decisions_routes.router)
+app.include_router(stream_routes.router)
 
 
 @app.on_event("startup")

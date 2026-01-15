@@ -2,8 +2,9 @@
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { DecisionData } from '@/lib/types/decision';
 
-type Channel = 'trades' | 'positions' | 'trends' | 'indicators' | 'ticker';
+type Channel = 'trades' | 'positions' | 'trends' | 'indicators' | 'ticker' | 'decision';
 
 interface WebSocketData {
   trades?: any[];
@@ -11,6 +12,7 @@ interface WebSocketData {
   trend?: any;
   indicators?: any[];
   ticker?: any;
+  decision?: DecisionData;
   updated_at?: string;
 }
 
@@ -24,7 +26,7 @@ const WebSocketContext = createContext<WebSocketContextType | undefined>(undefin
 
 const MAX_RETRIES = 5;
 const INITIAL_RETRY_DELAY = 1000;
-const DEFAULT_CHANNELS: Channel[] = ['trades', 'positions', 'trends', 'indicators', 'ticker'];
+const DEFAULT_CHANNELS: Channel[] = ['trades', 'positions', 'trends', 'indicators', 'ticker', 'decision'];
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated, token, logout } = useAuth();

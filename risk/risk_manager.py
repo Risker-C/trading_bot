@@ -4,7 +4,7 @@
 """
 import time
 from dataclasses import dataclass, field
-from typing import Optional, Tuple, List, Dict
+from typing import Optional, Tuple, List, Dict, Any
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
@@ -211,6 +211,11 @@ class RiskManager:
         self.daily_loss = 0
         self.daily_trades = 0
         self.daily_pnl = 0
+        self.last_daily_reset = datetime.now().date()
+        self.last_rejection_reason: str = ""
+        self.last_rejection_time: Optional[datetime] = None
+        self.last_rejection_details: Dict[str, Any] = {}
+        self.last_cooldown_remaining: float = 0.0
         
         # 交易控制
         self.last_trade_time: Optional[datetime] = None
@@ -1120,43 +1125,94 @@ class RiskManager:
         self.clear_position()
 
     # ==================== 交易控制 ====================
-    
-    def can_open_position(self) -> Tuple[bool, str]:
-        """检查是否可以开仓"""
-        # 1. 检查是否有持仓
-        if self.position is not None:
-            return False, "已有持仓"
-        
-        # 2. 检查冷却时间
+
+    def _reset_daily_if_needed(self) -> None:
+        today = datetime.now().date()
+        if today > self.last_daily_reset:
+            self.reset_daily_stats()
+            self.last_daily_reset = today
+
+    def get_cooldown_status(self) -> Dict[str, float]:
+        trade_remaining = 0.0
         if self.last_trade_time:
             elapsed = (datetime.now() - self.last_trade_time).total_seconds()
             if elapsed < self.trade_cooldown:
-                remaining = self.trade_cooldown - elapsed
-                return False, f"交易冷却中，剩余 {remaining:.0f} 秒"
-        
-        # 3. 检查亏损后冷却
+                trade_remaining = self.trade_cooldown - elapsed
+
+        loss_remaining = 0.0
         if self.last_loss_time:
             elapsed = (datetime.now() - self.last_loss_time).total_seconds()
             if elapsed < self.loss_cooldown:
-                remaining = self.loss_cooldown - elapsed
-                return False, f"亏损冷却中，剩余 {remaining:.0f} 秒"
-        
+                loss_remaining = self.loss_cooldown - elapsed
+
+        cooldown_remaining = max(trade_remaining, loss_remaining, 0.0)
+        self.last_cooldown_remaining = cooldown_remaining
+
+        return {
+            "trade_cooldown_remaining": trade_remaining,
+            "loss_cooldown_remaining": loss_remaining,
+            "cooldown_remaining": cooldown_remaining,
+        }
+
+    def _record_rejection(self, reason: str, cooldown_remaining: float = 0.0) -> None:
+        self.last_rejection_reason = reason
+        self.last_rejection_time = datetime.now()
+        self.last_rejection_details = {
+            "reason": reason,
+            "cooldown_remaining": round(cooldown_remaining, 0),
+            "daily_trades": self.daily_trades,
+            "daily_loss": self.daily_loss,
+        }
+        logger.info(f"风控拒绝: {reason}")
+
+    def can_open_position(self) -> Tuple[bool, str]:
+        """检查是否可以开仓"""
+        self._reset_daily_if_needed()
+
+        # 1. 检查是否有持仓
+        if self.position is not None:
+            self._record_rejection("已有持仓")
+            return False, "已有持仓"
+
+        # 2. 检查冷却时间
+        cooldown_status = self.get_cooldown_status()
+        trade_remaining = cooldown_status.get("trade_cooldown_remaining", 0.0)
+        if trade_remaining > 0:
+            reason = f"交易冷却中，剩余 {trade_remaining:.0f} 秒"
+            self._record_rejection(reason, trade_remaining)
+            return False, reason
+
+        # 3. 检查亏损后冷却
+        loss_remaining = cooldown_status.get("loss_cooldown_remaining", 0.0)
+        if loss_remaining > 0:
+            reason = f"亏损冷却中，剩余 {loss_remaining:.0f} 秒"
+            self._record_rejection(reason, loss_remaining)
+            return False, reason
+
         # 4. 检查日内交易次数
         if self.daily_trades >= 20:
-            return False, "已达日内交易次数上限"
-        
+            reason = "已达日内交易次数上限"
+            self._record_rejection(reason)
+            return False, reason
+
         # 5. 检查日内亏损
         if self.daily_loss < -500:  # 日亏损超过 500 USDT
-            return False, f"日内亏损过大: {self.daily_loss:.2f}"
-        
+            reason = f"日内亏损过大: {self.daily_loss:.2f}"
+            self._record_rejection(reason)
+            return False, reason
+
         # 6. 检查连续亏损
         if self.metrics.consecutive_losses >= 5:
-            return False, f"连续亏损 {self.metrics.consecutive_losses} 次，暂停交易"
-        
+            reason = f"连续亏损 {self.metrics.consecutive_losses} 次，暂停交易"
+            self._record_rejection(reason)
+            return False, reason
+
         # 7. 检查回撤
         if self.metrics.current_drawdown > 0.2:  # 回撤超过 20%
-            return False, f"回撤过大: {self.metrics.current_drawdown:.1%}"
-        
+            reason = f"回撤过大: {self.metrics.current_drawdown:.1%}"
+            self._record_rejection(reason)
+            return False, reason
+
         return True, ""
     
     def can_add_position(self, current_price: float) -> Tuple[bool, str]:
@@ -1276,10 +1332,11 @@ class RiskManager:
         """重置日内统计（每日调用）"""
         logger.info(f"重置日内统计 - 昨日: 交易={self.daily_trades}次, "
                    f"盈亏={self.daily_pnl:.2f}, 亏损={self.daily_loss:.2f}")
-        
+
         self.daily_loss = 0
         self.daily_trades = 0
         self.daily_pnl = 0
+        self.last_daily_reset = datetime.now().date()
     
     def _save_position_to_db(self):
         """保存持仓状态到数据库"""

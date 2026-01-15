@@ -5,23 +5,17 @@ import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, TrendingDown, DollarSign, Target } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
 import { Card } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import apiClient from '@/lib/api-client';
 import { MarketOverview } from '@/components/MarketOverview';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { useAuth } from '@/context/AuthContext';
-import dayjs from 'dayjs';
 
 async function fetchStats() {
   const { data } = await apiClient.get('/api/statistics/daily');
   return data;
 }
 
-async function fetchTrades() {
-  const { data } = await apiClient.get('/api/trades?limit=10');
-  return data;
-}
 
 export default function HomePage() {
   const { isAuthenticated, requireAuth } = useAuth();
@@ -32,11 +26,6 @@ export default function HomePage() {
   const { data: stats } = useQuery({
     queryKey: ['stats'],
     queryFn: fetchStats,
-    enabled: isAuthenticated
-  });
-  const { data: trades } = useQuery({
-    queryKey: ['trades'],
-    queryFn: fetchTrades,
     enabled: isAuthenticated
   });
 
@@ -87,40 +76,6 @@ export default function HomePage() {
             <Area type="monotone" dataKey="pnl" stroke="hsl(var(--primary))" fill="url(#colorPnl)" />
           </AreaChart>
         </ResponsiveContainer>
-      </Card>
-
-      <Card className="p-6">
-        <h2 className="text-lg font-semibold mb-4">最近交易</h2>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>时间</TableHead>
-              <TableHead>交易对</TableHead>
-              <TableHead>方向</TableHead>
-              <TableHead>价格</TableHead>
-              <TableHead>数量</TableHead>
-              <TableHead className="text-right">盈亏</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {trades?.map((trade: any) => (
-              <TableRow key={trade.id}>
-                <TableCell>{dayjs(trade.created_at).format('YYYY-MM-DD HH:mm:ss')}</TableCell>
-                <TableCell>{trade.symbol}</TableCell>
-                <TableCell>
-                  <span className={trade.side === 'buy' ? 'text-trading-up' : 'text-trading-down'}>
-                    {trade.side.toUpperCase()}
-                  </span>
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">${trade.price?.toFixed(2)}</TableCell>
-                <TableCell className="font-mono tabular-nums">{trade.amount?.toFixed(4)}</TableCell>
-                <TableCell className={`text-right font-mono tabular-nums ${trade.pnl > 0 ? 'text-trading-up' : 'text-trading-down'}`}>
-                  ${trade.pnl?.toFixed(2)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
       </Card>
     </div>
   );

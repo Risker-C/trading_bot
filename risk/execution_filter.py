@@ -2,7 +2,7 @@
 执行层风控模块
 在信号通过策略和Claude分析后，进行最后的执行层检查
 """
-from typing import Tuple, Dict, Optional, Deque
+from typing import Tuple, Dict, Optional, Deque, List
 from datetime import datetime, timedelta
 from collections import deque
 import pandas as pd
@@ -44,13 +44,28 @@ class ExecutionFilter:
         # 历史记录
         self.last_check_time: Optional[datetime] = None
         self.rejection_count = 0
+        self.last_rejection_details: Optional[Dict] = None
+        history_size = getattr(config, 'EXECUTION_FILTER_REJECTION_HISTORY', 20)
+        self.recent_rejections: Deque[Dict] = deque(maxlen=history_size)
+
+    def _record_rejection(self, reason: str, details: Dict, stage: str) -> None:
+        payload = {
+            "timestamp": datetime.now().isoformat(),
+            "stage": stage,
+            "reason": reason,
+            "details": details,
+        }
+        self.last_rejection_details = payload
+        self.recent_rejections.append(payload)
+        logger.info(f"执行过滤拒绝: {reason}")
 
     def check_all(
         self,
         df: pd.DataFrame,
         current_price: float,
         ticker: Dict,
-        indicators: Dict
+        indicators: Dict,
+        record_rejection: bool = True
     ) -> Tuple[bool, str, Dict]:
         """
         执行所有检查
@@ -80,7 +95,9 @@ class ExecutionFilter:
         details['spread_check'] = spread_pass
         details['spread_pct'] = spread_pct
         if not spread_pass:
-            self.rejection_count += 1
+            if record_rejection:
+                self.rejection_count += 1
+                self._record_rejection(spread_reason, details, "spread")
             return False, spread_reason, details
 
         # 2. 检查流动性
@@ -88,7 +105,9 @@ class ExecutionFilter:
         details['liquidity_check'] = liquidity_pass
         details['volume_ratio'] = indicators.get('volume_ratio', 0)
         if not liquidity_pass:
-            self.rejection_count += 1
+            if record_rejection:
+                self.rejection_count += 1
+                self._record_rejection(liquidity_reason, details, "liquidity")
             return False, liquidity_reason, details
 
         # 3. 检查价格稳定性（新增）
@@ -97,14 +116,18 @@ class ExecutionFilter:
             details['price_stability_check'] = stability_pass
             details['price_volatility_pct'] = stability_volatility
             if not stability_pass:
-                self.rejection_count += 1
+                if record_rejection:
+                    self.rejection_count += 1
+                    self._record_rejection(stability_reason, details, "price_stability")
                 return False, stability_reason, details
 
         # 4. 检查波动率冲击
         volatility_pass, volatility_reason = self._check_volatility_spike(df, indicators)
         details['volatility_check'] = volatility_pass
         if not volatility_pass:
-            self.rejection_count += 1
+            if record_rejection:
+                self.rejection_count += 1
+                self._record_rejection(volatility_reason, details, "volatility")
             return False, volatility_reason, details
 
         # 所有检查通过
@@ -354,12 +377,18 @@ class ExecutionFilter:
 
         return False, "可以立即进场"
 
+    def get_rejection_history(self) -> List[Dict]:
+        """获取最近拒绝记录"""
+        return list(self.recent_rejections)
+
     def get_stats(self) -> Dict:
         """获取统计信息"""
         return {
             'enabled': self.enabled,
             'rejection_count': self.rejection_count,
             'last_check_time': self.last_check_time.isoformat() if self.last_check_time else None,
+            'last_rejection_details': self.last_rejection_details,
+            'recent_rejections': self.get_rejection_history(),
             'thresholds': {
                 'max_spread_pct': self.max_spread_pct,
                 'max_slippage_pct': self.max_slippage_pct,
