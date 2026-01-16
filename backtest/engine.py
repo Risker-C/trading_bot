@@ -56,7 +56,7 @@ class BacktestEngine:
                             'qty': position['qty'],
                             'price': current_bar['close'],
                             'fee': cash * 0.001,
-                            'strategy_name': signal.strategy_name,
+                            'strategy_name': signal.strategy,
                             'reason': signal.reason
                         }
                         self.repo.append_trade(session_id, trade)
@@ -80,7 +80,7 @@ class BacktestEngine:
                             'fee': cash * 0.001,
                             'pnl': pnl,
                             'pnl_pct': (pnl / initial_capital) * 100,
-                            'strategy_name': signal.strategy_name,
+                            'strategy_name': signal.strategy,
                             'reason': signal.reason
                         }
                         self.repo.append_trade(session_id, trade)
