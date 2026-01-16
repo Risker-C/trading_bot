@@ -15,6 +15,7 @@ from apps.api.services.position_service import PositionService
 from apps.api.services.trade_service import TradeService
 from apps.api.services.trend_service import TrendService
 from apps.api.services.ticker_service import ticker_service
+from backtest.repository import BacktestRepository
 
 router = APIRouter()
 
@@ -22,12 +23,13 @@ trade_service = TradeService()
 position_service = PositionService()
 trend_service = TrendService(trade_service=trade_service)
 indicator_service = IndicatorService(trade_service=trade_service)
+backtest_repo = BacktestRepository()
 
 
 class ConnectionManager:
     """WebSocket connection manager with channel subscriptions."""
 
-    AVAILABLE_CHANNELS = ["trades", "positions", "trends", "indicators", "ticker", "decision"]
+    AVAILABLE_CHANNELS = ["trades", "positions", "trends", "indicators", "ticker", "decision", "backtest"]
 
     def __init__(self) -> None:
         self.active_connections: Set[WebSocket] = set()
@@ -187,6 +189,8 @@ async def _build_payload(subscribed_channels: Set[str]) -> Dict[str, Any]:
         tasks["indicators"] = asyncio.create_task(indicator_service.get_active_indicators())
     if "ticker" in subscribed_channels:
         tasks["ticker"] = asyncio.create_task(ticker_service.get_ticker())
+    if "backtest" in subscribed_channels:
+        tasks["backtest"] = asyncio.create_task(asyncio.to_thread(_get_backtest_status))
 
     for channel, task in tasks.items():
         try:
@@ -201,10 +205,42 @@ async def _build_payload(subscribed_channels: Set[str]) -> Dict[str, Any]:
                 payload["indicators"] = [indicator.model_dump() for indicator in result]
             elif channel == "ticker":
                 payload["ticker"] = result.model_dump() if result else None
+            elif channel == "backtest":
+                payload["backtest"] = result
         except Exception:
             pass
 
     return payload
+
+
+def _get_backtest_status() -> Optional[Dict[str, Any]]:
+    """Get latest running backtest session status"""
+    try:
+        conn = backtest_repo._get_conn()
+        cursor = conn.execute("""
+            SELECT id, status, symbol, timeframe, initial_capital, strategy_name, updated_at
+            FROM backtest_sessions
+            WHERE status IN ('running', 'created')
+            ORDER BY updated_at DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return None
+
+        return {
+            "session_id": row[0],
+            "status": row[1],
+            "symbol": row[2],
+            "timeframe": row[3],
+            "initial_capital": row[4],
+            "strategy_name": row[5],
+            "updated_at": row[6]
+        }
+    except Exception:
+        return None
 
 
 def _json_default(value: Any) -> str:

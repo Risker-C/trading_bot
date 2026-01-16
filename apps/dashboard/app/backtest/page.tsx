@@ -2,17 +2,27 @@
 
 import { useState, useEffect } from 'react';
 import { useBacktestStore } from '@/stores/useBacktestStore';
+import { useWebSocketContext } from '@/context/WebSocketContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import KLineChart from '@/components/KLineChart';
 import axios from 'axios';
 
 export default function BacktestPage() {
-  const { params, setParams, currentSessionId, setCurrentSessionId, setStatus } = useBacktestStore();
+  const { params, setParams, currentSessionId, setCurrentSessionId, setStatus, activeTradeId, setActiveTradeId } = useBacktestStore();
+  const { data: wsData } = useWebSocketContext();
   const [loading, setLoading] = useState(false);
   const [metrics, setMetrics] = useState<any>(null);
   const [trades, setTrades] = useState<any[]>([]);
+  const [klines, setKlines] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (wsData.backtest && wsData.backtest.session_id === currentSessionId) {
+      setStatus(wsData.backtest.status);
+    }
+  }, [wsData.backtest, currentSessionId, setStatus]);
 
   useEffect(() => {
     if (!currentSessionId) return;
@@ -20,14 +30,16 @@ export default function BacktestPage() {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const interval = setInterval(async () => {
       try {
-        const [metricsRes, tradesRes] = await Promise.all([
+        const [metricsRes, tradesRes, klinesRes] = await Promise.all([
           axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/metrics`),
-          axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/trades?limit=50`)
+          axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/trades?limit=50`),
+          axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/klines?limit=1000`)
         ]);
 
         if (metricsRes.data) {
           setMetrics(metricsRes.data);
           setTrades(tradesRes.data);
+          setKlines(klinesRes.data);
           setStatus('finished');
         }
       } catch (error) {
@@ -43,6 +55,7 @@ export default function BacktestPage() {
       setLoading(true);
       setMetrics(null);
       setTrades([]);
+      setKlines([]);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
       const response = await axios.post(`${apiUrl}/api/backtests/sessions`, {
@@ -135,6 +148,18 @@ export default function BacktestPage() {
         </div>
       </Card>
 
+      {klines.length > 0 && (
+        <Card className="mt-6 p-6">
+          <h2 className="text-xl font-semibold mb-4">K线图表</h2>
+          <KLineChart
+            data={klines}
+            trades={trades}
+            activeTradeId={activeTradeId}
+            onTradeClick={setActiveTradeId}
+          />
+        </Card>
+      )}
+
       {metrics && (
         <div className="mt-6 space-y-6">
           <Card className="p-6">
@@ -180,7 +205,13 @@ export default function BacktestPage() {
                 </thead>
                 <tbody>
                   {trades.map((trade) => (
-                    <tr key={trade.id} className="border-b hover:bg-gray-50">
+                    <tr
+                      key={trade.id}
+                      className={`border-b cursor-pointer transition-colors ${
+                        activeTradeId === trade.id ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-gray-50'
+                      }`}
+                      onClick={() => setActiveTradeId(trade.id)}
+                    >
                       <td className="p-2">{new Date(trade.ts * 1000).toLocaleString()}</td>
                       <td className="p-2">{trade.side}</td>
                       <td className="p-2">{trade.action}</td>

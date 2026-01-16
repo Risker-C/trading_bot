@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { useAuth } from './AuthContext';
 import { DecisionData } from '@/lib/types/decision';
 
-type Channel = 'trades' | 'positions' | 'trends' | 'indicators' | 'ticker' | 'decision';
+type Channel = 'trades' | 'positions' | 'trends' | 'indicators' | 'ticker' | 'decision' | 'backtest';
 
 interface WebSocketData {
   trades?: any[];
@@ -13,6 +13,7 @@ interface WebSocketData {
   indicators?: any[];
   ticker?: any;
   decision?: DecisionData;
+  backtest?: any;
   updated_at?: string;
 }
 

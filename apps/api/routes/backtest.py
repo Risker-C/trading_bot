@@ -149,3 +149,31 @@ async def get_trades(session_id: str, limit: int = 100):
         return trades
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sessions/{session_id}/klines")
+async def get_klines(session_id: str, limit: int = 1000):
+    """Get backtest klines for chart"""
+    try:
+        conn = repo._get_conn()
+        cursor = conn.execute(
+            "SELECT ts, open, high, low, close, volume FROM backtest_klines WHERE session_id = ? ORDER BY ts ASC LIMIT ?",
+            (session_id, limit)
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        klines = []
+        for row in rows:
+            klines.append({
+                "timestamp": row[0],
+                "open": row[1],
+                "high": row[2],
+                "low": row[3],
+                "close": row[4],
+                "volume": row[5]
+            })
+
+        return klines
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
