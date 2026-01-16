@@ -168,7 +168,7 @@ export default function BacktestPage() {
                 selectsEnd
                 startDate={params.dateRange[0]}
                 endDate={params.dateRange[1]}
-                minDate={params.dateRange[0]}
+                minDate={params.dateRange[0] || undefined}
                 placeholderText="结束日期"
                 dateFormat="yyyy-MM-dd"
                 className="w-full p-2 border rounded"
