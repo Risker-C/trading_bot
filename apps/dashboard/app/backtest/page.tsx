@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import KLineChart from '@/components/KLineChart';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import axios from 'axios';
 
 export default function BacktestPage() {
@@ -145,6 +147,34 @@ export default function BacktestPage() {
               onChange={(e) => setParams({ capital: parseFloat(e.target.value) })}
               placeholder="10000"
             />
+          </div>
+
+          <div>
+            <Label>回测时间范围</Label>
+            <div className="flex gap-2">
+              <DatePicker
+                selected={params.dateRange[0]}
+                onChange={(date) => setParams({ dateRange: [date, params.dateRange[1]] })}
+                selectsStart
+                startDate={params.dateRange[0]}
+                endDate={params.dateRange[1]}
+                placeholderText="开始日期"
+                dateFormat="yyyy-MM-dd"
+                className="w-full p-2 border rounded"
+              />
+              <DatePicker
+                selected={params.dateRange[1]}
+                onChange={(date) => setParams({ dateRange: [params.dateRange[0], date] })}
+                selectsEnd
+                startDate={params.dateRange[0]}
+                endDate={params.dateRange[1]}
+                minDate={params.dateRange[0]}
+                placeholderText="结束日期"
+                dateFormat="yyyy-MM-dd"
+                className="w-full p-2 border rounded"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">留空则默认最近30天</p>
           </div>
 
           <div>

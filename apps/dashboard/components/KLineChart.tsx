@@ -47,38 +47,48 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
     );
 
     if (trades.length > 0) {
-      const markers = trades.map(trade => {
+      trades.forEach(trade => {
         const isActive = activeTradeId === trade.id;
-        return {
-          point: {
-            timestamp: trade.ts * 1000,
-            value: trade.price,
-          },
+        chartInstance.current.createOverlay({
+          name: 'simpleTag',
+          points: [
+            {
+              timestamp: trade.ts * 1000,
+              value: trade.price,
+            }
+          ],
           text: trade.action === 'open' ? (trade.side === 'long' ? 'B' : 'S') : 'C',
           styles: {
-            symbol: {
-              type: 'circle',
-              size: isActive ? 12 : 8,
+            point: {
               color: trade.action === 'open'
                 ? (trade.side === 'long' ? '#22c55e' : '#ef4444')
                 : '#6b7280',
-              activeColor: '#3b82f6',
+              borderColor: isActive ? '#3b82f6' : 'transparent',
+              borderSize: isActive ? 2 : 0,
+              radius: isActive ? 6 : 4,
             },
+            text: {
+              color: '#ffffff',
+              size: 12,
+              family: 'Arial',
+              weight: 'bold',
+            }
           },
           extendData: trade.id,
-        };
+          onMouseEnter: () => {
+            if (onTradeClick) {
+              // Highlight on hover
+            }
+          },
+          onClick: () => {
+            if (onTradeClick) {
+              onTradeClick(trade.id);
+            }
+          },
+        });
       });
 
       chartInstance.current.createIndicator('MA', false, { id: 'candle_pane' });
-      chartInstance.current.createOverlay({
-        name: 'simpleAnnotation',
-        points: markers,
-        onClick: (data: any) => {
-          if (onTradeClick && data.extendData) {
-            onTradeClick(data.extendData);
-          }
-        },
-      });
     }
 
     return () => {
