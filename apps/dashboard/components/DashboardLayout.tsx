@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, TrendingUp, BarChart3, Activity } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, BarChart3, Activity, LineChart } from 'lucide-react';
 import { ThemeToggle } from './theme-toggle';
 import { TickerDisplay } from './TickerDisplay';
 import { useWebSocketContext } from '@/context/WebSocketContext';
@@ -12,6 +12,7 @@ const navItems = [
   { href: '/trades', label: 'Trades', icon: TrendingUp },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/monitor', label: 'Monitor', icon: Activity },
+  { href: '/backtest', label: 'Backtest', icon: LineChart },
 ];
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
