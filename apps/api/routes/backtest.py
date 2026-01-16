@@ -37,21 +37,35 @@ async def create_session(request: CreateSessionRequest):
 
 def run_backtest_task(session_id: str, params: dict):
     """Background task to run backtest"""
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
+        logger.info(f"[Backtest {session_id[:8]}] 开始执行回测任务")
+        logger.info(f"[Backtest {session_id[:8]}] 参数: {params}")
+
+        logger.info(f"[Backtest {session_id[:8]}] 开始获取历史K线数据...")
         klines = data_provider.fetch_klines(
             params['symbol'],
             params['timeframe'],
             params['start_ts'],
             params['end_ts']
         )
+        logger.info(f"[Backtest {session_id[:8]}] 获取到 {len(klines)} 条K线数据")
 
         if klines.empty:
+            logger.warning(f"[Backtest {session_id[:8]}] K线数据为空，回测失败")
             repo.update_session_status(session_id, "failed", "No kline data available")
             return
 
+        logger.info(f"[Backtest {session_id[:8]}] 加载策略: {params['strategy_name']}")
         strategy = get_strategy(params['strategy_name'], klines)
+
+        logger.info(f"[Backtest {session_id[:8]}] 开始运行回测引擎...")
         engine.run(session_id, klines, strategy.analyze, params['initial_capital'])
+        logger.info(f"[Backtest {session_id[:8]}] 回测完成")
     except Exception as e:
+        logger.error(f"[Backtest {session_id[:8]}] 回测失败: {str(e)}", exc_info=True)
         repo.update_session_status(session_id, "failed", str(e))
 
 
