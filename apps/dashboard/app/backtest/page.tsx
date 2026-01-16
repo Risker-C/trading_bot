@@ -163,7 +163,19 @@ export default function BacktestPage() {
       {metrics && (
         <div className="mt-6 space-y-6">
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">回测结果</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">回测结果</h2>
+              <Button
+                onClick={() => {
+                  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                  window.open(`${apiUrl}/api/backtests/sessions/${currentSessionId}/export`, '_blank');
+                }}
+                variant="outline"
+                size="sm"
+              >
+                导出报告
+              </Button>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-sm text-gray-500">总收益率</p>

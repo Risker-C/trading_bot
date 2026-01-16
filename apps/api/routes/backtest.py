@@ -2,6 +2,7 @@
 Backtest API routes
 """
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from apps.api.models.backtest import (
     CreateSessionRequest,
     SessionResponse,
@@ -11,6 +12,8 @@ from backtest.repository import BacktestRepository
 from backtest.engine import BacktestEngine
 from backtest.data_provider import HistoricalDataProvider
 from strategies.strategies import get_strategy
+import csv
+from io import StringIO
 
 router = APIRouter(prefix="/api/backtests", tags=["backtest"])
 repo = BacktestRepository()
@@ -175,5 +178,67 @@ async def get_klines(session_id: str, limit: int = 1000):
             })
 
         return klines
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sessions/{session_id}/export")
+async def export_report(session_id: str):
+    """Export backtest report as CSV"""
+    try:
+        conn = repo._get_conn()
+
+        # Get session info
+        session_cursor = conn.execute("SELECT * FROM backtest_sessions WHERE id = ?", (session_id,))
+        session = session_cursor.fetchone()
+
+        # Get metrics
+        metrics_cursor = conn.execute("SELECT * FROM backtest_metrics WHERE session_id = ?", (session_id,))
+        metrics = metrics_cursor.fetchone()
+
+        # Get trades
+        trades_cursor = conn.execute("SELECT * FROM backtest_trades WHERE session_id = ? ORDER BY ts", (session_id,))
+        trades = trades_cursor.fetchall()
+
+        conn.close()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Generate CSV
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # Session info
+        writer.writerow(["Session Info"])
+        writer.writerow(["Symbol", session[4]])
+        writer.writerow(["Timeframe", session[5]])
+        writer.writerow(["Initial Capital", session[8]])
+        writer.writerow(["Strategy", session[12]])
+        writer.writerow([])
+
+        # Metrics
+        if metrics:
+            writer.writerow(["Metrics"])
+            writer.writerow(["Total Trades", metrics[1]])
+            writer.writerow(["Win Rate", f"{metrics[2]*100:.2f}%"])
+            writer.writerow(["Total PnL", f"{metrics[3]:.2f}"])
+            writer.writerow(["Total Return", f"{metrics[4]:.2f}%"])
+            writer.writerow(["Max Drawdown", f"{metrics[5]:.2f}%"])
+            writer.writerow(["Sharpe Ratio", f"{metrics[6]:.2f}"])
+            writer.writerow([])
+
+        # Trades
+        writer.writerow(["Trades"])
+        writer.writerow(["Timestamp", "Symbol", "Side", "Action", "Quantity", "Price", "Fee", "PnL", "PnL %", "Strategy", "Reason"])
+        for trade in trades:
+            writer.writerow([trade[2], trade[3], trade[4], trade[5], trade[6], trade[7], trade[8], trade[10] or "", trade[11] or "", trade[12], trade[13]])
+
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=backtest_{session_id}.csv"}
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
