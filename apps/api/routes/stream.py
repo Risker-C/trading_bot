@@ -218,9 +218,9 @@ def _get_backtest_status() -> Optional[Dict[str, Any]]:
     try:
         conn = backtest_repo._get_conn()
         cursor = conn.execute("""
-            SELECT id, status, symbol, timeframe, initial_capital, strategy_name, updated_at
+            SELECT id, status, symbol, timeframe, initial_capital, strategy_name, updated_at, error_message
             FROM backtest_sessions
-            WHERE status IN ('running', 'created')
+            WHERE status IN ('running', 'created', 'completed', 'failed')
             ORDER BY updated_at DESC
             LIMIT 1
         """)
@@ -237,7 +237,8 @@ def _get_backtest_status() -> Optional[Dict[str, Any]]:
             "timeframe": row[3],
             "initial_capital": row[4],
             "strategy_name": row[5],
-            "updated_at": row[6]
+            "updated_at": row[6],
+            "error_message": row[7]
         }
     except Exception:
         return None

@@ -11,7 +11,7 @@ import KLineChart from '@/components/KLineChart';
 import axios from 'axios';
 
 export default function BacktestPage() {
-  const { params, setParams, currentSessionId, setCurrentSessionId, setStatus, activeTradeId, setActiveTradeId } = useBacktestStore();
+  const { params, setParams, currentSessionId, setCurrentSessionId, setStatus, activeTradeId, setActiveTradeId, status } = useBacktestStore();
   const { data: wsData } = useWebSocketContext();
   const [loading, setLoading] = useState(false);
   const [metrics, setMetrics] = useState<any>(null);
@@ -25,7 +25,7 @@ export default function BacktestPage() {
   }, [wsData.backtest, currentSessionId, setStatus]);
 
   useEffect(() => {
-    if (!currentSessionId) return;
+    if (!currentSessionId || status === 'finished' || status === 'idle') return;
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const interval = setInterval(async () => {
