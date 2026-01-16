@@ -58,6 +58,19 @@ def run_backtest_task(session_id: str, params: dict):
             repo.update_session_status(session_id, "failed", "No kline data available")
             return
 
+        # 保存K线到数据库以便前端展示图表
+        kline_list = []
+        for ts, row in klines.iterrows():
+            kline_list.append({
+                'ts': int(ts.timestamp()),
+                'open': row['open'],
+                'high': row['high'],
+                'low': row['low'],
+                'close': row['close'],
+                'volume': row['volume']
+            })
+        repo.save_klines(session_id, kline_list)
+
         logger.info(f"[Backtest {session_id[:8]}] 加载策略: {params['strategy_name']}")
 
         logger.info(f"[Backtest {session_id[:8]}] 开始运行回测引擎...")

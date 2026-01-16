@@ -27,7 +27,7 @@ const WebSocketContext = createContext<WebSocketContextType | undefined>(undefin
 
 const MAX_RETRIES = 5;
 const INITIAL_RETRY_DELAY = 1000;
-const DEFAULT_CHANNELS: Channel[] = ['trades', 'positions', 'trends', 'indicators', 'ticker', 'decision'];
+const DEFAULT_CHANNELS: Channel[] = ['trades', 'positions', 'trends', 'indicators', 'ticker', 'decision', 'backtest'];
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated, token, logout } = useAuth();

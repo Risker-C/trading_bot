@@ -139,6 +139,22 @@ class BacktestRepository:
         conn.commit()
         conn.close()
 
+    def save_klines(self, session_id: str, klines: List[Dict]):
+        """Save kline data for a session"""
+        conn = self._get_conn()
+        conn.executemany("""
+            INSERT INTO backtest_klines (
+                session_id, ts, open, high, low, close, volume
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, [
+            (
+                session_id, k['ts'], k['open'], k['high'],
+                k['low'], k['close'], k['volume']
+            ) for k in klines
+        ])
+        conn.commit()
+        conn.close()
+
     def create_session(self, params: Dict) -> str:
         """Create new backtest session"""
         session_id = str(uuid.uuid4())

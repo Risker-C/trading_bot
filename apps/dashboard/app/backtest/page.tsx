@@ -30,10 +30,11 @@ export default function BacktestPage() {
   }, [wsData.backtest, currentSessionId, setStatus]);
 
   useEffect(() => {
-    if (!currentSessionId || status === 'finished' || status === 'idle') return;
+    if (!currentSessionId || status === 'idle') return;
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const interval = setInterval(async () => {
+    
+    const fetchResults = async () => {
       try {
         const [metricsRes, tradesRes, klinesRes] = await Promise.all([
           axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/metrics`),
@@ -45,15 +46,29 @@ export default function BacktestPage() {
           setMetrics(metricsRes.data);
           setTrades(tradesRes.data);
           setKlines(klinesRes.data);
-          setStatus('finished');
+          if (status === 'running') {
+            setStatus('finished');
+          }
         }
       } catch (error) {
         console.error('Failed to fetch results:', error);
       }
-    }, 5000);
+    };
 
-    return () => clearInterval(interval);
-  }, [currentSessionId, status]);
+    // 如果状态是 running，设置定时轮询
+    let interval: NodeJS.Timeout | null = null;
+    if (status === 'running') {
+      fetchResults(); // 立即获取一次
+      interval = setInterval(fetchResults, 5000);
+    } else if (status === 'finished' && !metrics) {
+      // 如果状态变成了 finished 但还没有获取到数据，再获取一次
+      fetchResults();
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [currentSessionId, status, metrics, setStatus]);
 
   const handleStart = async () => {
     try {
@@ -147,11 +162,19 @@ export default function BacktestPage() {
             </select>
           </div>
 
-          <Button onClick={handleStart} disabled={loading} className="w-full">
-            {loading ? '启动中...' : '开始回测'}
+          <Button onClick={handleStart} disabled={loading || status === 'running'} className="w-full">
+            {loading ? '启动中...' : status === 'running' ? '回测进行中...' : '开始回测'}
           </Button>
         </div>
       </Card>
+
+      {status === 'running' && !metrics && (
+        <Card className="mt-6 p-12 flex flex-col items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+          <p className="text-lg font-medium">正在执行回测并生成报告...</p>
+          <p className="text-sm text-gray-500 mt-2">这可能需要几秒到几分钟的时间，请稍候。</p>
+        </Card>
+      )}
 
       {klines.length > 0 && (
         <Card className="mt-6 p-6">
