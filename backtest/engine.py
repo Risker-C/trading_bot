@@ -13,16 +13,18 @@ class BacktestEngine:
     def __init__(self, repo: BacktestRepository):
         self.repo = repo
 
-    def run(self, session_id: str, klines: pd.DataFrame, strategy_func, initial_capital: float = 10000.0):
+    def run(self, session_id: str, klines: pd.DataFrame, strategy_name: str, initial_capital: float = 10000.0):
         """
         Run backtest on historical data
 
         Args:
             session_id: Backtest session ID
             klines: DataFrame with OHLCV data
-            strategy_func: Strategy function that returns signals
+            strategy_name: Strategy name to use
             initial_capital: Starting capital
         """
+        from strategies.strategies import get_strategy
+
         try:
             self.repo.update_session_status(session_id, "running")
 
@@ -34,7 +36,8 @@ class BacktestEngine:
                 window = klines.iloc[i-50:i+1]
                 current_bar = klines.iloc[i]
 
-                signal = strategy_func(window)
+                strategy = get_strategy(strategy_name, window)
+                signal = strategy.analyze()
 
                 if signal and signal.signal.value in ['long', 'short']:
                     if position is None:

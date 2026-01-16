@@ -59,10 +59,9 @@ def run_backtest_task(session_id: str, params: dict):
             return
 
         logger.info(f"[Backtest {session_id[:8]}] 加载策略: {params['strategy_name']}")
-        strategy = get_strategy(params['strategy_name'], klines)
 
         logger.info(f"[Backtest {session_id[:8]}] 开始运行回测引擎...")
-        engine.run(session_id, klines, strategy.analyze, params['initial_capital'])
+        engine.run(session_id, klines, params['strategy_name'], params['initial_capital'])
         logger.info(f"[Backtest {session_id[:8]}] 回测完成")
     except Exception as e:
         logger.error(f"[Backtest {session_id[:8]}] 回测失败: {str(e)}", exc_info=True)
