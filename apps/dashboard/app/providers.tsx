@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { WebSocketProvider } from '@/context/WebSocketContext';
 import { FullPageLoader } from '@/components/FullPageLoader';
@@ -10,13 +10,15 @@ import { FullPageLoader } from '@/components/FullPageLoader';
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isInitializing } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
 
   if (isInitializing) {
     return <FullPageLoader />;
   }
 
   if (!isAuthenticated && pathname !== '/login') {
-    return null;
+    router.replace('/login');
+    return <FullPageLoader />;
   }
 
   return <>{children}</>;
