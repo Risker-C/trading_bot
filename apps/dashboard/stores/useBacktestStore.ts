@@ -12,12 +12,12 @@ interface BacktestState {
     strategyName: string;
     strategyParams: Record<string, any>;
   };
-  activeTradeId: string | null;
+  activeTradeId: number | null;
   setStatus: (status: 'idle' | 'running' | 'finished') => void;
   setProgress: (progress: number) => void;
   setCurrentSessionId: (id: string | null) => void;
   setParams: (params: Partial<BacktestState['params']>) => void;
-  setActiveTradeId: (id: string | null) => void;
+  setActiveTradeId: (id: number | null) => void;
   reset: () => void;
 }
 
