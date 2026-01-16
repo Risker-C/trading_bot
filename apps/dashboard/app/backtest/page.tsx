@@ -53,7 +53,7 @@ export default function BacktestPage() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [currentSessionId]);
+  }, [currentSessionId, status]);
 
   const handleStart = async () => {
     try {
