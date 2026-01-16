@@ -20,7 +20,12 @@ export default function BacktestPage() {
 
   useEffect(() => {
     if (wsData.backtest && wsData.backtest.session_id === currentSessionId) {
-      setStatus(wsData.backtest.status);
+      const backendStatus = wsData.backtest.status;
+      if (backendStatus === 'completed' || backendStatus === 'failed') {
+        setStatus('finished');
+      } else if (backendStatus === 'created' || backendStatus === 'running') {
+        setStatus('running');
+      }
     }
   }, [wsData.backtest, currentSessionId, setStatus]);
 
