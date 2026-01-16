@@ -154,7 +154,7 @@ export default function BacktestPage() {
             <div className="flex gap-2">
               <DatePicker
                 selected={params.dateRange[0]}
-                onChange={(date) => setParams({ dateRange: [date, params.dateRange[1]] })}
+                onChange={(date: Date | null) => setParams({ dateRange: [date, params.dateRange[1]] })}
                 selectsStart
                 startDate={params.dateRange[0]}
                 endDate={params.dateRange[1]}
@@ -164,7 +164,7 @@ export default function BacktestPage() {
               />
               <DatePicker
                 selected={params.dateRange[1]}
-                onChange={(date) => setParams({ dateRange: [params.dateRange[0], date] })}
+                onChange={(date: Date | null) => setParams({ dateRange: [params.dateRange[0], date] })}
                 selectsEnd
                 startDate={params.dateRange[0]}
                 endDate={params.dateRange[1]}
