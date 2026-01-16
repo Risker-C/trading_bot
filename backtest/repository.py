@@ -26,15 +26,116 @@ class BacktestRepository:
 
     def _init_db(self):
         """Initialize database schema"""
-        schema_path = Path(__file__).parent.parent / "docs" / "backtesting_schema.sql"
-        if not schema_path.exists():
+        conn = self._get_conn()
+
+        # Check if tables exist
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='backtest_sessions'")
+        if cursor.fetchone():
+            conn.close()
             return
 
-        with open(schema_path) as f:
-            schema_sql = f.read()
+        # Try to load schema from file
+        schema_path = Path(__file__).parent.parent / "docs" / "backtesting_schema.sql"
+        if schema_path.exists():
+            with open(schema_path) as f:
+                schema_sql = f.read()
+            conn.executescript(schema_sql)
+        else:
+            # Fallback: create tables inline
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS backtest_sessions (
+                    id TEXT PRIMARY KEY,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    timeframe TEXT NOT NULL,
+                    start_ts INTEGER NOT NULL,
+                    end_ts INTEGER NOT NULL,
+                    initial_capital REAL NOT NULL,
+                    fee_rate REAL DEFAULT 0.001,
+                    slippage_bps INTEGER DEFAULT 5,
+                    leverage REAL DEFAULT 1.0,
+                    strategy_name TEXT NOT NULL,
+                    strategy_params TEXT,
+                    error_message TEXT
+                );
 
-        conn = self._get_conn()
-        conn.executescript(schema_sql)
+                CREATE TABLE IF NOT EXISTS backtest_metrics (
+                    session_id TEXT PRIMARY KEY,
+                    total_trades INTEGER,
+                    win_rate REAL,
+                    total_pnl REAL,
+                    total_return REAL,
+                    max_drawdown REAL,
+                    sharpe REAL,
+                    profit_factor REAL,
+                    expectancy REAL,
+                    avg_win REAL,
+                    avg_loss REAL,
+                    start_ts INTEGER,
+                    end_ts INTEGER,
+                    FOREIGN KEY (session_id) REFERENCES backtest_sessions(id)
+                );
+
+                CREATE TABLE IF NOT EXISTS backtest_trades (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    ts INTEGER NOT NULL,
+                    symbol TEXT NOT NULL,
+                    side TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    qty REAL NOT NULL,
+                    price REAL NOT NULL,
+                    fee REAL DEFAULT 0,
+                    pnl REAL,
+                    pnl_pct REAL,
+                    strategy_name TEXT,
+                    reason TEXT,
+                    FOREIGN KEY (session_id) REFERENCES backtest_sessions(id)
+                );
+
+                CREATE TABLE IF NOT EXISTS backtest_klines (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    ts INTEGER NOT NULL,
+                    open REAL NOT NULL,
+                    high REAL NOT NULL,
+                    low REAL NOT NULL,
+                    close REAL NOT NULL,
+                    volume REAL NOT NULL,
+                    FOREIGN KEY (session_id) REFERENCES backtest_sessions(id)
+                );
+
+                CREATE TABLE IF NOT EXISTS backtest_positions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    ts INTEGER NOT NULL,
+                    symbol TEXT NOT NULL,
+                    side TEXT NOT NULL,
+                    qty REAL NOT NULL,
+                    entry_price REAL NOT NULL,
+                    FOREIGN KEY (session_id) REFERENCES backtest_sessions(id)
+                );
+
+                CREATE TABLE IF NOT EXISTS backtest_equity_curve (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    ts INTEGER NOT NULL,
+                    equity REAL NOT NULL,
+                    FOREIGN KEY (session_id) REFERENCES backtest_sessions(id)
+                );
+
+                CREATE TABLE IF NOT EXISTS backtest_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    ts INTEGER NOT NULL,
+                    event_type TEXT NOT NULL,
+                    data TEXT,
+                    FOREIGN KEY (session_id) REFERENCES backtest_sessions(id)
+                );
+            """)
+
         conn.commit()
         conn.close()
 
