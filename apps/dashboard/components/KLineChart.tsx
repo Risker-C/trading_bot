@@ -70,7 +70,7 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
       });
 
       chartInstance.current.createIndicator('MA', false, { id: 'candle_pane' });
-      chartInstance.current.addOverlay({
+      chartInstance.current.createOverlay({
         name: 'simpleAnnotation',
         points: markers,
         onClick: (data: any) => {
