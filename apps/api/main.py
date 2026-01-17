@@ -14,6 +14,7 @@ from apps.api.routes import backtest as backtest_routes
 from apps.api.routes import decisions as decisions_routes
 from apps.api.routes import history as history_routes
 from apps.api.routes import indicators as indicators_routes
+from apps.api.routes import optimization as optimization_routes
 from apps.api.routes import positions as positions_routes
 from apps.api.routes import statistics as statistics_routes
 from apps.api.routes import stream as stream_routes
@@ -46,6 +47,7 @@ app.add_middleware(
 # 注册路由
 app.include_router(auth_routes.router)
 app.include_router(backtest_routes.router)
+app.include_router(optimization_routes.router)
 app.include_router(trades_routes.router)
 app.include_router(positions_routes.router)
 app.include_router(trends_routes.router)

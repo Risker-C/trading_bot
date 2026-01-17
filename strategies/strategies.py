@@ -39,13 +39,14 @@ class TradeSignal:
 
 class BaseStrategy(ABC):
     """策略基类"""
-    
+
     name: str = "base"
     description: str = ""
-    
-    def __init__(self, df: pd.DataFrame):
+
+    def __init__(self, df: pd.DataFrame, **kwargs):
         self.df = df
         self.ind = IndicatorCalculator(df)
+        self.params = kwargs  # 保存优化参数供子类使用
     
     @abstractmethod
     def analyze(self) -> TradeSignal:
