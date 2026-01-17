@@ -20,6 +20,7 @@
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.19",
     "klinecharts": "^9.8.12",
+    "lightweight-charts": "^4.1.3",
     "lucide-react": "^0.562.0",
     "next": "14.0.4",
     "react": "^18.2.0",
