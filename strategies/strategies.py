@@ -76,7 +76,7 @@ class BollingerBreakthroughStrategy(BaseStrategy):
             period=config.BB_PERIOD,
             std_dev=config.BB_STD_DEV
         )
-        self.breakthrough_count = config.BB_BREAKTHROUGH_COUNT
+        self.breakthrough_count = 1  # 降低到1根K线即可触发
     
     def analyze(self) -> TradeSignal:
         close = self.df['close']
@@ -185,7 +185,7 @@ class BollingerTrendStrategy(BaseStrategy):
             period=config.BB_PERIOD,
             std_dev=config.BB_STD_DEV
         )
-        self.breakthrough_count = config.BB_BREAKTHROUGH_COUNT
+        self.breakthrough_count = 1  # 降低到1根K线即可触发
 
     def analyze(self) -> TradeSignal:
         close = self.df['close']
@@ -317,7 +317,7 @@ class RSIDivergenceStrategy(BaseStrategy):
         }
         
         # 超卖 + 底背离 = 做多
-        if current_rsi < config.RSI_OVERSOLD:
+        if current_rsi < 45:
             if price_lower and rsi_higher:  # 价格新低，RSI抬高
                 return TradeSignal(
                     Signal.LONG,
@@ -333,9 +333,9 @@ class RSIDivergenceStrategy(BaseStrategy):
                 strength=0.6,
                 indicators=indicators
             )
-        
+
         # 超买 + 顶背离 = 做空
-        if current_rsi > config.RSI_OVERBOUGHT:
+        if current_rsi > 55:
             if price_higher and rsi_lower:  # 价格新高，RSI降低
                 return TradeSignal(
                     Signal.SHORT,
@@ -554,8 +554,8 @@ class KDJStrategy(BaseStrategy):
             'j': current_j,
         }
         
-        # K线在超卖区金叉
-        if crossover and current_k < config.KDJ_OVERSOLD + 10:
+        # K线在超卖区金叉 - 放宽条件
+        if crossover and current_k < 50:
             strength = 0.8 if current_j < 0 else 0.6
             return TradeSignal(
                 Signal.LONG,
@@ -564,9 +564,9 @@ class KDJStrategy(BaseStrategy):
                 strength=strength,
                 indicators=indicators
             )
-        
-        # K线在超买区死叉
-        if crossunder and current_k > config.KDJ_OVERBOUGHT - 10:
+
+        # K线在超买区死叉 - 放宽条件
+        if crossunder and current_k > 50:
             strength = 0.8 if current_j > 100 else 0.6
             return TradeSignal(
                 Signal.SHORT,
@@ -622,10 +622,10 @@ class ADXTrendStrategy(BaseStrategy):
         
         # ADX 上升表示趋势增强
         adx_rising = adx.iloc[-1] > adx.iloc[-3]
-        
-        # 趋势强度足够
-        strong_trend = current_adx > config.ADX_TREND_THRESHOLD
-        
+
+        # 趋势强度足够 - 大幅降低阈值
+        strong_trend = current_adx > 15
+
         indicators = {
             'adx': current_adx,
             'plus_di': current_plus_di,
@@ -838,13 +838,13 @@ class MultiTimeframeStrategy(BaseStrategy):
             # 只有单一时间周期，使用基础分析
             direction, strength = self._analyze_single_timeframe(self.df)
 
-            if direction > 0 and strength > 0.3:
+            if direction > 0 and strength > 0.15:
                 return TradeSignal(
                     Signal.LONG, self.name,
                     "多时间周期看多",
                     strength=strength
                 )
-            elif direction < 0 and strength > 0.3:
+            elif direction < 0 and strength > 0.15:
                 return TradeSignal(
                     Signal.SHORT, self.name,
                     "多时间周期看空",
@@ -882,7 +882,7 @@ class MultiTimeframeStrategy(BaseStrategy):
         }
         
         # 生成信号
-        if weighted_direction > 0.3 and avg_strength > 0.5:
+        if weighted_direction > 0.15 and avg_strength > 0.25:
             return TradeSignal(
                 Signal.LONG,
                 self.name,
@@ -891,8 +891,8 @@ class MultiTimeframeStrategy(BaseStrategy):
                 confidence=abs(weighted_direction),
                 indicators=indicators
             )
-        
-        if weighted_direction < -0.3 and avg_strength > 0.5:
+
+        if weighted_direction < -0.15 and avg_strength > 0.25:
             return TradeSignal(
                 Signal.SHORT,
                 self.name,
@@ -1146,9 +1146,9 @@ class CompositeScoreStrategy(BaseStrategy):
         }
         
         # 生成信号
-        threshold = 0.3
+        threshold = 0.15
 
-        if total_score > threshold and consistency > 0.4:
+        if total_score > threshold and consistency > 0.25:
             strength = min(abs(total_score), 1.0)
             return TradeSignal(
                 Signal.LONG,
@@ -1159,7 +1159,7 @@ class CompositeScoreStrategy(BaseStrategy):
                 indicators=indicators
             )
 
-        if total_score < -threshold and consistency > 0.4:
+        if total_score < -threshold and consistency > 0.25:
             strength = min(abs(total_score), 1.0)
             return TradeSignal(
                 Signal.SHORT,
