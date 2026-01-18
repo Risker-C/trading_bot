@@ -75,7 +75,7 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
                 line: {
                   style: 'dashed',
                   size: 1,
-                  color: trade.pnl >= 0 ? '#22c55e' : '#ef4444',
+                  color: (trade.pnl ?? 0) >= 0 ? '#22c55e' : '#ef4444',
                   dashedValue: [4, 4]
                 }
               }
