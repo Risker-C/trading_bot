@@ -271,6 +271,7 @@ export default function BacktestPage() {
                     <th className="text-right p-2">数量</th>
                     <th className="text-right p-2">盈亏</th>
                     <th className="text-left p-2">策略</th>
+                    <th className="text-left p-2">原因</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -283,14 +284,21 @@ export default function BacktestPage() {
                       onClick={() => setActiveTradeId(trade.id)}
                     >
                       <td className="p-2">{new Date(trade.ts * 1000).toLocaleString()}</td>
-                      <td className="p-2">{trade.side}</td>
+                      <td className="p-2">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          trade.side === 'long' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {trade.side}
+                        </span>
+                      </td>
                       <td className="p-2">{trade.action}</td>
                       <td className="p-2 text-right">{trade.price.toFixed(2)}</td>
                       <td className="p-2 text-right">{trade.qty.toFixed(4)}</td>
                       <td className={`p-2 text-right ${trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {trade.pnl ? trade.pnl.toFixed(2) : '-'}
                       </td>
-                      <td className="p-2">{trade.strategy_name}</td>
+                      <td className="p-2 text-xs">{trade.strategy_name}</td>
+                      <td className="p-2 text-xs text-gray-600">{trade.reason || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
