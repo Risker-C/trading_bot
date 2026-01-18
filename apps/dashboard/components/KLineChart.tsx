@@ -91,7 +91,7 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
         // 找到配对的交易
         const pairedTrade = trade.action === 'close'
           ? trades.find(t => t.id === trade.open_trade_id)
-          : trades.find(t => t.open_trade_id === trade.id);
+          : trades.find(t => t.open_trade_id === trade.id && t.action === 'close');
 
         const isPaired = activeTradeId === trade.id || activeTradeId === pairedTrade?.id;
 
@@ -103,8 +103,22 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
           trade.strategy_name ? `策略: ${trade.strategy_name}` : '',
           trade.reason ? `原因: ${trade.reason}` : '',
           trade.pnl ? `盈亏: ${trade.pnl.toFixed(2)}` : '',
-          pairedTrade ? `配对: #${pairedTrade.id}` : ''
+          pairedTrade ? `配对: #${pairedTrade.id}` : (trade.action === 'open' ? '未平仓' : '')
         ].filter(Boolean).join('\n');
+
+        // 根据开仓方向和操作类型选择标记样式
+        let symbolType = 'circle';
+        let symbolColor = '#6b7280';
+
+        if (trade.action === 'open') {
+          // 开仓：做多用向上三角形，做空用向下三角形
+          symbolType = trade.side === 'long' ? 'triangle' : 'invertedTriangle';
+          symbolColor = trade.side === 'long' ? '#22c55e' : '#ef4444';
+        } else {
+          // 平仓：用圆形，颜色根据盈亏
+          symbolType = 'circle';
+          symbolColor = (trade.pnl ?? 0) >= 0 ? '#22c55e' : '#ef4444';
+        }
 
         chartInstance.current.createOverlay({
           name: 'simpleAnnotation',
@@ -116,11 +130,9 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
           ],
           styles: {
             symbol: {
-              type: 'circle',
-              size: isPaired ? 8 : 6,
-              color: trade.action === 'open'
-                ? (trade.side === 'long' ? '#22c55e' : '#ef4444')
-                : '#6b7280',
+              type: symbolType,
+              size: isPaired ? 10 : 8,
+              color: symbolColor,
               activeColor: '#3b82f6',
               offset: [0, 0]
             },

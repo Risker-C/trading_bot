@@ -281,7 +281,7 @@ export default function BacktestPage() {
                     // 找到配对的交易
                     const pairedTrade = trade.action === 'close'
                       ? trades.find(t => t.id === trade.open_trade_id)
-                      : trades.find(t => t.open_trade_id === trade.id);
+                      : trades.find(t => t.open_trade_id === trade.id && t.action === 'close');
 
                     const isPaired = activeTradeId === trade.id || activeTradeId === pairedTrade?.id;
 
