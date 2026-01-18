@@ -50,28 +50,22 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
       trades.forEach(trade => {
         const isActive = activeTradeId === trade.id;
         chartInstance.current.createOverlay({
-          name: 'simpleTag',
+          name: 'simpleAnnotation',
           points: [
             {
               timestamp: trade.ts * 1000,
               value: trade.price,
             }
           ],
-          text: trade.action === 'open' ? (trade.side === 'long' ? 'B' : 'S') : 'C',
           styles: {
-            point: {
+            symbol: {
+              type: 'circle',
+              size: isActive ? 8 : 6,
               color: trade.action === 'open'
                 ? (trade.side === 'long' ? '#22c55e' : '#ef4444')
                 : '#6b7280',
-              borderColor: isActive ? '#3b82f6' : 'transparent',
-              borderSize: isActive ? 2 : 0,
-              radius: isActive ? 6 : 4,
-            },
-            text: {
-              color: '#ffffff',
-              size: 12,
-              family: 'Arial',
-              weight: 'bold',
+              activeColor: '#3b82f6',
+              offset: [0, 0]
             }
           },
           extendData: trade.id,

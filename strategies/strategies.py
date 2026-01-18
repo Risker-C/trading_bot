@@ -837,17 +837,17 @@ class MultiTimeframeStrategy(BaseStrategy):
         if not self.timeframe_data:
             # 只有单一时间周期，使用基础分析
             direction, strength = self._analyze_single_timeframe(self.df)
-            
-            if direction > 0 and strength > 0.5:
+
+            if direction > 0 and strength > 0.3:
                 return TradeSignal(
-                    Signal.LONG, self.name, 
-                    "多时间周期看多", 
+                    Signal.LONG, self.name,
+                    "多时间周期看多",
                     strength=strength
                 )
-            elif direction < 0 and strength > 0.5:
+            elif direction < 0 and strength > 0.3:
                 return TradeSignal(
-                    Signal.SHORT, self.name, 
-                    "多时间周期看空", 
+                    Signal.SHORT, self.name,
+                    "多时间周期看空",
                     strength=strength
                 )
             return TradeSignal(Signal.HOLD, self.name)
@@ -1147,8 +1147,8 @@ class CompositeScoreStrategy(BaseStrategy):
         
         # 生成信号
         threshold = 0.3
-        
-        if total_score > threshold and consistency > 0.5:
+
+        if total_score > threshold and consistency > 0.4:
             strength = min(abs(total_score), 1.0)
             return TradeSignal(
                 Signal.LONG,
@@ -1158,8 +1158,8 @@ class CompositeScoreStrategy(BaseStrategy):
                 confidence=consistency,
                 indicators=indicators
             )
-        
-        if total_score < -threshold and consistency > 0.5:
+
+        if total_score < -threshold and consistency > 0.4:
             strength = min(abs(total_score), 1.0)
             return TradeSignal(
                 Signal.SHORT,
@@ -1169,7 +1169,7 @@ class CompositeScoreStrategy(BaseStrategy):
                 confidence=consistency,
                 indicators=indicators
             )
-        
+
         return TradeSignal(Signal.HOLD, self.name, indicators=indicators)
     
     def check_exit(self, position_side: str) -> TradeSignal:
