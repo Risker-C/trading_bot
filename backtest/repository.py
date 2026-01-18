@@ -30,7 +30,11 @@ class BacktestRepository:
 
         # Check if tables exist
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='backtest_sessions'")
-        if cursor.fetchone():
+        tables_exist = cursor.fetchone() is not None
+
+        if tables_exist:
+            # Run migrations for existing database
+            self._run_migrations(conn)
             conn.close()
             return
 
@@ -92,6 +96,7 @@ class BacktestRepository:
                     pnl_pct REAL,
                     strategy_name TEXT,
                     reason TEXT,
+                    open_trade_id INTEGER,
                     FOREIGN KEY (session_id) REFERENCES backtest_sessions(id)
                 );
 
@@ -138,6 +143,19 @@ class BacktestRepository:
 
         conn.commit()
         conn.close()
+
+    def _run_migrations(self, conn):
+        """Run database migrations for schema updates"""
+        # Migration 1: Add open_trade_id column to backtest_trades
+        try:
+            cursor = conn.execute("PRAGMA table_info(backtest_trades)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if 'open_trade_id' not in columns:
+                conn.execute("ALTER TABLE backtest_trades ADD COLUMN open_trade_id INTEGER")
+                conn.commit()
+                print("Migration: Added open_trade_id column to backtest_trades")
+        except Exception as e:
+            print(f"Migration error: {e}")
 
     def save_klines(self, session_id: str, klines: List[Dict]):
         """Save kline data for a session"""
