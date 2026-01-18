@@ -37,10 +37,41 @@ class BacktestEngine:
                 current_bar = klines.iloc[i]
 
                 strategy = get_strategy(strategy_name, window)
-                signal = strategy.analyze()
 
-                if signal and signal.signal.value in ['long', 'short']:
-                    if position is None:
+                # 如果有持仓，先检查是否需要平仓
+                if position is not None:
+                    exit_signal = strategy.check_exit(position['side'])
+
+                    if exit_signal and exit_signal.signal.value in ['close_long', 'close_short']:
+                        pnl = (current_bar['close'] - position['entry_price']) * position['qty']
+                        if position['side'] == 'short':
+                            pnl = -pnl
+
+                        cash += pnl
+
+                        trade = {
+                            'ts': int(current_bar.name.timestamp()),
+                            'symbol': 'BTC/USDT:USDT',
+                            'side': position['side'],
+                            'action': 'close',
+                            'qty': position['qty'],
+                            'price': current_bar['close'],
+                            'fee': cash * 0.001,
+                            'pnl': pnl,
+                            'pnl_pct': (pnl / initial_capital) * 100,
+                            'strategy_name': exit_signal.strategy,
+                            'reason': exit_signal.reason
+                        }
+                        self.repo.append_trade(session_id, trade)
+                        trades.append(trade)
+                        position = None
+                        continue
+
+                # 如果没有持仓，检查是否有开仓信号
+                if position is None:
+                    signal = strategy.analyze()
+
+                    if signal and signal.signal.value in ['long', 'short']:
                         position = {
                             'side': signal.signal.value,
                             'entry_price': current_bar['close'],
@@ -61,31 +92,6 @@ class BacktestEngine:
                         }
                         self.repo.append_trade(session_id, trade)
                         trades.append(trade)
-
-                elif signal and signal.signal.value in ['close_long', 'close_short']:
-                    if position:
-                        pnl = (current_bar['close'] - position['entry_price']) * position['qty']
-                        if position['side'] == 'short':
-                            pnl = -pnl
-
-                        cash += pnl
-
-                        trade = {
-                            'ts': int(current_bar.name.timestamp()),
-                            'symbol': 'BTC/USDT:USDT',
-                            'side': position['side'],
-                            'action': 'close',
-                            'qty': position['qty'],
-                            'price': current_bar['close'],
-                            'fee': cash * 0.001,
-                            'pnl': pnl,
-                            'pnl_pct': (pnl / initial_capital) * 100,
-                            'strategy_name': signal.strategy,
-                            'reason': signal.reason
-                        }
-                        self.repo.append_trade(session_id, trade)
-                        trades.append(trade)
-                        position = None
 
             total_pnl = sum(t.get('pnl', 0) for t in trades)
             winning_trades = [t for t in trades if t.get('pnl', 0) > 0]
