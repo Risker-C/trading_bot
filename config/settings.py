@@ -942,3 +942,9 @@ if __name__ == "__main__":
     else:
         print_config()
 
+
+# ==================== 导出 settings 对象 ====================
+# 为了向后兼容，将当前模块作为 settings 对象导出
+import sys
+settings = sys.modules[__name__]
+
