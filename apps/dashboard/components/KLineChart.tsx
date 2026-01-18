@@ -66,6 +66,11 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
                 : '#6b7280',
               activeColor: '#3b82f6',
               offset: [0, 0]
+            },
+            text: {
+              style: 'fill',
+              size: 0,
+              color: 'transparent'
             }
           },
           extendData: trade.id,
