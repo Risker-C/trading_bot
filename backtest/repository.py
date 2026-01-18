@@ -198,13 +198,13 @@ class BacktestRepository:
         cursor = conn.execute("""
             INSERT INTO backtest_trades (
                 session_id, ts, symbol, side, action, qty, price,
-                fee, pnl, pnl_pct, strategy_name, reason
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                fee, pnl, pnl_pct, strategy_name, reason, open_trade_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             session_id, trade['ts'], trade['symbol'],
             trade['side'], trade['action'], trade['qty'], trade['price'],
             trade.get('fee', 0), trade.get('pnl', 0), trade.get('pnl_pct', 0),
-            trade.get('strategy_name'), trade.get('reason')
+            trade.get('strategy_name'), trade.get('reason'), trade.get('open_trade_id')
         ))
         trade_id = cursor.lastrowid
         conn.commit()

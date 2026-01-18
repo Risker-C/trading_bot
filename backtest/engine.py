@@ -30,6 +30,7 @@ class BacktestEngine:
 
             cash = initial_capital
             position = None
+            position_open_trade_id = None  # 记录开仓交易ID
             trades = []
 
             for i in range(50, len(klines)):
@@ -60,11 +61,13 @@ class BacktestEngine:
                             'pnl': pnl,
                             'pnl_pct': (pnl / initial_capital) * 100,
                             'strategy_name': exit_signal.strategy,
-                            'reason': exit_signal.reason
+                            'reason': exit_signal.reason,
+                            'open_trade_id': position_open_trade_id  # 关联开仓交易ID
                         }
                         self.repo.append_trade(session_id, trade)
                         trades.append(trade)
                         position = None
+                        position_open_trade_id = None
                         continue
 
                 # 如果没有持仓，检查是否有开仓信号
@@ -90,7 +93,8 @@ class BacktestEngine:
                             'strategy_name': signal.strategy,
                             'reason': signal.reason
                         }
-                        self.repo.append_trade(session_id, trade)
+                        trade_id = self.repo.append_trade(session_id, trade)
+                        position_open_trade_id = trade_id  # 保存开仓交易ID
                         trades.append(trade)
 
             total_pnl = sum(t.get('pnl', 0) for t in trades)

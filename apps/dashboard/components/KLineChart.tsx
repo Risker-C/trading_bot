@@ -22,6 +22,7 @@ interface Trade {
   reason?: string;
   qty?: number;
   pnl?: number;
+  open_trade_id?: number;
 }
 
 interface KLineChartProps {
@@ -52,8 +53,47 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
     );
 
     if (trades.length > 0) {
+      // 先绘制配对交易的连接线
+      trades.forEach(trade => {
+        if (trade.action === 'close' && trade.open_trade_id) {
+          const openTrade = trades.find(t => t.id === trade.open_trade_id);
+          if (openTrade) {
+            // 绘制从开仓到平仓的连接线
+            chartInstance.current.createOverlay({
+              name: 'segment',
+              points: [
+                {
+                  timestamp: openTrade.ts * 1000,
+                  value: openTrade.price,
+                },
+                {
+                  timestamp: trade.ts * 1000,
+                  value: trade.price,
+                }
+              ],
+              styles: {
+                line: {
+                  style: 'dashed',
+                  size: 1,
+                  color: trade.pnl >= 0 ? '#22c55e' : '#ef4444',
+                  dashedValue: [4, 4]
+                }
+              }
+            });
+          }
+        }
+      });
+
+      // 再绘制交易标记点
       trades.forEach(trade => {
         const isActive = activeTradeId === trade.id;
+
+        // 找到配对的交易
+        const pairedTrade = trade.action === 'close'
+          ? trades.find(t => t.id === trade.open_trade_id)
+          : trades.find(t => t.open_trade_id === trade.id);
+
+        const isPaired = activeTradeId === trade.id || activeTradeId === pairedTrade?.id;
 
         // 构建交易信息文本
         const tradeInfo = [
@@ -62,7 +102,8 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
           trade.qty ? `数量: ${trade.qty.toFixed(4)}` : '',
           trade.strategy_name ? `策略: ${trade.strategy_name}` : '',
           trade.reason ? `原因: ${trade.reason}` : '',
-          trade.pnl ? `盈亏: ${trade.pnl.toFixed(2)}` : ''
+          trade.pnl ? `盈亏: ${trade.pnl.toFixed(2)}` : '',
+          pairedTrade ? `配对: #${pairedTrade.id}` : ''
         ].filter(Boolean).join('\n');
 
         chartInstance.current.createOverlay({
@@ -76,7 +117,7 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
           styles: {
             symbol: {
               type: 'circle',
-              size: isActive ? 8 : 6,
+              size: isPaired ? 8 : 6,
               color: trade.action === 'open'
                 ? (trade.side === 'long' ? '#22c55e' : '#ef4444')
                 : '#6b7280',

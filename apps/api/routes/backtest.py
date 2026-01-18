@@ -172,7 +172,8 @@ async def get_trades(session_id: str, limit: int = 100):
                 "pnl": row[10],
                 "pnl_pct": row[11],
                 "strategy_name": row[12],
-                "reason": row[13]
+                "reason": row[13],
+                "open_trade_id": row[14] if len(row) > 14 else None
             })
 
         return trades

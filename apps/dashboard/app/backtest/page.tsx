@@ -265,6 +265,7 @@ export default function BacktestPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
+                    <th className="text-left p-2">交易对</th>
                     <th className="text-left p-2">时间</th>
                     <th className="text-left p-2">方向</th>
                     <th className="text-left p-2">操作</th>
@@ -276,32 +277,64 @@ export default function BacktestPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {trades.map((trade) => (
-                    <tr
-                      key={trade.id}
-                      className={`border-b cursor-pointer transition-colors ${
-                        activeTradeId === trade.id ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-gray-50'
-                      }`}
-                      onClick={() => setActiveTradeId(trade.id)}
-                    >
-                      <td className="p-2">{new Date(trade.ts * 1000).toLocaleString()}</td>
-                      <td className="p-2">
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          trade.side === 'long' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {trade.side}
-                        </span>
-                      </td>
-                      <td className="p-2">{trade.action}</td>
-                      <td className="p-2 text-right">{trade.price.toFixed(2)}</td>
-                      <td className="p-2 text-right">{trade.qty.toFixed(4)}</td>
-                      <td className={`p-2 text-right ${trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {trade.pnl ? trade.pnl.toFixed(2) : '-'}
-                      </td>
-                      <td className="p-2 text-xs">{trade.strategy_name}</td>
-                      <td className="p-2 text-xs text-gray-600">{trade.reason || '-'}</td>
-                    </tr>
-                  ))}
+                  {trades.map((trade) => {
+                    // 找到配对的交易
+                    const pairedTrade = trade.action === 'close'
+                      ? trades.find(t => t.id === trade.open_trade_id)
+                      : trades.find(t => t.open_trade_id === trade.id);
+
+                    const isPaired = activeTradeId === trade.id || activeTradeId === pairedTrade?.id;
+
+                    return (
+                      <tr
+                        key={trade.id}
+                        className={`border-b cursor-pointer transition-colors ${
+                          isPaired ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-gray-50'
+                        }`}
+                        onClick={() => setActiveTradeId(trade.id)}
+                      >
+                        <td className="p-2">
+                          {trade.action === 'close' && trade.open_trade_id && (
+                            <span className="text-xs text-gray-500">
+                              #{trade.open_trade_id} → #{trade.id}
+                            </span>
+                          )}
+                          {trade.action === 'open' && pairedTrade && (
+                            <span className="text-xs text-gray-500">
+                              #{trade.id} → #{pairedTrade.id}
+                            </span>
+                          )}
+                          {trade.action === 'open' && !pairedTrade && (
+                            <span className="text-xs text-orange-500">
+                              #{trade.id} (未平仓)
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-2">{new Date(trade.ts * 1000).toLocaleString()}</td>
+                        <td className="p-2">
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            trade.side === 'long' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {trade.side}
+                          </span>
+                        </td>
+                        <td className="p-2">
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            trade.action === 'open' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {trade.action === 'open' ? '开仓' : '平仓'}
+                          </span>
+                        </td>
+                        <td className="p-2 text-right">{trade.price.toFixed(2)}</td>
+                        <td className="p-2 text-right">{trade.qty.toFixed(4)}</td>
+                        <td className={`p-2 text-right ${trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {trade.pnl ? trade.pnl.toFixed(2) : '-'}
+                        </td>
+                        <td className="p-2 text-xs">{trade.strategy_name}</td>
+                        <td className="p-2 text-xs text-gray-600">{trade.reason || '-'}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
