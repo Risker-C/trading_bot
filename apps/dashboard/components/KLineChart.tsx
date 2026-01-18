@@ -18,6 +18,10 @@ interface Trade {
   action: string;
   price: number;
   side: string;
+  strategy_name?: string;
+  reason?: string;
+  qty?: number;
+  pnl?: number;
 }
 
 interface KLineChartProps {
@@ -49,6 +53,17 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
     if (trades.length > 0) {
       trades.forEach(trade => {
         const isActive = activeTradeId === trade.id;
+
+        // 构建交易信息文本
+        const tradeInfo = [
+          `${trade.action === 'open' ? '开仓' : '平仓'} ${trade.side === 'long' ? '做多' : '做空'}`,
+          `价格: ${trade.price.toFixed(2)}`,
+          trade.qty ? `数量: ${trade.qty.toFixed(4)}` : '',
+          trade.strategy_name ? `策略: ${trade.strategy_name}` : '',
+          trade.reason ? `原因: ${trade.reason}` : '',
+          trade.pnl ? `盈亏: ${trade.pnl.toFixed(2)}` : ''
+        ].filter(Boolean).join('\n');
+
         chartInstance.current.createOverlay({
           name: 'simpleAnnotation',
           points: [
@@ -66,14 +81,12 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
                 : '#6b7280',
               activeColor: '#3b82f6',
               offset: [0, 0]
-            },
-            text: {
-              style: 'fill',
-              size: 0,
-              color: 'transparent'
             }
           },
-          extendData: trade.id,
+          extendData: {
+            id: trade.id,
+            info: tradeInfo
+          },
           onMouseEnter: () => {
             if (onTradeClick) {
               // Highlight on hover
