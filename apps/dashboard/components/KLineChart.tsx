@@ -29,9 +29,10 @@ interface KLineChartProps {
   trades?: Trade[];
   activeTradeId?: number | null;
   onTradeClick?: (tradeId: number) => void;
+  strategyName?: string;
 }
 
-export default function KLineChart({ data, trades = [], activeTradeId, onTradeClick }: KLineChartProps) {
+export default function KLineChart({ data, trades = [], activeTradeId, onTradeClick, strategyName }: KLineChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<any>(null);
 
@@ -100,7 +101,19 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
         });
       });
 
-      chartInstance.current.createIndicator('MA', false, { id: 'candle_pane' });
+      // 根据策略动态创建指标
+      const indicatorMap: Record<string, string> = {
+        'bollinger_trend': 'BOLL',
+        'bollinger_breakthrough': 'BOLL',
+        'macd_cross': 'MACD',
+        'ema_cross': 'EMA',
+        'rsi_divergence': 'RSI',
+        'composite_score': 'MA',
+        'multi_timeframe': 'MA',
+      };
+
+      const indicator = strategyName ? indicatorMap[strategyName] || 'MA' : 'MA';
+      chartInstance.current.createIndicator(indicator, false, { id: 'candle_pane' });
     }
 
     return () => {

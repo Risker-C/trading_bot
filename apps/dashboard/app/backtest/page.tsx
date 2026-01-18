@@ -214,6 +214,7 @@ export default function BacktestPage() {
             trades={trades}
             activeTradeId={activeTradeId}
             onTradeClick={setActiveTradeId}
+            strategyName={params.strategyName}
           />
         </Card>
       )}
