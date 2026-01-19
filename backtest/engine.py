@@ -5,6 +5,7 @@ import pandas as pd
 from typing import Dict, List, Optional
 from datetime import datetime
 from backtest.repository import BacktestRepository
+from backtest.summary_repository import SummaryRepository
 
 
 class BacktestEngine:
@@ -132,6 +133,14 @@ class BacktestEngine:
 
             self.repo.upsert_metrics(session_id, metrics)
             self.repo.update_session_status(session_id, "completed")
+
+            # Update summary table for history list
+            try:
+                summary_repo = SummaryRepository(self.repo.db_path)
+                summary_repo.upsert_from_session(session_id)
+            except Exception as e:
+                # Log but don't fail the backtest if summary update fails
+                print(f"Warning: Failed to update summary for session {session_id}: {e}")
 
         except Exception as e:
             self.repo.update_session_status(session_id, "failed", str(e))

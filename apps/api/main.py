@@ -11,6 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from apps.api.routes import ai as ai_routes
 from apps.api.routes import auth as auth_routes
 from apps.api.routes import backtest as backtest_routes
+from apps.api.routes import backtest_history as backtest_history_routes
+from apps.api.routes import backtest_ai as backtest_ai_routes
+from apps.api.routes import change_requests as change_requests_routes
 from apps.api.routes import decisions as decisions_routes
 from apps.api.routes import history as history_routes
 from apps.api.routes import indicators as indicators_routes
@@ -47,6 +50,9 @@ app.add_middleware(
 # 注册路由
 app.include_router(auth_routes.router)
 app.include_router(backtest_routes.router)
+app.include_router(backtest_history_routes.router)
+app.include_router(backtest_ai_routes.router)
+app.include_router(change_requests_routes.router)
 app.include_router(optimization_routes.router)
 app.include_router(trades_routes.router)
 app.include_router(positions_routes.router)
