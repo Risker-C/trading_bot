@@ -21,8 +21,8 @@ class TickerService:
         self._cache: Optional[Ticker] = None
         self._cache_lock = asyncio.Lock()
         self._last_refresh: Optional[datetime] = None
-        self._refresh_interval = 1.5  # 刷新间隔（秒）
-        self._stale_threshold = 3.0  # 数据过期阈值（秒）
+        self._refresh_interval = 5.0  # 刷新间隔（秒）- 从1.5秒优化为5秒
+        self._stale_threshold = 10.0  # 数据过期阈值（秒）- 从3秒优化为10秒
         self._exchange_manager: Optional[AsyncExchangeManager] = None
         self._symbol: Optional[str] = None
 

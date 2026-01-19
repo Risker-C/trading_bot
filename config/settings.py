@@ -60,12 +60,10 @@ KLINE_LIMIT = 200              # K线数量
 # ==================== 多时间周期配置（新增）====================
 
 MULTI_TIMEFRAME_ENABLED = True
-TIMEFRAMES = ["5m", "15m", "1h", "4h"]
+TIMEFRAMES = ["15m", "1h"]  # 从4个周期优化为2个周期，减少数据获取量
 TIMEFRAME_WEIGHTS = {
-    "5m": 0.15,
-    "15m": 0.30,
-    "1h": 0.35,
-    "4h": 0.20,
+    "15m": 0.45,  # 调整权重
+    "1h": 0.55,
 }
 
 
@@ -376,12 +374,12 @@ AUTO_RECONNECT = True          # 自动重连
 DB_PATH = os.getenv("DATABASE_PATH", "trading_bot.db")
 LOG_DIR = "logs"
 LOG_FILE = "trading_bot.log"       # 主日志文件（已废弃，保留兼容性）
-LOG_LEVEL = "DEBUG"
+LOG_LEVEL = "INFO"  # 从DEBUG优化为INFO，减少日志开销
 SAVE_EQUITY_CURVE = True
 
 # 数据库批量写入配置（性能优化）
-DB_BATCH_SIZE = 20                 # 批量写入缓冲区大小
-DB_BATCH_FLUSH_INTERVAL = 5.0      # 批量写入刷新间隔（秒）
+DB_BATCH_SIZE = 50                 # 从20优化为50，减少写入频率
+DB_BATCH_FLUSH_INTERVAL = 10.0     # 从5秒优化为10秒，减少刷新频率
 
 # ==================== 错误处理配置 ====================
 
@@ -721,7 +719,7 @@ ML_MIN_SIGNALS = 1
 ML_LOG_PREDICTIONS = True
 
 # 是否在日志中显示ML预测详情
-ML_VERBOSE_LOGGING = True
+ML_VERBOSE_LOGGING = False  # 从True优化为False，减少日志输出
 
 # ML特征工程配置
 ML_FEATURE_LOOKBACK = 20  # 特征计算回溯周期（K线数量）
@@ -745,8 +743,8 @@ ARBITRAGE_SYMBOL = "BTCUSDT"  # 套利交易对
 ARBITRAGE_EXCHANGES = ["bitget", "binance", "okx"]  # 参与套利的交易所
 
 # 价差监控配置
-SPREAD_MONITOR_INTERVAL = 1  # 价差监控间隔（秒）
-SPREAD_HISTORY_SIZE = 100  # 价差历史记录大小
+SPREAD_MONITOR_INTERVAL = 3  # 从1秒优化为3秒，减少监控频率
+SPREAD_HISTORY_SIZE = 50  # 从100优化为50，减少内存占用
 SPREAD_ALERT_THRESHOLD = 1.0  # 价差告警阈值（%）
 
 # 机会检测配置
