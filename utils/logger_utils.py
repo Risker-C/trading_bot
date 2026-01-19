@@ -358,10 +358,32 @@ class TradeDatabase:
                 current_price REAL,
                 unrealized_pnl REAL,
                 leverage INTEGER,
+                highest_price REAL,
+                lowest_price REAL,
+                entry_time INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        
+
+        # 迁移：为已存在的 position_snapshots 表添加缺失的列
+        try:
+            cursor.execute("PRAGMA table_info(position_snapshots)")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+
+            if 'highest_price' not in existing_columns:
+                cursor.execute('ALTER TABLE position_snapshots ADD COLUMN highest_price REAL')
+                print("Migration: Added highest_price column to position_snapshots")
+
+            if 'lowest_price' not in existing_columns:
+                cursor.execute('ALTER TABLE position_snapshots ADD COLUMN lowest_price REAL')
+                print("Migration: Added lowest_price column to position_snapshots")
+
+            if 'entry_time' not in existing_columns:
+                cursor.execute('ALTER TABLE position_snapshots ADD COLUMN entry_time INTEGER')
+                print("Migration: Added entry_time column to position_snapshots")
+        except Exception as e:
+            print(f"Warning: Failed to add new columns to position_snapshots table: {e}")
+
         # 策略信号表
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS signals (
