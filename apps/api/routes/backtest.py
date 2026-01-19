@@ -174,6 +174,42 @@ async def stop_session(session_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/sessions/{session_id}")
+async def get_session(session_id: str):
+    """Get backtest session details"""
+    try:
+        repo = _get_repo()
+        conn = repo._get_conn()
+        cursor = conn.execute("SELECT * FROM backtest_sessions WHERE id = ?", (session_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        return {
+            "id": row[0],
+            "created_at": row[1],
+            "updated_at": row[2],
+            "status": row[3],
+            "symbol": row[4],
+            "timeframe": row[5],
+            "start_ts": row[6],
+            "end_ts": row[7],
+            "initial_capital": row[8],
+            "final_capital": row[9],
+            "total_pnl": row[10],
+            "total_return": row[11],
+            "strategy_name": row[12],
+            "strategy_params": row[13],
+            "error_message": row[14] if len(row) > 14 else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/sessions/{session_id}/metrics")
 async def get_metrics(session_id: str):
     """Get backtest metrics"""
