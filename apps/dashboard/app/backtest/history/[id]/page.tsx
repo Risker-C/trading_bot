@@ -212,7 +212,12 @@ export default function BacktestDetailPage() {
           <h2 className="text-xl font-semibold mb-4">K线图表</h2>
           <KLineChart
             data={klines}
-            trades={trades}
+            trades={trades.map(t => ({
+              ...t,
+              reason: t.reason ?? undefined,
+              pnl: t.pnl ?? undefined,
+              pnl_pct: t.pnl_pct ?? undefined
+            }))}
             strategyName={session.strategy_name}
           />
         </Card>
