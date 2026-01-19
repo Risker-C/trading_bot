@@ -39,7 +39,28 @@ export default function AIAnalysisPanel({ sessionId }: AIAnalysisProps) {
         `${apiUrl}/api/backtests/sessions/${sessionId}/ai-analysis`
       );
 
-      setAnalysis(response.data);
+      // 解析AI分析结果
+      const data = response.data;
+
+      // 如果summary是JSON字符串，尝试解析
+      if (typeof data.summary === 'string' && data.summary.trim().startsWith('{')) {
+        try {
+          const parsed = JSON.parse(data.summary);
+          setAnalysis({
+            report_id: data.report_id,
+            summary: parsed.summary || data.summary,
+            strengths: parsed.strengths || [],
+            weaknesses: parsed.weaknesses || [],
+            recommendations: parsed.recommendations || [],
+            param_suggestions: parsed.param_suggestions || {}
+          });
+        } catch (e) {
+          // 如果解析失败，使用原始数据
+          setAnalysis(data);
+        }
+      } else {
+        setAnalysis(data);
+      }
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || 'AI 分析失败');
     } finally {
@@ -56,7 +77,28 @@ export default function AIAnalysisPanel({ sessionId }: AIAnalysisProps) {
         `${apiUrl}/api/backtests/sessions/${sessionId}/ai-analysis`
       );
 
-      setAnalysis(response.data);
+      // 解析AI分析结果
+      const data = response.data;
+
+      // 如果summary是JSON字符串，尝试解析
+      if (typeof data.summary === 'string' && data.summary.trim().startsWith('{')) {
+        try {
+          const parsed = JSON.parse(data.summary);
+          setAnalysis({
+            report_id: data.report_id,
+            summary: parsed.summary || data.summary,
+            strengths: parsed.strengths || [],
+            weaknesses: parsed.weaknesses || [],
+            recommendations: parsed.recommendations || [],
+            param_suggestions: parsed.param_suggestions || {}
+          });
+        } catch (e) {
+          // 如果解析失败，使用原始数据
+          setAnalysis(data);
+        }
+      } else {
+        setAnalysis(data);
+      }
     } catch (err: any) {
       if (err.response?.status === 404) {
         setError('暂无 AI 分析报告，请点击"开始分析"生成');
@@ -84,12 +126,12 @@ export default function AIAnalysisPanel({ sessionId }: AIAnalysisProps) {
 
       {loading && (
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
       )}
 
       {error && !loading && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded p-4 text-yellow-800">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-4 text-yellow-800 dark:text-yellow-200">
           {error}
         </div>
       )}
@@ -99,16 +141,16 @@ export default function AIAnalysisPanel({ sessionId }: AIAnalysisProps) {
           {/* Summary */}
           <div>
             <h3 className="font-semibold text-lg mb-2">整体评价</h3>
-            <p className="text-gray-700">{analysis.summary}</p>
+            <p className="text-foreground">{analysis.summary}</p>
           </div>
 
           {/* Strengths */}
           {analysis.strengths && analysis.strengths.length > 0 && (
             <div>
-              <h3 className="font-semibold text-lg mb-2 text-green-600">优势</h3>
+              <h3 className="font-semibold text-lg mb-2 text-green-600 dark:text-green-400">优势</h3>
               <ul className="list-disc list-inside space-y-1">
                 {analysis.strengths.map((strength, index) => (
-                  <li key={index} className="text-gray-700">{strength}</li>
+                  <li key={index} className="text-foreground">{strength}</li>
                 ))}
               </ul>
             </div>
@@ -117,10 +159,10 @@ export default function AIAnalysisPanel({ sessionId }: AIAnalysisProps) {
           {/* Weaknesses */}
           {analysis.weaknesses && analysis.weaknesses.length > 0 && (
             <div>
-              <h3 className="font-semibold text-lg mb-2 text-red-600">劣势</h3>
+              <h3 className="font-semibold text-lg mb-2 text-red-600 dark:text-red-400">劣势</h3>
               <ul className="list-disc list-inside space-y-1">
                 {analysis.weaknesses.map((weakness, index) => (
-                  <li key={index} className="text-gray-700">{weakness}</li>
+                  <li key={index} className="text-foreground">{weakness}</li>
                 ))}
               </ul>
             </div>
@@ -129,10 +171,10 @@ export default function AIAnalysisPanel({ sessionId }: AIAnalysisProps) {
           {/* Recommendations */}
           {analysis.recommendations && analysis.recommendations.length > 0 && (
             <div>
-              <h3 className="font-semibold text-lg mb-2 text-blue-600">优化建议</h3>
+              <h3 className="font-semibold text-lg mb-2 text-blue-600 dark:text-blue-400">优化建议</h3>
               <ul className="list-disc list-inside space-y-1">
                 {analysis.recommendations.map((rec, index) => (
-                  <li key={index} className="text-gray-700">{rec}</li>
+                  <li key={index} className="text-foreground">{rec}</li>
                 ))}
               </ul>
             </div>
@@ -142,13 +184,13 @@ export default function AIAnalysisPanel({ sessionId }: AIAnalysisProps) {
           {analysis.param_suggestions && Object.keys(analysis.param_suggestions).length > 0 && (
             <div>
               <h3 className="font-semibold text-lg mb-2">参数建议</h3>
-              <div className="bg-gray-50 rounded p-4">
+              <div className="bg-muted/50 rounded p-4">
                 <table className="w-full">
                   <tbody>
                     {Object.entries(analysis.param_suggestions).map(([key, value]) => (
-                      <tr key={key} className="border-b last:border-b-0">
-                        <td className="py-2 font-medium text-gray-700">{key}</td>
-                        <td className="py-2 text-gray-600">{value}</td>
+                      <tr key={key} className="border-b border-border last:border-b-0">
+                        <td className="py-2 font-medium text-foreground">{key}</td>
+                        <td className="py-2 text-muted-foreground">{value}</td>
                       </tr>
                     ))}
                   </tbody>
