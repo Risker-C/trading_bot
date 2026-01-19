@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useBacktestStore } from '@/stores/useBacktestStore';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { Card } from '@/components/ui/card';
@@ -11,14 +11,53 @@ import KLineChart from '@/components/KLineChart';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import axios from 'axios';
+import { StrategyMultiSelector } from '@/components/backtest/StrategyMultiSelector';
+import { WeightConfigList } from '@/components/backtest/WeightConfigList';
+import { WeightBalancePanel } from '@/components/backtest/WeightBalancePanel';
 
 export default function BacktestPage() {
-  const { params, setParams, currentSessionId, setCurrentSessionId, setStatus, activeTradeId, setActiveTradeId, status } = useBacktestStore();
+  const {
+    params,
+    setParams,
+    currentSessionId,
+    setCurrentSessionId,
+    setStatus,
+    activeTradeId,
+    setActiveTradeId,
+    status,
+    addStrategy,
+    removeStrategy,
+    updateWeight,
+    autoBalanceWeights
+  } = useBacktestStore();
   const { data: wsData } = useWebSocketContext();
   const [loading, setLoading] = useState(false);
   const [metrics, setMetrics] = useState<any>(null);
   const [trades, setTrades] = useState<any[]>([]);
   const [klines, setKlines] = useState<any[]>([]);
+
+  // 计算总权重和验证状态
+  const totalWeight = useMemo(
+    () => params.selectedStrategies.reduce((sum, s) => sum + s.weight, 0),
+    [params.selectedStrategies]
+  );
+
+  const isWeightValid = useMemo(
+    () => Math.abs(totalWeight - 100) < 0.01,
+    [totalWeight]
+  );
+
+  const isMultiStrategy = params.selectedStrategies.length > 1;
+
+  // 策略切换处理
+  const handleStrategyToggle = (name: string) => {
+    const isSelected = params.selectedStrategies.some(s => s.name === name);
+    if (isSelected) {
+      removeStrategy(name);
+    } else {
+      addStrategy(name);
+    }
+  };
 
   useEffect(() => {
     if (wsData.backtest && wsData.backtest.session_id === currentSessionId) {
@@ -73,6 +112,17 @@ export default function BacktestPage() {
   }, [currentSessionId, status, metrics, setStatus]);
 
   const handleStart = async () => {
+    // 验证权重
+    if (!isWeightValid) {
+      alert('权重总和必须为 100%，当前为 ' + totalWeight.toFixed(1) + '%');
+      return;
+    }
+
+    if (params.selectedStrategies.length === 0) {
+      alert('请至少选择一个策略');
+      return;
+    }
+
     try {
       setLoading(true);
       setMetrics(null);
@@ -80,15 +130,32 @@ export default function BacktestPage() {
       setKlines([]);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-      const response = await axios.post(`${apiUrl}/api/backtests/sessions`, {
+      // 构建请求参数
+      const requestData: any = {
         symbol: params.symbol,
         timeframe: params.interval,
         start_ts: params.dateRange[0] ? Math.floor(params.dateRange[0].getTime() / 1000) : Math.floor(Date.now() / 1000) - 86400 * 30,
         end_ts: params.dateRange[1] ? Math.floor(params.dateRange[1].getTime() / 1000) : Math.floor(Date.now() / 1000),
         initial_capital: params.capital,
-        strategy_name: params.strategyName,
-        strategy_params: params.strategyParams,
-      });
+      };
+
+      // 多策略模式
+      if (isMultiStrategy) {
+        requestData.strategy_name = 'weighted_composite';
+        requestData.strategy_params = {
+          strategies: params.selectedStrategies.map(s => ({
+            name: s.name,
+            weight: s.weight / 100, // 转换为 0-1
+          })),
+          threshold: 0.30,
+        };
+      } else {
+        // 单策略模式
+        requestData.strategy_name = params.selectedStrategies[0].name;
+        requestData.strategy_params = params.strategyParams;
+      }
+
+      const response = await axios.post(`${apiUrl}/api/backtests/sessions`, requestData);
 
       setCurrentSessionId(response.data.session_id);
 
@@ -177,22 +244,32 @@ export default function BacktestPage() {
             <p className="text-xs text-muted-foreground mt-1">留空则默认最近30天</p>
           </div>
 
-          <div>
-            <Label htmlFor="strategy">策略</Label>
-            <select
-              id="strategy"
-              value={params.strategyName}
-              onChange={(e) => setParams({ strategyName: e.target.value })}
-              className="w-full p-2 border rounded bg-background text-foreground"
-            >
-              <option value="bollinger_trend">Bollinger Trend</option>
-              <option value="macd_cross">MACD Cross</option>
-              <option value="ema_cross">EMA Cross</option>
-              <option value="composite_score">Composite Score</option>
-            </select>
-          </div>
+          {/* 策略多选组件 */}
+          <StrategyMultiSelector
+            selected={params.selectedStrategies.map(s => s.name)}
+            onToggle={handleStrategyToggle}
+          />
 
-          <Button onClick={handleStart} disabled={loading || status === 'running'} className="w-full">
+          {/* 权重配置（仅多策略时显示） */}
+          {isMultiStrategy && (
+            <div className="space-y-3">
+              <WeightConfigList
+                strategies={params.selectedStrategies}
+                onUpdateWeight={updateWeight}
+                onRemove={removeStrategy}
+              />
+              <WeightBalancePanel
+                strategies={params.selectedStrategies}
+                onAutoBalance={autoBalanceWeights}
+              />
+            </div>
+          )}
+
+          <Button
+            onClick={handleStart}
+            disabled={loading || status === 'running' || !isWeightValid || params.selectedStrategies.length === 0}
+            className="w-full"
+          >
             {loading ? '启动中...' : status === 'running' ? '回测进行中...' : '开始回测'}
           </Button>
         </div>

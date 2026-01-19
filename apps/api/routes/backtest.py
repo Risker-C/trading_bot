@@ -99,10 +99,21 @@ def run_backtest_task(session_id: str, params: dict):
         if kline_batch:
             repo.save_klines(session_id, kline_batch)
 
-        logger.info(f"[Backtest {session_id[:8]}] 加载策略: {params['strategy_name']}")
+        # 判断是否为多策略模式
+        strategy_params = params.get('strategy_params')
+        if strategy_params and strategy_params.get('strategies'):
+            logger.info(f"[Backtest {session_id[:8]}] 加载多策略配置: {len(strategy_params['strategies'])} 个策略")
+        else:
+            logger.info(f"[Backtest {session_id[:8]}] 加载单策略: {params['strategy_name']}")
 
         logger.info(f"[Backtest {session_id[:8]}] 开始运行回测引擎...")
-        engine.run(session_id, klines, params['strategy_name'], params['initial_capital'])
+        engine.run(
+            session_id,
+            klines,
+            params['strategy_name'],
+            params['initial_capital'],
+            strategy_params=strategy_params
+        )
         logger.info(f"[Backtest {session_id[:8]}] 回测完成")
     except Exception as e:
         logger.error(f"[Backtest {session_id[:8]}] 回测失败: {str(e)}", exc_info=True)
@@ -148,13 +159,19 @@ async def start_session(session_id: str, background_tasks: BackgroundTasks):
         if not row:
             raise HTTPException(status_code=404, detail="Session not found")
 
+        # 解析 strategy_params（JSON 字段）
+        import json
+        strategy_params_raw = row[13] if len(row) > 13 and row[13] else None
+        strategy_params = json.loads(strategy_params_raw) if strategy_params_raw else None
+
         params = {
             'symbol': row[4],
             'timeframe': row[5],
             'start_ts': row[6],
             'end_ts': row[7],
             'initial_capital': row[8],
-            'strategy_name': row[12]
+            'strategy_name': row[12],
+            'strategy_params': strategy_params
         }
 
         background_tasks.add_task(run_backtest_task, session_id, params)

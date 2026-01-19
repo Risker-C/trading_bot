@@ -14,17 +14,19 @@ class BacktestEngine:
     def __init__(self, repo: BacktestRepository):
         self.repo = repo
 
-    def run(self, session_id: str, klines: pd.DataFrame, strategy_name: str, initial_capital: float = 10000.0):
+    def run(self, session_id: str, klines: pd.DataFrame, strategy_name: str,
+            initial_capital: float = 10000.0, strategy_params: Optional[Dict] = None):
         """
         Run backtest on historical data
 
         Args:
             session_id: Backtest session ID
             klines: DataFrame with OHLCV data
-            strategy_name: Strategy name to use
+            strategy_name: Strategy name to use (单策略模式)
             initial_capital: Starting capital
+            strategy_params: Strategy parameters (支持多策略配置)
         """
-        from strategies.strategies import get_strategy
+        from strategies.strategies import get_strategy, get_weighted_signal
 
         try:
             self.repo.update_session_status(session_id, "running")
@@ -39,18 +41,48 @@ class BacktestEngine:
             win_pnl_sum = 0.0
             total_pnl = 0.0
 
+            # 判断是否为多策略模式
+            is_multi_strategy = strategy_params and strategy_params.get("strategies")
+            weighted_threshold = strategy_params.get("threshold", 0.30) if strategy_params else 0.30
+
             for i in range(50, len(klines)):
                 window = klines.iloc[i-50:i+1]
                 current_bar = klines.iloc[i]
 
-                strategy = get_strategy(strategy_name, window)
-
                 try:
+                    # 生成信号：多策略加权 or 单策略
+                    if is_multi_strategy:
+                        signal = get_weighted_signal(
+                            window,
+                            strategy_params["strategies"],
+                            threshold=weighted_threshold
+                        )
+                    else:
+                        strategy = get_strategy(strategy_name, window)
+                        signal = strategy.analyze()
+
                     # 如果有持仓，先检查是否需要平仓
                     if position is not None:
-                        exit_signal = strategy.check_exit(position['side'])
+                        # 多策略模式：使用反向信号判断平仓
+                        # 单策略模式：使用 check_exit
+                        should_exit = False
+                        exit_reason = ""
 
-                        if exit_signal and exit_signal.signal.value in ['close_long', 'close_short']:
+                        if is_multi_strategy:
+                            # 多策略：当反向信号强度超过阈值时平仓
+                            if signal and signal.signal.value in ['long', 'short']:
+                                if (position['side'] == 'long' and signal.signal.value == 'short') or \
+                                   (position['side'] == 'short' and signal.signal.value == 'long'):
+                                    should_exit = True
+                                    exit_reason = f"反向信号触发平仓: {signal.reason}"
+                        else:
+                            # 单策略：使用原有的 check_exit 逻辑
+                            exit_signal = strategy.check_exit(position['side'])
+                            if exit_signal and exit_signal.signal.value in ['close_long', 'close_short']:
+                                should_exit = True
+                                exit_reason = exit_signal.reason
+
+                        if should_exit:
                             pnl = (current_bar['close'] - position['entry_price']) * position['qty']
                             if position['side'] == 'short':
                                 pnl = -pnl
@@ -67,9 +99,9 @@ class BacktestEngine:
                                 'fee': cash * 0.001,
                                 'pnl': pnl,
                                 'pnl_pct': (pnl / initial_capital) * 100,
-                                'strategy_name': exit_signal.strategy,
-                                'reason': exit_signal.reason,
-                                'open_trade_id': position_open_trade_id  # 关联开仓交易ID
+                                'strategy_name': signal.strategy if signal else strategy_name,
+                                'reason': exit_reason,
+                                'open_trade_id': position_open_trade_id
                             }
                             self.repo.append_trade(session_id, trade)
 
@@ -85,10 +117,8 @@ class BacktestEngine:
                             continue
 
                     # 如果没有持仓，检查是否有开仓信号
-                    if position is None:
-                        signal = strategy.analyze()
-
-                        if signal and signal.signal.value in ['long', 'short']:
+                    if position is None and signal:
+                        if signal.signal.value in ['long', 'short']:
                             position = {
                                 'side': signal.signal.value,
                                 'entry_price': current_bar['close'],
@@ -108,11 +138,13 @@ class BacktestEngine:
                                 'reason': signal.reason
                             }
                             trade_id = self.repo.append_trade(session_id, trade)
-                            position_open_trade_id = trade_id  # 保存开仓交易ID
+                            position_open_trade_id = trade_id
                             trade_count += 1
                 finally:
                     # 及时释放对象引用
-                    strategy = None
+                    if not is_multi_strategy:
+                        strategy = None
+                    signal = None
                     window = None
                     current_bar = None
 

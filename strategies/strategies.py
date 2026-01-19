@@ -1297,5 +1297,128 @@ def get_consensus_signal(
             confidence=short_count / total,
             indicators={'short_count': short_count, 'total': total}
         )
-    
+
     return None
+
+
+def get_weighted_signal(
+    df: pd.DataFrame,
+    strategies: List[Dict],
+    threshold: float = 0.30
+) -> Optional[TradeSignal]:
+    """
+    多策略信号强度加权聚合
+
+    Args:
+        df: K线数据
+        strategies: 策略配置列表 [{"name": "xxx", "weight": 0.6, "params": {...}}]
+        threshold: 触发交易的最小阈值
+
+    Returns:
+        加权后的交易信号，如果未达到阈值则返回 HOLD
+
+    算法：
+        1. 对每个策略计算 score = weight × strength × direction
+        2. 归一化：normalized_score = Σ(score) / Σ(weight)
+        3. 若 |normalized_score| >= threshold，触发交易
+        4. 方向取 sign(normalized_score)
+        5. 主导策略：贡献最大的策略
+    """
+    # 计算总权重
+    total_weight = sum(item.get("weight", 0) for item in strategies if item.get("weight", 0) > 0)
+    if total_weight <= 0:
+        return TradeSignal(Signal.HOLD, "weighted", "无有效权重配置")
+
+    contributions = []
+
+    for item in strategies:
+        try:
+            strategy_name = item.get("name")
+            weight = item.get("weight", 0)
+            params = item.get("params", {})
+
+            if not strategy_name or weight <= 0:
+                continue
+
+            # 获取策略实例并分析
+            strategy = get_strategy(strategy_name, df, **params)
+            signal = strategy.analyze()
+
+            # 只处理多空信号
+            if signal and signal.signal in [Signal.LONG, Signal.SHORT]:
+                # 确定方向：做多=1，做空=-1
+                direction = 1 if signal.signal == Signal.LONG else -1
+
+                # 强度裁剪到 [0, 1]
+                strength = min(max(signal.strength, 0), 1.0)
+
+                # 计算加权得分
+                score = weight * strength * direction
+
+                contributions.append({
+                    "name": strategy_name,
+                    "score": score,
+                    "strength": strength,
+                    "direction": direction,
+                    "weight": weight
+                })
+
+        except Exception as e:
+            logger.warning(f"策略 {item.get('name')} 执行失败: {e}")
+            continue
+
+    # 如果没有任何有效信号
+    if not contributions:
+        return TradeSignal(
+            Signal.HOLD,
+            "weighted",
+            "所有策略均无有效信号",
+            strength=0,
+            indicators={"contributions": []}
+        )
+
+    # 计算归一化得分
+    total_score = sum(c["score"] for c in contributions)
+    normalized_score = total_score / total_weight
+
+    # 判断是否达到阈值
+    if abs(normalized_score) < threshold:
+        return TradeSignal(
+            Signal.HOLD,
+            "weighted",
+            f"信号强度不足(得分={normalized_score:.3f}, 阈值={threshold})",
+            strength=abs(normalized_score),
+            indicators={
+                "contributions": contributions,
+                "normalized_score": normalized_score,
+                "threshold": threshold
+            }
+        )
+
+    # 找到主导策略（贡献最大的策略）
+    primary_strategy = max(contributions, key=lambda x: abs(x["score"]))
+
+    # 生成交易信号
+    signal_type = Signal.LONG if normalized_score > 0 else Signal.SHORT
+
+    # 构建原因说明
+    contrib_str = ", ".join([
+        f"{c['name']}({c['weight']:.0%}×{c['strength']:.2f})"
+        for c in contributions
+    ])
+
+    reason = f"加权信号{'做多' if signal_type == Signal.LONG else '做空'}(得分={normalized_score:.3f}, 主导={primary_strategy['name']}, 贡献={contrib_str})"
+
+    return TradeSignal(
+        signal_type,
+        primary_strategy["name"],  # 主导策略作为策略名
+        reason,
+        strength=abs(normalized_score),
+        confidence=len(contributions) / len(strategies),  # 有效策略占比作为置信度
+        indicators={
+            "contributions": contributions,
+            "normalized_score": normalized_score,
+            "threshold": threshold,
+            "primary_strategy": primary_strategy["name"]
+        }
+    )
