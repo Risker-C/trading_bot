@@ -733,7 +733,7 @@ ML_MIN_TRAINING_SAMPLES = 100  # 最小训练样本数
 # ==================== 跨交易所套利配置 ====================
 
 # 是否启用套利引擎
-ENABLE_ARBITRAGE = True  # Phase 1 优化: 启用套利引擎（预期+0.5%日收益）
+ENABLE_ARBITRAGE = False  # 关闭套利引擎以降低CPU和内存占用
 
 # 套利模式
 ARBITRAGE_MODE = "conservative"  # conservative: 保守模式, balanced: 平衡模式, aggressive: 激进模式
