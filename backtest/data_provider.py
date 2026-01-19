@@ -15,6 +15,14 @@ class HistoricalDataProvider:
         if not self.adapter.is_connected():
             self.adapter.connect()
 
+    def close(self):
+        """释放交易所连接"""
+        if self.adapter and self.adapter.is_connected():
+            try:
+                self.adapter.disconnect()
+            except Exception:
+                pass
+
     def fetch_klines(self, symbol: str, timeframe: str, start_ts: int, end_ts: int) -> pd.DataFrame:
         """
         Fetch historical klines
@@ -34,32 +42,36 @@ class HistoricalDataProvider:
         all_klines = []
         current_start = start_ms
 
-        while current_start < end_ms:
-            klines = self.adapter.exchange.fetch_ohlcv(
-                symbol,
-                timeframe,
-                since=current_start,
-                limit=1000,
-                params={"productType": "USDT-FUTURES"}
+        try:
+            while current_start < end_ms:
+                klines = self.adapter.exchange.fetch_ohlcv(
+                    symbol,
+                    timeframe,
+                    since=current_start,
+                    limit=1000,
+                    params={"productType": "USDT-FUTURES"}
+                )
+
+                if not klines:
+                    break
+
+                all_klines.extend(klines)
+                current_start = klines[-1][0] + 1
+
+                if len(klines) < 1000:
+                    break
+
+            if not all_klines:
+                return pd.DataFrame()
+
+            df = pd.DataFrame(
+                all_klines,
+                columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
             )
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
 
-            if not klines:
-                break
-
-            all_klines.extend(klines)
-            current_start = klines[-1][0] + 1
-
-            if len(klines) < 1000:
-                break
-
-        if not all_klines:
-            return pd.DataFrame()
-
-        df = pd.DataFrame(
-            all_klines,
-            columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
-        )
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-        df.set_index('timestamp', inplace=True)
-
-        return df[df.index <= pd.to_datetime(end_ms, unit='ms')]
+            return df[df.index <= pd.to_datetime(end_ms, unit='ms')]
+        finally:
+            # 清理中间数据
+            all_klines.clear()

@@ -81,6 +81,14 @@ class BitgetAdapter(ExchangeInterface):
 
     def disconnect(self):
         """断开连接"""
+        if self.exchange is not None:
+            # 尝试调用 close 方法（如果存在）
+            close_method = getattr(self.exchange, "close", None)
+            if callable(close_method):
+                try:
+                    close_method()
+                except Exception as e:
+                    logger.debug(f"Bitget交易所关闭连接失败: {e}")
         self.exchange = None
         logger.info("Bitget交易所连接已断开")
 

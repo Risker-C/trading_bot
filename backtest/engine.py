@@ -31,7 +31,12 @@ class BacktestEngine:
             cash = initial_capital
             position = None
             position_open_trade_id = None  # 记录开仓交易ID
-            trades = []
+
+            # 使用累加器代替列表，避免内存累积
+            trade_count = 0
+            win_count = 0
+            win_pnl_sum = 0.0
+            total_pnl = 0.0
 
             for i in range(50, len(klines)):
                 window = klines.iloc[i-50:i+1]
@@ -39,77 +44,87 @@ class BacktestEngine:
 
                 strategy = get_strategy(strategy_name, window)
 
-                # 如果有持仓，先检查是否需要平仓
-                if position is not None:
-                    exit_signal = strategy.check_exit(position['side'])
+                try:
+                    # 如果有持仓，先检查是否需要平仓
+                    if position is not None:
+                        exit_signal = strategy.check_exit(position['side'])
 
-                    if exit_signal and exit_signal.signal.value in ['close_long', 'close_short']:
-                        pnl = (current_bar['close'] - position['entry_price']) * position['qty']
-                        if position['side'] == 'short':
-                            pnl = -pnl
+                        if exit_signal and exit_signal.signal.value in ['close_long', 'close_short']:
+                            pnl = (current_bar['close'] - position['entry_price']) * position['qty']
+                            if position['side'] == 'short':
+                                pnl = -pnl
 
-                        cash += pnl
+                            cash += pnl
 
-                        trade = {
-                            'ts': int(current_bar.name.timestamp()),
-                            'symbol': 'BTC/USDT:USDT',
-                            'side': position['side'],
-                            'action': 'close',
-                            'qty': position['qty'],
-                            'price': current_bar['close'],
-                            'fee': cash * 0.001,
-                            'pnl': pnl,
-                            'pnl_pct': (pnl / initial_capital) * 100,
-                            'strategy_name': exit_signal.strategy,
-                            'reason': exit_signal.reason,
-                            'open_trade_id': position_open_trade_id  # 关联开仓交易ID
-                        }
-                        self.repo.append_trade(session_id, trade)
-                        trades.append(trade)
-                        position = None
-                        position_open_trade_id = None
-                        continue
+                            trade = {
+                                'ts': int(current_bar.name.timestamp()),
+                                'symbol': 'BTC/USDT:USDT',
+                                'side': position['side'],
+                                'action': 'close',
+                                'qty': position['qty'],
+                                'price': current_bar['close'],
+                                'fee': cash * 0.001,
+                                'pnl': pnl,
+                                'pnl_pct': (pnl / initial_capital) * 100,
+                                'strategy_name': exit_signal.strategy,
+                                'reason': exit_signal.reason,
+                                'open_trade_id': position_open_trade_id  # 关联开仓交易ID
+                            }
+                            self.repo.append_trade(session_id, trade)
 
-                # 如果没有持仓，检查是否有开仓信号
-                if position is None:
-                    signal = strategy.analyze()
+                            # 更新累加器
+                            trade_count += 1
+                            total_pnl += pnl
+                            if pnl > 0:
+                                win_count += 1
+                                win_pnl_sum += pnl
 
-                    if signal and signal.signal.value in ['long', 'short']:
-                        position = {
-                            'side': signal.signal.value,
-                            'entry_price': current_bar['close'],
-                            'entry_ts': int(current_bar.name.timestamp()),
-                            'qty': cash * 0.95 / current_bar['close']
-                        }
+                            position = None
+                            position_open_trade_id = None
+                            continue
 
-                        trade = {
-                            'ts': int(current_bar.name.timestamp()),
-                            'symbol': 'BTC/USDT:USDT',
-                            'side': signal.signal.value,
-                            'action': 'open',
-                            'qty': position['qty'],
-                            'price': current_bar['close'],
-                            'fee': cash * 0.001,
-                            'strategy_name': signal.strategy,
-                            'reason': signal.reason
-                        }
-                        trade_id = self.repo.append_trade(session_id, trade)
-                        position_open_trade_id = trade_id  # 保存开仓交易ID
-                        trades.append(trade)
+                    # 如果没有持仓，检查是否有开仓信号
+                    if position is None:
+                        signal = strategy.analyze()
 
-            total_pnl = sum(t.get('pnl', 0) for t in trades)
-            winning_trades = [t for t in trades if t.get('pnl', 0) > 0]
+                        if signal and signal.signal.value in ['long', 'short']:
+                            position = {
+                                'side': signal.signal.value,
+                                'entry_price': current_bar['close'],
+                                'entry_ts': int(current_bar.name.timestamp()),
+                                'qty': cash * 0.95 / current_bar['close']
+                            }
+
+                            trade = {
+                                'ts': int(current_bar.name.timestamp()),
+                                'symbol': 'BTC/USDT:USDT',
+                                'side': signal.signal.value,
+                                'action': 'open',
+                                'qty': position['qty'],
+                                'price': current_bar['close'],
+                                'fee': cash * 0.001,
+                                'strategy_name': signal.strategy,
+                                'reason': signal.reason
+                            }
+                            trade_id = self.repo.append_trade(session_id, trade)
+                            position_open_trade_id = trade_id  # 保存开仓交易ID
+                            trade_count += 1
+                finally:
+                    # 及时释放对象引用
+                    strategy = None
+                    window = None
+                    current_bar = None
 
             metrics = {
-                'total_trades': len(trades),
-                'win_rate': len(winning_trades) / len(trades) if trades else 0,
+                'total_trades': trade_count,
+                'win_rate': win_count / trade_count if trade_count else 0,
                 'total_pnl': total_pnl,
                 'total_return': (total_pnl / initial_capital) * 100,
                 'max_drawdown': 0,
                 'sharpe': 0,
                 'profit_factor': 1.0,
-                'expectancy': total_pnl / len(trades) if trades else 0,
-                'avg_win': sum(t['pnl'] for t in winning_trades) / len(winning_trades) if winning_trades else 0,
+                'expectancy': total_pnl / trade_count if trade_count else 0,
+                'avg_win': win_pnl_sum / win_count if win_count else 0,
                 'avg_loss': 0,
                 'start_ts': int(klines.index[0].timestamp()),
                 'end_ts': int(klines.index[-1].timestamp())
