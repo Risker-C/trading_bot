@@ -111,8 +111,8 @@ export default function BacktestDetailPage() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-gray-600">加载中...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">加载中...</p>
         </div>
       </div>
     );
@@ -121,8 +121,8 @@ export default function BacktestDetailPage() {
   if (error) {
     return (
       <div className="p-6">
-        <Card className="p-6 bg-red-50 border-red-200">
-          <p className="text-red-600">{error}</p>
+        <Card className="p-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+          <p className="text-red-600 dark:text-red-400">{error}</p>
           <Button onClick={() => router.back()} className="mt-4">
             返回
           </Button>
@@ -135,7 +135,7 @@ export default function BacktestDetailPage() {
     return (
       <div className="p-6">
         <Card className="p-6">
-          <p className="text-gray-600">未找到回测记录</p>
+          <p className="text-muted-foreground">未找到回测记录</p>
           <Button onClick={() => router.back()} className="mt-4">
             返回
           </Button>
@@ -228,89 +228,101 @@ export default function BacktestDetailPage() {
 
       {/* Trades Table */}
       <Card className="overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-border">
           <h2 className="text-xl font-semibold">交易明细</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-border">
+            <thead className="bg-muted/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   时间
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   方向
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   操作
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   数量
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   价格
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   手续费
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   盈亏
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   盈亏%
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   原因
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-card divide-y divide-border">
               {trades.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">
                     暂无交易记录
                   </td>
                 </tr>
               ) : (
                 trades.map((trade) => (
-                  <tr key={trade.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <tr key={trade.id} className="hover:bg-muted/50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                       {formatDate(trade.ts)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        trade.side === 'long' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        trade.side === 'long'
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                          : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
                       }`}>
                         {trade.side === 'long' ? '做多' : '做空'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        trade.action === 'open' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                        trade.action === 'open'
+                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
+                          : 'bg-muted text-muted-foreground'
                       }`}>
                         {trade.action === 'open' ? '开仓' : '平仓'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground text-right">
                       {formatNumber(trade.qty, 4)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground text-right">
                       ${formatNumber(trade.price)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground text-right">
                       ${formatNumber(trade.fee)}
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${
-                      trade.pnl && trade.pnl > 0 ? 'text-green-600' : trade.pnl && trade.pnl < 0 ? 'text-red-600' : 'text-gray-900'
+                      trade.pnl && trade.pnl > 0
+                        ? 'text-green-600 dark:text-green-400'
+                        : trade.pnl && trade.pnl < 0
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-foreground'
                     }`}>
                       {trade.pnl !== null ? `$${formatNumber(trade.pnl)}` : '-'}
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${
-                      trade.pnl_pct && trade.pnl_pct > 0 ? 'text-green-600' : trade.pnl_pct && trade.pnl_pct < 0 ? 'text-red-600' : 'text-gray-900'
+                      trade.pnl_pct && trade.pnl_pct > 0
+                        ? 'text-green-600 dark:text-green-400'
+                        : trade.pnl_pct && trade.pnl_pct < 0
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-foreground'
                     }`}>
                       {trade.pnl_pct !== null ? formatPercent(trade.pnl_pct) : '-'}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
+                    <td className="px-6 py-4 text-sm text-muted-foreground">
                       {trade.reason || '-'}
                     </td>
                   </tr>

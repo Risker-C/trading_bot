@@ -174,7 +174,7 @@ export default function BacktestPage() {
                 className="w-full p-2 border rounded"
               />
             </div>
-            <p className="text-xs text-gray-500 mt-1">留空则默认最近30天</p>
+            <p className="text-xs text-muted-foreground mt-1">留空则默认最近30天</p>
           </div>
 
           <div>
@@ -183,7 +183,7 @@ export default function BacktestPage() {
               id="strategy"
               value={params.strategyName}
               onChange={(e) => setParams({ strategyName: e.target.value })}
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border rounded bg-background text-foreground"
             >
               <option value="bollinger_trend">Bollinger Trend</option>
               <option value="macd_cross">MACD Cross</option>
@@ -202,7 +202,7 @@ export default function BacktestPage() {
         <Card className="mt-6 p-12 flex flex-col items-center justify-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
           <p className="text-lg font-medium">正在执行回测并生成报告...</p>
-          <p className="text-sm text-gray-500 mt-2">这可能需要几秒到几分钟的时间，请稍候。</p>
+          <p className="text-sm text-muted-foreground mt-2">这可能需要几秒到几分钟的时间，请稍候。</p>
         </Card>
       )}
 
@@ -237,23 +237,23 @@ export default function BacktestPage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <p className="text-sm text-gray-500">总收益率</p>
-                <p className={`text-2xl font-bold ${metrics.total_return >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <p className="text-sm text-muted-foreground">总收益率</p>
+                <p className={`text-2xl font-bold ${metrics.total_return >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                   {metrics.total_return.toFixed(2)}%
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">总盈亏</p>
-                <p className={`text-2xl font-bold ${metrics.total_pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <p className="text-sm text-muted-foreground">总盈亏</p>
+                <p className={`text-2xl font-bold ${metrics.total_pnl >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                   {metrics.total_pnl.toFixed(2)} USDT
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">胜率</p>
+                <p className="text-sm text-muted-foreground">胜率</p>
                 <p className="text-2xl font-bold">{(metrics.win_rate * 100).toFixed(1)}%</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">交易次数</p>
+                <p className="text-sm text-muted-foreground">交易次数</p>
                 <p className="text-2xl font-bold">{metrics.total_trades}</p>
               </div>
             </div>
@@ -288,24 +288,24 @@ export default function BacktestPage() {
                     return (
                       <tr
                         key={trade.id}
-                        className={`border-b cursor-pointer transition-colors ${
-                          isPaired ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-gray-50'
+                        className={`border-b border-border cursor-pointer transition-colors ${
+                          isPaired ? 'bg-blue-100 dark:bg-blue-900/30' : 'hover:bg-muted/50'
                         }`}
                         onClick={() => setActiveTradeId(trade.id)}
                       >
                         <td className="p-2">
                           {trade.action === 'close' && trade.open_trade_id && (
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-muted-foreground">
                               #{trade.open_trade_id} → #{trade.id}
                             </span>
                           )}
                           {trade.action === 'open' && pairedTrade && (
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-muted-foreground">
                               #{trade.id} → #{pairedTrade.id}
                             </span>
                           )}
                           {trade.action === 'open' && !pairedTrade && (
-                            <span className="text-xs text-orange-500">
+                            <span className="text-xs text-orange-500 dark:text-orange-400">
                               #{trade.id} (未平仓)
                             </span>
                           )}
@@ -313,25 +313,33 @@ export default function BacktestPage() {
                         <td className="p-2">{new Date(trade.ts * 1000).toLocaleString()}</td>
                         <td className="p-2">
                           <span className={`px-2 py-1 rounded text-xs ${
-                            trade.side === 'long' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            trade.side === 'long'
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                              : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
                           }`}>
                             {trade.side}
                           </span>
                         </td>
                         <td className="p-2">
                           <span className={`px-2 py-1 rounded text-xs ${
-                            trade.action === 'open' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                            trade.action === 'open'
+                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
+                              : 'bg-muted text-muted-foreground'
                           }`}>
                             {trade.action === 'open' ? '开仓' : '平仓'}
                           </span>
                         </td>
                         <td className="p-2 text-right">{trade.price.toFixed(2)}</td>
                         <td className="p-2 text-right">{trade.qty.toFixed(4)}</td>
-                        <td className={`p-2 text-right ${trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <td className={`p-2 text-right ${
+                          trade.pnl >= 0
+                            ? 'text-green-600 dark:text-green-400'
+                            : 'text-red-600 dark:text-red-400'
+                        }`}>
                           {trade.pnl ? trade.pnl.toFixed(2) : '-'}
                         </td>
                         <td className="p-2 text-xs">{trade.strategy_name}</td>
-                        <td className="p-2 text-xs text-gray-600">{trade.reason || '-'}</td>
+                        <td className="p-2 text-xs text-muted-foreground">{trade.reason || '-'}</td>
                       </tr>
                     );
                   })}
