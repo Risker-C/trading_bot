@@ -150,6 +150,14 @@ export default function KLineChart({
       setKlines(sortedData);
       earliestTs.current = sortedData.length > 0 ? sortedData[0].timestamp : null;
       hasMore.current = sortedData.length === 1000;
+
+      console.log('[KLineChart] 📊 初始数据加载完成', {
+        count: sortedData.length,
+        earliestTs: earliestTs.current,
+        latestTs: sortedData[sortedData.length - 1]?.timestamp,
+        hasMore: hasMore.current
+      });
+
       setStatus('idle');
     } catch (err) {
       setError(parseError(err));
@@ -167,7 +175,12 @@ export default function KLineChart({
     });
 
     if (!sessionId || !earliestTs.current || !hasMore.current || isFetchingMoreRef.current) {
-      console.log('[KLineChart] loadMore 提前返回');
+      console.log('[KLineChart] ❌ loadMore 提前退出', {
+        hasSessionId: !!sessionId,
+        hasEarliestTs: !!earliestTs.current,
+        hasMore: hasMore.current,
+        isFetching: isFetchingMoreRef.current
+      });
       return [];
     }
 
@@ -509,51 +522,56 @@ export default function KLineChart({
   useEffect(() => {
     if (!chartInstance.current || mode !== 'backtest' || !sessionId) return;
 
-    console.log('[KLineChart] 注册增量加载回调');
+    // 延迟注册，确保图表完全初始化
+    const timer = setTimeout(() => {
+      if (!chartInstance.current) return;
 
-    // 创建稳定的回调引用
-    const loadDataCallback = async (params: any) => {
-      console.log('[KLineChart] loadDataCallback 被触发', {
-        hasMore: hasMore.current,
-        isFetching: isFetchingMoreRef.current,
-        earliestTs: earliestTs.current,
-        params
-      });
-
-      // 检查是否还有更多数据（使用 ref 避免闭包问题）
-      if (!hasMore.current || isFetchingMoreRef.current) {
-        console.log('[KLineChart] 停止加载：', {
-          reason: !hasMore.current ? '无更多数据' : '正在加载中'
+      // 创建稳定的回调引用
+      const loadDataCallback = async (params: any) => {
+        console.log('[KLineChart] 📞 loadDataCallback 被触发', {
+          hasMore: hasMore.current,
+          isFetching: isFetchingMoreRef.current,
+          earliestTs: earliestTs.current,
+          params
         });
-        return null; // 返回 null 告诉 klinecharts 停止加载
-      }
 
-      // 使用 ref 中的最新 loadMore 函数
-      if (!loadMoreRef.current) {
-        console.log('[KLineChart] loadMoreRef.current 不存在');
-        return null;
-      }
+        // 检查是否还有更多数据（使用 ref 避免闭包问题）
+        if (!hasMore.current || isFetchingMoreRef.current) {
+          console.log('[KLineChart] ⏸️ 跳过加载：', {
+            reason: !hasMore.current ? '无更多数据' : '正在加载中'
+          });
+          return null; // 返回 null 告诉 klinecharts 停止加载
+        }
 
-      console.log('[KLineChart] 开始加载更多数据');
-      const moreData = await loadMoreRef.current();
+        // 使用 ref 中的最新 loadMore 函数
+        if (!loadMoreRef.current) {
+          console.log('[KLineChart] ⚠️ loadMoreRef.current 不存在');
+          return null;
+        }
 
-      // 如果没有数据或数据已加载完，返回 null
-      if (!moreData || moreData.length === 0) {
-        console.log('[KLineChart] 无更多数据返回');
-        return null;
-      }
+        console.log('[KLineChart] ▶️ 开始执行 loadMore');
+        const moreData = await loadMoreRef.current();
 
-      console.log('[KLineChart] 返回数据', moreData.length, '条');
-      return moreData;
-    };
+        // 如果没有数据或数据已加载完，返回 null
+        if (!moreData || moreData.length === 0) {
+          console.log('[KLineChart] ✅ 无更多数据返回');
+          return null;
+        }
 
-    chartInstance.current.setLoadDataCallback?.(loadDataCallback);
+        console.log('[KLineChart] ✅ 返回数据', moreData.length, '条');
+        return moreData;
+      };
+
+      console.log('[KLineChart] 🔧 注册 loadDataCallback');
+      chartInstance.current.setLoadDataCallback(loadDataCallback);
+    }, 100);
 
     // 清理函数
     return () => {
-      console.log('[KLineChart] 清理增量加载回调');
+      clearTimeout(timer);
       if (chartInstance.current) {
-        chartInstance.current.setLoadDataCallback?.(null);
+        console.log('[KLineChart] 🗑️ 卸载 loadDataCallback');
+        chartInstance.current.setLoadDataCallback(null);
       }
     };
   }, [mode, sessionId]); // 仅依赖 mode 和 sessionId
