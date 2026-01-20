@@ -97,6 +97,7 @@ export default function KLineChart({
   const hasMore = useRef(true);
   const earliestTs = useRef<number | null>(null);
   const isInitialized = useRef(false);
+  const loadMoreRef = useRef<(() => Promise<any[]>) | null>(null);
 
   // ==================== Helper Functions ====================
 
@@ -200,6 +201,11 @@ export default function KLineChart({
       return [];
     }
   }, [sessionId, isFetchingMore]); // 添加依赖
+
+  // 更新 loadMore ref
+  useEffect(() => {
+    loadMoreRef.current = loadMore;
+  }, [loadMore]);
 
   // ==================== Trade Markers ====================
 
@@ -465,18 +471,41 @@ export default function KLineChart({
     };
   }, []); // 空依赖，只执行一次
 
-  // Effect 1.5: 注册增量加载回调（依赖 loadMore）
+  // Effect 1.5: 注册增量加载回调
   useEffect(() => {
     if (!chartInstance.current || mode !== 'backtest' || !sessionId) return;
 
-    chartInstance.current.setLoadDataCallback?.(async (params: any) => {
-      const moreData = await loadMore();
-      if (moreData && moreData.length > 0) {
-        return moreData;
+    // 创建稳定的回调引用
+    const loadDataCallback = async (params: any) => {
+      // 检查是否还有更多数据
+      if (!hasMore.current || isFetchingMore) {
+        return null; // 返回 null 告诉 klinecharts 停止加载
       }
-      return [];
-    });
-  }, [mode, sessionId, loadMore]); // 依赖 loadMore
+
+      // 使用 ref 中的最新 loadMore 函数
+      if (!loadMoreRef.current) {
+        return null;
+      }
+
+      const moreData = await loadMoreRef.current();
+
+      // 如果没有数据或数据已加载完，返回 null
+      if (!moreData || moreData.length === 0) {
+        return null;
+      }
+
+      return moreData;
+    };
+
+    chartInstance.current.setLoadDataCallback?.(loadDataCallback);
+
+    // 清理函数
+    return () => {
+      if (chartInstance.current) {
+        chartInstance.current.setLoadDataCallback?.(null);
+      }
+    };
+  }, [mode, sessionId]); // 仅依赖 mode 和 sessionId
 
   // Effect 2: 初始数据加载
   useEffect(() => {
