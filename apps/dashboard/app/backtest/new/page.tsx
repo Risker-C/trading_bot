@@ -34,7 +34,6 @@ export default function BacktestPage() {
   const [loading, setLoading] = useState(false);
   const [metrics, setMetrics] = useState<any>(null);
   const [trades, setTrades] = useState<any[]>([]);
-  const [klines, setKlines] = useState<any[]>([]);
   const [tradesOffset, setTradesOffset] = useState(0);
   const [hasMoreTrades, setHasMoreTrades] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -78,7 +77,6 @@ export default function BacktestPage() {
     if (currentSessionId) {
       setMetrics(null);
       setTrades([]);
-      setKlines([]);
       setTradesOffset(0);
       setHasMoreTrades(true);
     }
@@ -117,21 +115,17 @@ export default function BacktestPage() {
     };
   }, [currentSessionId, status, metrics, setStatus]);
 
-  // 当回测完成后，加载详细数据
+  // 当回测完成后，加载交易数据
   useEffect(() => {
-    if (!currentSessionId || !metrics || trades.length > 0 || klines.length > 0) return;
+    if (!currentSessionId || !metrics || trades.length > 0) return;
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
     const fetchDetails = async () => {
       try {
-        const [tradesRes, klinesRes] = await Promise.all([
-          axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/trades?limit=50&offset=0`),
-          axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/klines?limit=1000`)
-        ]);
+        const tradesRes = await axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/trades?limit=50&offset=0`);
 
         setTrades(tradesRes.data);
-        setKlines(klinesRes.data);
         setHasMoreTrades(tradesRes.data.length === 50);
         setTradesOffset(50);
       } catch (error) {
@@ -140,7 +134,7 @@ export default function BacktestPage() {
     };
 
     fetchDetails();
-  }, [currentSessionId, metrics, trades.length, klines.length]);
+  }, [currentSessionId, metrics, trades.length]);
 
   const loadMoreTrades = async () => {
     if (!currentSessionId || !hasMoreTrades || loadingMore) return;
@@ -167,27 +161,6 @@ export default function BacktestPage() {
     }
   };
 
-  const loadMoreKlines = async (timestamp: number) => {
-    if (!currentSessionId || loadingMore) return [];
-
-    setLoadingMore(true);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-    try {
-      const timestampInSeconds = Math.floor(timestamp / 1000);
-      const response = await axios.get(
-        `${apiUrl}/api/backtests/sessions/${currentSessionId}/klines?limit=1000&before=${timestampInSeconds}`
-      );
-
-      return response.data || [];
-    } catch (error) {
-      console.error('Failed to load more klines:', error);
-      return [];
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-
   const handleStart = async () => {
     // 验证权重
     if (!isWeightValid) {
@@ -204,7 +177,6 @@ export default function BacktestPage() {
       setLoading(true);
       setMetrics(null);
       setTrades([]);
-      setKlines([]);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
       // 构建请求参数
@@ -360,16 +332,16 @@ export default function BacktestPage() {
         </Card>
       )}
 
-      {klines.length > 0 && (
+      {metrics && currentSessionId && (
         <Card className="mt-6 p-6">
           <h2 className="text-xl font-semibold mb-4">K线图表</h2>
           <KLineChart
-            data={klines}
+            mode="backtest"
+            sessionId={currentSessionId}
             trades={trades}
             activeTradeId={activeTradeId}
             onTradeClick={setActiveTradeId}
-            strategyName={params.strategyName}
-            onLoadMore={loadMoreKlines}
+            strategyName={isMultiStrategy ? undefined : params.selectedStrategies[0]?.name}
           />
         </Card>
       )}

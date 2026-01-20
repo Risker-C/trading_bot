@@ -56,7 +56,6 @@ export default function BacktestDetailPage() {
   const [session, setSession] = useState<SessionDetail | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
-  const [klines, setKlines] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,10 +78,6 @@ export default function BacktestDetailPage() {
         // Load trades
         const tradesRes = await axios.get(`${apiUrl}/api/backtests/sessions/${sessionId}/trades?limit=1000`);
         setTrades(tradesRes.data);
-
-        // Load klines
-        const klinesRes = await axios.get(`${apiUrl}/api/backtests/sessions/${sessionId}/klines?limit=1000`);
-        setKlines(klinesRes.data);
       } catch (err: any) {
         setError(err.response?.data?.detail || err.message || '加载失败');
       } finally {
@@ -207,21 +202,20 @@ export default function BacktestDetailPage() {
       </div>
 
       {/* K-Line Chart */}
-      {klines.length > 0 && (
-        <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-4">K线图表</h2>
-          <KLineChart
-            data={klines}
-            trades={trades.map(t => ({
-              ...t,
-              reason: t.reason ?? undefined,
-              pnl: t.pnl ?? undefined,
-              pnl_pct: t.pnl_pct ?? undefined
-            }))}
-            strategyName={session.strategy_name}
-          />
-        </Card>
-      )}
+      <Card className="p-6">
+        <h2 className="text-xl font-semibold mb-4">K线图表</h2>
+        <KLineChart
+          mode="backtest"
+          sessionId={sessionId}
+          trades={trades.map(t => ({
+            ...t,
+            reason: t.reason ?? undefined,
+            pnl: t.pnl ?? undefined,
+            pnl_pct: t.pnl_pct ?? undefined
+          }))}
+          strategyName={session.strategy_name}
+        />
+      </Card>
 
       {/* AI Analysis Panel */}
       <AIAnalysisPanel sessionId={sessionId} />
