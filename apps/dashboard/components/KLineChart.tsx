@@ -98,6 +98,7 @@ export default function KLineChart({
   const earliestTs = useRef<number | null>(null);
   const isInitialized = useRef(false);
   const loadMoreRef = useRef<(() => Promise<any[]>) | null>(null);
+  const isFetchingMoreRef = useRef(false);
 
   // ==================== Helper Functions ====================
 
@@ -158,11 +159,12 @@ export default function KLineChart({
 
   // 使用 useCallback 避免闭包过期问题
   const loadMore = useCallback(async (): Promise<any[]> => {
-    if (!sessionId || !earliestTs.current || !hasMore.current || isFetchingMore) {
+    if (!sessionId || !earliestTs.current || !hasMore.current || isFetchingMoreRef.current) {
       return [];
     }
 
     setIsFetchingMore(true);
+    isFetchingMoreRef.current = true;
 
     try {
       const res = await apiClient.get(
@@ -174,6 +176,7 @@ export default function KLineChart({
       if (newData.length === 0 || newData.length < 1000) {
         hasMore.current = false;
         setIsFetchingMore(false);
+        isFetchingMoreRef.current = false;
 
         if (newData.length === 0) {
           return [];
@@ -191,6 +194,7 @@ export default function KLineChart({
       });
 
       setIsFetchingMore(false);
+      isFetchingMoreRef.current = false;
 
       // 转换格式后返回给图表 applyMoreData
       return toChartFormat(sortedNewData);
@@ -198,9 +202,10 @@ export default function KLineChart({
       console.error('Failed to load more klines:', err);
       hasMore.current = false;
       setIsFetchingMore(false);
+      isFetchingMoreRef.current = false;
       return [];
     }
-  }, [sessionId, isFetchingMore]); // 添加依赖
+  }, [sessionId]); // 移除 isFetchingMore 依赖
 
   // 更新 loadMore ref
   useEffect(() => {
@@ -477,8 +482,8 @@ export default function KLineChart({
 
     // 创建稳定的回调引用
     const loadDataCallback = async (params: any) => {
-      // 检查是否还有更多数据
-      if (!hasMore.current || isFetchingMore) {
+      // 检查是否还有更多数据（使用 ref 避免闭包问题）
+      if (!hasMore.current || isFetchingMoreRef.current) {
         return null; // 返回 null 告诉 klinecharts 停止加载
       }
 
