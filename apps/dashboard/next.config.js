@@ -4,8 +4,10 @@ const nextConfig = {
   swcMinify: true,
 
   // 生产环境优化：移除 console.log，保留 console.error
+  // 临时禁用以便调试增量加载问题
   compiler: {
-    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error'] } : false,
+    // removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error'] } : false,
+    removeConsole: false,
   },
 
   // 安全 Headers
