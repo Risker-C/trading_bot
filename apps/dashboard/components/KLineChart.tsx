@@ -169,9 +169,14 @@ export default function KLineChart({
       );
       const newData = res.data || [];
 
-      if (newData.length === 0) {
+      // 数据加载完毕的条件
+      if (newData.length === 0 || newData.length < 1000) {
         hasMore.current = false;
-        return [];
+        setIsFetchingMore(false);
+
+        if (newData.length === 0) {
+          return [];
+        }
       }
 
       // 确保新数据升序排序
@@ -184,13 +189,15 @@ export default function KLineChart({
         return merged;
       });
 
+      setIsFetchingMore(false);
+
       // 转换格式后返回给图表 applyMoreData
       return toChartFormat(sortedNewData);
     } catch (err) {
       console.error('Failed to load more klines:', err);
-      return [];
-    } finally {
+      hasMore.current = false;
       setIsFetchingMore(false);
+      return [];
     }
   }, [sessionId, isFetchingMore]); // 添加依赖
 
