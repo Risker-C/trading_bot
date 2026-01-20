@@ -163,34 +163,48 @@ export default function KLineChart({
       return [];
     }
 
+    const currentEarliest = earliestTs.current;
     setIsFetchingMore(true);
     isFetchingMoreRef.current = true;
 
     try {
       const res = await apiClient.get(
-        `/api/backtests/sessions/${sessionId}/klines?limit=1000&before=${earliestTs.current}`
+        `/api/backtests/sessions/${sessionId}/klines?limit=1000&before=${currentEarliest}`
       );
       const newData = res.data || [];
 
       // 数据加载完毕的条件
-      if (newData.length === 0 || newData.length < 1000) {
+      if (newData.length === 0) {
         hasMore.current = false;
         setIsFetchingMore(false);
         isFetchingMoreRef.current = false;
-
-        if (newData.length === 0) {
-          return [];
-        }
+        return [];
       }
 
       // 确保新数据升序排序
       const sortedNewData = newData.sort((a: KLineData, b: KLineData) => a.timestamp - b.timestamp);
+      const newEarliest = sortedNewData[0]?.timestamp;
+
+      // 检查是否获取到了更早的数据
+      if (!newEarliest || newEarliest >= currentEarliest) {
+        // 没有更早的数据了，停止加载
+        hasMore.current = false;
+        setIsFetchingMore(false);
+        isFetchingMoreRef.current = false;
+        return [];
+      }
+
+      // 如果返回数据少于 1000 条，可能是最后一批数据
+      if (newData.length < 1000) {
+        hasMore.current = false;
+      }
+
+      // 更新最早时间戳
+      earliestTs.current = newEarliest;
 
       // 去重合并
       setKlines(prevKlines => {
-        const merged = mergeKlines(sortedNewData, prevKlines);
-        earliestTs.current = merged[0]?.timestamp ?? earliestTs.current;
-        return merged;
+        return mergeKlines(sortedNewData, prevKlines);
       });
 
       setIsFetchingMore(false);
