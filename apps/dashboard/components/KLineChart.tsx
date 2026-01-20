@@ -1,11 +1,25 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { init, dispose } from 'klinecharts';
 import apiClient from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { TrendingUp, Square, Type } from 'lucide-react';
+
+// ==================== Constants ====================
+
+// 颜色常量 - 使用 Tailwind CSS 变量
+const CHART_COLORS = {
+  up: 'hsl(var(--trading-up))',
+  down: 'hsl(var(--trading-down))',
+  primary: 'hsl(var(--primary))',
+} as const;
 
 // ==================== Types ====================
+
+type DrawingTool = 'line' | 'rect' | 'text' | null;
 
 interface KLineData {
   timestamp: number;
@@ -72,6 +86,10 @@ export default function KLineChart({
   const [status, setStatus] = useState<'loading' | 'idle' | 'error'>('loading');
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 绘图工具状态
+  const [activeTool, setActiveTool] = useState<DrawingTool>(null);
+  const [overlays, setOverlays] = useState<string[]>([]);
 
   // ==================== Refs ====================
   const chartRef = useRef<HTMLDivElement>(null);
@@ -181,13 +199,31 @@ export default function KLineChart({
   const drawTradeMarkers = (chart: any, tradesList: Trade[], activeId?: number | null) => {
     if (!chart || !tradesList || tradesList.length === 0) return;
 
-    // 清除旧标记
-    chart.removeOverlay();
+    // 清除旧的交易标记（保留用户绘图）
+    chart.getOverlays?.()
+      ?.filter((o: any) => o.extendData?.kind === 'trade-marker')
+      ?.forEach((o: any) => chart.removeOverlay(o.id));
+
+    // 性能优化：创建 Map 索引，O(n²) → O(n)
+    const tradesById = useMemo(
+      () => new Map(tradesList.map(t => [t.id, t])),
+      [tradesList]
+    );
+
+    const closeByOpenId = useMemo(() => {
+      const map = new Map<number, Trade>();
+      for (const t of tradesList) {
+        if (t.action === 'close' && t.open_trade_id) {
+          map.set(t.open_trade_id, t);
+        }
+      }
+      return map;
+    }, [tradesList]);
 
     // 1. 绘制配对交易的连接线
     tradesList.forEach(trade => {
       if (trade.action === 'close' && trade.open_trade_id) {
-        const openTrade = tradesList.find(t => t.id === trade.open_trade_id);
+        const openTrade = tradesById.get(trade.open_trade_id);
         if (openTrade) {
           const isPaired = activeId === trade.id || activeId === openTrade.id;
 
@@ -201,10 +237,11 @@ export default function KLineChart({
               line: {
                 style: 'dashed',
                 size: isPaired ? 2 : 1,
-                color: (trade.pnl ?? 0) >= 0 ? '#22c55e' : '#ef4444',
+                color: (trade.pnl ?? 0) >= 0 ? CHART_COLORS.up : CHART_COLORS.down,
                 dashedValue: [4, 4]
               }
-            }
+            },
+            extendData: { kind: 'trade-marker' }
           });
         }
       }
@@ -213,8 +250,8 @@ export default function KLineChart({
     // 2. 绘制交易点标记
     tradesList.forEach(trade => {
       const pairedTrade = trade.action === 'close'
-        ? tradesList.find(t => t.id === trade.open_trade_id)
-        : tradesList.find(t => t.open_trade_id === trade.id && t.action === 'close');
+        ? tradesById.get(trade.open_trade_id!)
+        : closeByOpenId.get(trade.id);
 
       const isPaired = activeId === trade.id || activeId === pairedTrade?.id;
 
@@ -235,10 +272,10 @@ export default function KLineChart({
 
       if (trade.action === 'open') {
         symbolType = trade.side === 'long' ? 'triangle' : 'invertedTriangle';
-        symbolColor = trade.side === 'long' ? '#22c55e' : '#ef4444';
+        symbolColor = trade.side === 'long' ? CHART_COLORS.up : CHART_COLORS.down;
       } else {
         symbolType = 'circle';
-        symbolColor = (trade.pnl ?? 0) >= 0 ? '#22c55e' : '#ef4444';
+        symbolColor = (trade.pnl ?? 0) >= 0 ? CHART_COLORS.up : CHART_COLORS.down;
       }
 
       chart.createOverlay({
@@ -249,7 +286,7 @@ export default function KLineChart({
             type: symbolType,
             size: isPaired ? 10 : 8,
             color: symbolColor,
-            activeColor: '#3b82f6',
+            activeColor: CHART_COLORS.primary,
             offset: [0, 0]
           },
           text: {
@@ -262,7 +299,11 @@ export default function KLineChart({
             borderColor: 'transparent'
           }
         },
-        extendData: { id: trade.id, info: tradeInfo },
+        extendData: {
+          id: trade.id,
+          info: tradeInfo,
+          kind: 'trade-marker'
+        },
         onClick: () => {
           if (onTradeClick) {
             onTradeClick(trade.id);
@@ -286,6 +327,112 @@ export default function KLineChart({
       chart.createIndicator(indicator, false, { id: 'candle_pane' });
     }
   };
+
+  // ==================== Drawing Tools ====================
+
+  // 保存绘图到 localStorage
+  const saveOverlaysToStorage = useCallback((chart: any) => {
+    if (!chart || !symbol) return;
+
+    try {
+      const allOverlays = chart.getOverlays?.() || [];
+
+      // 仅保存用户绘图
+      const overlayData = allOverlays
+        .filter((o: any) => o.extendData?.persist === true)
+        .map((o: any) => ({
+          id: o.id,
+          name: o.name,
+          points: o.points,
+          styles: o.styles,
+          extendData: o.extendData,
+        }));
+
+      const serialized = JSON.stringify(overlayData);
+
+      // 大小限制：200KB
+      if (serialized.length > 200_000) {
+        console.warn('绘图数据过大，跳过保存');
+        return;
+      }
+
+      localStorage.setItem(`kline-overlays-${symbol}`, serialized);
+    } catch (error) {
+      console.error('保存绘图数据失败:', error);
+    }
+  }, [symbol]);
+
+  // 工具选择处理
+  const handleToolSelect = useCallback((tool: DrawingTool) => {
+    if (!chartInstance.current) return;
+
+    // 切换工具状态
+    if (activeTool === tool) {
+      setActiveTool(null);
+      return;
+    }
+
+    setActiveTool(tool);
+
+    // 映射到 klinecharts overlay 类型
+    const overlayTypeMap: Record<Exclude<DrawingTool, null>, string> = {
+      line: 'straightLine',
+      rect: 'rect',
+      text: 'simpleAnnotation',
+    };
+
+    if (tool) {
+      // 创建 overlay
+      const overlayId = chartInstance.current.createOverlay({
+        name: overlayTypeMap[tool],
+        styles: {
+          line: {
+            color: CHART_COLORS.primary,
+            size: 2,
+          },
+          text: {
+            color: CHART_COLORS.primary,
+            size: 12,
+          },
+          rect: {
+            color: CHART_COLORS.primary,
+            borderSize: 2,
+            borderColor: CHART_COLORS.primary,
+          },
+        },
+        extendData: {
+          persist: true,
+          type: 'user-drawing'
+        },
+        onDrawEnd: ({ overlay, chart }: any) => {
+          // 绘制完成后保存
+          if (overlay?.id) {
+            setOverlays(prev => [...prev, overlay.id]);
+            saveOverlaysToStorage(chart);
+          }
+          // 重置工具状态
+          setActiveTool(null);
+        },
+      });
+    }
+  }, [activeTool, saveOverlaysToStorage]);
+
+  // 清除所有绘图
+  const handleClearAll = useCallback(() => {
+    if (!chartInstance.current) return;
+
+    overlays.forEach(id => {
+      chartInstance.current?.removeOverlay?.(id);
+    });
+
+    setOverlays([]);
+    setActiveTool(null);
+
+    // 清除存储
+    if (symbol) {
+      localStorage.removeItem(`kline-overlays-${symbol}`);
+    }
+  }, [overlays, symbol]);
 
   // ==================== Effects ====================
 
@@ -345,10 +492,65 @@ export default function KLineChart({
     drawTradeMarkers(chartInstance.current, trades, activeTradeId);
   }, [trades, activeTradeId, strategyName]);
 
+  // Effect 5: 恢复保存的绘图
+  useEffect(() => {
+    if (!chartInstance.current || !symbol) return;
+
+    try {
+      const raw = localStorage.getItem(`kline-overlays-${symbol}`);
+      if (!raw) return;
+
+      // 大小验证
+      if (raw.length > 200_000) {
+        localStorage.removeItem(`kline-overlays-${symbol}`);
+        console.warn('绘图数据异常，已清理');
+        return;
+      }
+
+      const data = JSON.parse(raw);
+
+      // 结构验证
+      if (!Array.isArray(data)) {
+        localStorage.removeItem(`kline-overlays-${symbol}`);
+        return;
+      }
+
+      const restoredIds: string[] = [];
+
+      for (const item of data) {
+        // 验证必要字段
+        if (!item.name || !item.points || !Array.isArray(item.points)) {
+          continue;
+        }
+
+        const id = chartInstance.current.createOverlay({
+          name: item.name,
+          points: item.points,
+          styles: item.styles,
+          extendData: item.extendData,
+        });
+
+        if (id) {
+          restoredIds.push(id);
+        }
+      }
+
+      setOverlays(restoredIds);
+    } catch (error) {
+      console.error('恢复绘图数据失败:', error);
+      // 数据损坏时清理
+      localStorage.removeItem(`kline-overlays-${symbol}`);
+    }
+  }, [symbol]); // 仅在 symbol 变化时执行
+
   // ==================== UI Components ====================
 
   const LoadingOverlay = () => (
-    <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm z-10">
+    <div
+      className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-10"
+      aria-busy="true"
+      aria-label="正在加载K线数据"
+    >
       <div className="flex flex-col items-center gap-2">
         <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
         <p className="text-sm text-muted-foreground">正在加载K线数据...</p>
@@ -357,21 +559,33 @@ export default function KLineChart({
   );
 
   const LoadingIndicator = () => (
-    <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1 rounded-md flex items-center gap-2 z-20">
+    <div
+      className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1 rounded-md flex items-center gap-2 z-20"
+      aria-busy={isFetchingMore}
+      aria-label="正在加载更多数据"
+    >
       <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
       <span className="text-xs">加载历史数据中...</span>
     </div>
   );
 
   const ErrorOverlay = () => (
-    <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-20">
+    <div
+      className="absolute inset-0 flex flex-col items-center justify-center bg-background z-20"
+      role="alert"
+      aria-live="assertive"
+      aria-labelledby="error-title"
+      aria-describedby="error-desc"
+    >
       <svg className="w-12 h-12 text-red-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
-      <p className="text-red-500 mb-4">{error}</p>
+      <p id="error-title" className="text-red-500 font-semibold text-lg mb-2">加载失败</p>
+      <p id="error-desc" className="text-sm text-muted-foreground mb-4">{error}</p>
       <button
         onClick={() => sessionId && loadInitialData(sessionId)}
         className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 flex items-center gap-2"
+        aria-label="重新加载K线数据"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -381,12 +595,98 @@ export default function KLineChart({
     </div>
   );
 
+  const DrawingToolbar = () => (
+    <div className="flex items-center gap-2 mb-2 p-2 bg-card rounded-lg border shadow-sm">
+      <TooltipProvider>
+        <div className="flex gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant={activeTool === 'line' ? 'default' : 'outline'}
+                onClick={() => handleToolSelect('line')}
+                aria-label="绘制趋势线"
+                aria-pressed={activeTool === 'line'}
+                className="h-10 w-10 p-0"
+              >
+                <TrendingUp className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>趋势线</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant={activeTool === 'rect' ? 'default' : 'outline'}
+                onClick={() => handleToolSelect('rect')}
+                aria-label="绘制矩形"
+                aria-pressed={activeTool === 'rect'}
+                className="h-10 w-10 p-0"
+              >
+                <Square className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>矩形</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant={activeTool === 'text' ? 'default' : 'outline'}
+                onClick={() => handleToolSelect('text')}
+                aria-label="添加文本标注"
+                aria-pressed={activeTool === 'text'}
+                className="h-10 w-10 p-0"
+              >
+                <Type className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>文本标注</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
+
+      {overlays.length > 0 && (
+        <>
+          <div className="h-4 w-px bg-border" />
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleClearAll}
+            aria-label="清除所有绘图"
+            className="h-10 text-xs"
+          >
+            清除全部
+          </Button>
+        </>
+      )}
+
+      <div className="ml-auto text-xs text-muted-foreground hidden sm:block">
+        {activeTool ? '点击图表开始绘制' : '选择工具开始绘图'}
+      </div>
+    </div>
+  );
+
   // ==================== Render ====================
 
   return (
     <div className={cn("relative w-full", className)} style={{ height }}>
+      {/* 绘图工具栏 */}
+      <DrawingToolbar />
+
+      {/* K线图表 */}
       <div ref={chartRef} className="w-full h-full" />
 
+      {/* 覆盖层 */}
       {status === 'loading' && <LoadingOverlay />}
       {isFetchingMore && <LoadingIndicator />}
       {status === 'error' && <ErrorOverlay />}
