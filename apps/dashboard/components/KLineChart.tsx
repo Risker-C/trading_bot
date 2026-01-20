@@ -159,7 +159,15 @@ export default function KLineChart({
 
   // 使用 useCallback 避免闭包过期问题
   const loadMore = useCallback(async (): Promise<any[]> => {
+    console.log('[KLineChart] loadMore 被调用', {
+      sessionId,
+      earliestTs: earliestTs.current,
+      hasMore: hasMore.current,
+      isFetching: isFetchingMoreRef.current
+    });
+
     if (!sessionId || !earliestTs.current || !hasMore.current || isFetchingMoreRef.current) {
+      console.log('[KLineChart] loadMore 提前返回');
       return [];
     }
 
@@ -168,13 +176,16 @@ export default function KLineChart({
     isFetchingMoreRef.current = true;
 
     try {
+      console.log('[KLineChart] 请求数据 before=', currentEarliest);
       const res = await apiClient.get(
         `/api/backtests/sessions/${sessionId}/klines?limit=1000&before=${currentEarliest}`
       );
       const newData = res.data || [];
+      console.log('[KLineChart] 收到数据', newData.length, '条');
 
       // 数据加载完毕的条件
       if (newData.length === 0) {
+        console.log('[KLineChart] 无数据，停止加载');
         hasMore.current = false;
         setIsFetchingMore(false);
         isFetchingMoreRef.current = false;
@@ -184,10 +195,12 @@ export default function KLineChart({
       // 确保新数据升序排序
       const sortedNewData = newData.sort((a: KLineData, b: KLineData) => a.timestamp - b.timestamp);
       const newEarliest = sortedNewData[0]?.timestamp;
+      console.log('[KLineChart] 新数据最早时间戳', newEarliest, '当前最早', currentEarliest);
 
       // 检查是否获取到了更早的数据
       if (!newEarliest || newEarliest >= currentEarliest) {
         // 没有更早的数据了，停止加载
+        console.log('[KLineChart] 新数据不更早，停止加载');
         hasMore.current = false;
         setIsFetchingMore(false);
         isFetchingMoreRef.current = false;
@@ -196,11 +209,13 @@ export default function KLineChart({
 
       // 如果返回数据少于 1000 条，可能是最后一批数据
       if (newData.length < 1000) {
+        console.log('[KLineChart] 数据少于1000条，标记为最后一批');
         hasMore.current = false;
       }
 
       // 更新最早时间戳
       earliestTs.current = newEarliest;
+      console.log('[KLineChart] 更新 earliestTs 为', newEarliest);
 
       // 去重合并
       setKlines(prevKlines => {
@@ -213,7 +228,7 @@ export default function KLineChart({
       // 转换格式后返回给图表 applyMoreData
       return toChartFormat(sortedNewData);
     } catch (err) {
-      console.error('Failed to load more klines:', err);
+      console.error('[KLineChart] 加载失败:', err);
       hasMore.current = false;
       setIsFetchingMore(false);
       isFetchingMoreRef.current = false;
@@ -494,25 +509,41 @@ export default function KLineChart({
   useEffect(() => {
     if (!chartInstance.current || mode !== 'backtest' || !sessionId) return;
 
+    console.log('[KLineChart] 注册增量加载回调');
+
     // 创建稳定的回调引用
     const loadDataCallback = async (params: any) => {
+      console.log('[KLineChart] loadDataCallback 被触发', {
+        hasMore: hasMore.current,
+        isFetching: isFetchingMoreRef.current,
+        earliestTs: earliestTs.current,
+        params
+      });
+
       // 检查是否还有更多数据（使用 ref 避免闭包问题）
       if (!hasMore.current || isFetchingMoreRef.current) {
+        console.log('[KLineChart] 停止加载：', {
+          reason: !hasMore.current ? '无更多数据' : '正在加载中'
+        });
         return null; // 返回 null 告诉 klinecharts 停止加载
       }
 
       // 使用 ref 中的最新 loadMore 函数
       if (!loadMoreRef.current) {
+        console.log('[KLineChart] loadMoreRef.current 不存在');
         return null;
       }
 
+      console.log('[KLineChart] 开始加载更多数据');
       const moreData = await loadMoreRef.current();
 
       // 如果没有数据或数据已加载完，返回 null
       if (!moreData || moreData.length === 0) {
+        console.log('[KLineChart] 无更多数据返回');
         return null;
       }
 
+      console.log('[KLineChart] 返回数据', moreData.length, '条');
       return moreData;
     };
 
@@ -520,6 +551,7 @@ export default function KLineChart({
 
     // 清理函数
     return () => {
+      console.log('[KLineChart] 清理增量加载回调');
       if (chartInstance.current) {
         chartInstance.current.setLoadDataCallback?.(null);
       }
