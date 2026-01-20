@@ -196,7 +196,29 @@ export default function KLineChart({
 
   // ==================== Trade Markers ====================
 
-  const drawTradeMarkers = (chart: any, tradesList: Trade[], activeId?: number | null) => {
+  // 性能优化：创建 Map 索引，O(n²) → O(n)
+  const tradesById = useMemo(
+    () => new Map(trades.map(t => [t.id, t])),
+    [trades]
+  );
+
+  const closeByOpenId = useMemo(() => {
+    const map = new Map<number, Trade>();
+    for (const t of trades) {
+      if (t.action === 'close' && t.open_trade_id) {
+        map.set(t.open_trade_id, t);
+      }
+    }
+    return map;
+  }, [trades]);
+
+  const drawTradeMarkers = useCallback((
+    chart: any,
+    tradesList: Trade[],
+    tradesMap: Map<number, Trade>,
+    closeMap: Map<number, Trade>,
+    activeId?: number | null
+  ) => {
     if (!chart || !tradesList || tradesList.length === 0) return;
 
     // 清除旧的交易标记（保留用户绘图）
@@ -204,26 +226,10 @@ export default function KLineChart({
       ?.filter((o: any) => o.extendData?.kind === 'trade-marker')
       ?.forEach((o: any) => chart.removeOverlay(o.id));
 
-    // 性能优化：创建 Map 索引，O(n²) → O(n)
-    const tradesById = useMemo(
-      () => new Map(tradesList.map(t => [t.id, t])),
-      [tradesList]
-    );
-
-    const closeByOpenId = useMemo(() => {
-      const map = new Map<number, Trade>();
-      for (const t of tradesList) {
-        if (t.action === 'close' && t.open_trade_id) {
-          map.set(t.open_trade_id, t);
-        }
-      }
-      return map;
-    }, [tradesList]);
-
     // 1. 绘制配对交易的连接线
     tradesList.forEach(trade => {
       if (trade.action === 'close' && trade.open_trade_id) {
-        const openTrade = tradesById.get(trade.open_trade_id);
+        const openTrade = tradesMap.get(trade.open_trade_id);
         if (openTrade) {
           const isPaired = activeId === trade.id || activeId === openTrade.id;
 
@@ -250,8 +256,8 @@ export default function KLineChart({
     // 2. 绘制交易点标记
     tradesList.forEach(trade => {
       const pairedTrade = trade.action === 'close'
-        ? tradesById.get(trade.open_trade_id!)
-        : closeByOpenId.get(trade.id);
+        ? tradesMap.get(trade.open_trade_id!)
+        : closeMap.get(trade.id);
 
       const isPaired = activeId === trade.id || activeId === pairedTrade?.id;
 
@@ -326,7 +332,7 @@ export default function KLineChart({
       const indicator = indicatorMap[strategyName] || 'MA';
       chart.createIndicator(indicator, false, { id: 'candle_pane' });
     }
-  };
+  }, [strategyName]);
 
   // ==================== Drawing Tools ====================
 
@@ -489,8 +495,8 @@ export default function KLineChart({
   // Effect 4: 交易标记更新
   useEffect(() => {
     if (!chartInstance.current) return;
-    drawTradeMarkers(chartInstance.current, trades, activeTradeId);
-  }, [trades, activeTradeId, strategyName]);
+    drawTradeMarkers(chartInstance.current, trades, tradesById, closeByOpenId, activeTradeId);
+  }, [trades, tradesById, closeByOpenId, activeTradeId, drawTradeMarkers]);
 
   // Effect 5: 恢复保存的绘图
   useEffect(() => {
