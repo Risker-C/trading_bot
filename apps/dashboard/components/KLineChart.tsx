@@ -31,11 +31,13 @@ interface KLineChartProps {
   activeTradeId?: number | null;
   onTradeClick?: (tradeId: number) => void;
   strategyName?: string;
+  onLoadMore?: (timestamp: number) => Promise<KLineData[]>;
 }
 
-export default function KLineChart({ data, trades = [], activeTradeId, onTradeClick, strategyName }: KLineChartProps) {
+export default function KLineChart({ data, trades = [], activeTradeId, onTradeClick, strategyName, onLoadMore }: KLineChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<any>(null);
+  const loadingRef = useRef(false);
 
   useEffect(() => {
     if (!chartRef.current) return;
@@ -178,13 +180,38 @@ export default function KLineChart({ data, trades = [], activeTradeId, onTradeCl
       chartInstance.current.createIndicator(indicator, false, { id: 'candle_pane' });
     }
 
+    if (onLoadMore) {
+      chartInstance.current.loadMore(async (timestamp: number) => {
+        if (loadingRef.current) return;
+        loadingRef.current = true;
+        try {
+          const moreData = await onLoadMore(timestamp);
+          if (moreData && moreData.length > 0) {
+            chartInstance.current.applyMoreData(
+              moreData.map(d => ({
+                timestamp: d.timestamp * 1000,
+                open: d.open,
+                high: d.high,
+                low: d.low,
+                close: d.close,
+                volume: d.volume,
+              })),
+              true
+            );
+          }
+        } finally {
+          loadingRef.current = false;
+        }
+      });
+    }
+
     return () => {
       if (chartInstance.current) {
         dispose(chartRef.current!);
         chartInstance.current = null;
       }
     };
-  }, [data, trades, activeTradeId, onTradeClick]);
+  }, [data, trades, activeTradeId, onTradeClick, onLoadMore]);
 
   return <div ref={chartRef} className="w-full h-[500px]" />;
 }

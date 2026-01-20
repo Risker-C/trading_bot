@@ -36,9 +36,7 @@ export default function BacktestPage() {
   const [trades, setTrades] = useState<any[]>([]);
   const [klines, setKlines] = useState<any[]>([]);
   const [tradesOffset, setTradesOffset] = useState(0);
-  const [klinesOffset, setKlinesOffset] = useState(0);
   const [hasMoreTrades, setHasMoreTrades] = useState(true);
-  const [hasMoreKlines, setHasMoreKlines] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
   // 计算总权重和验证状态
@@ -82,9 +80,7 @@ export default function BacktestPage() {
       setTrades([]);
       setKlines([]);
       setTradesOffset(0);
-      setKlinesOffset(0);
       setHasMoreTrades(true);
-      setHasMoreKlines(true);
     }
   }, [currentSessionId]);
 
@@ -131,15 +127,13 @@ export default function BacktestPage() {
       try {
         const [tradesRes, klinesRes] = await Promise.all([
           axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/trades?limit=50&offset=0`),
-          axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/klines?limit=1000&offset=0`)
+          axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/klines?limit=1000`)
         ]);
 
         setTrades(tradesRes.data);
         setKlines(klinesRes.data);
         setHasMoreTrades(tradesRes.data.length === 50);
-        setHasMoreKlines(klinesRes.data.length === 1000);
         setTradesOffset(50);
-        setKlinesOffset(1000);
       } catch (error) {
         console.error('Failed to fetch details:', error);
       }
@@ -173,26 +167,22 @@ export default function BacktestPage() {
     }
   };
 
-  const loadMoreKlines = async () => {
-    if (!currentSessionId || !hasMoreKlines || loadingMore) return;
+  const loadMoreKlines = async (timestamp: number) => {
+    if (!currentSessionId || loadingMore) return [];
 
     setLoadingMore(true);
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
     try {
+      const timestampInSeconds = Math.floor(timestamp / 1000);
       const response = await axios.get(
-        `${apiUrl}/api/backtests/sessions/${currentSessionId}/klines?limit=1000&offset=${klinesOffset}`
+        `${apiUrl}/api/backtests/sessions/${currentSessionId}/klines?limit=1000&before=${timestampInSeconds}`
       );
 
-      if (response.data.length > 0) {
-        setKlines([...klines, ...response.data]);
-        setKlinesOffset(klinesOffset + response.data.length);
-        setHasMoreKlines(response.data.length === 1000);
-      } else {
-        setHasMoreKlines(false);
-      }
+      return response.data || [];
     } catch (error) {
       console.error('Failed to load more klines:', error);
+      return [];
     } finally {
       setLoadingMore(false);
     }
@@ -379,18 +369,8 @@ export default function BacktestPage() {
             activeTradeId={activeTradeId}
             onTradeClick={setActiveTradeId}
             strategyName={params.strategyName}
+            onLoadMore={loadMoreKlines}
           />
-          {hasMoreKlines && (
-            <div className="mt-4 text-center">
-              <Button
-                onClick={loadMoreKlines}
-                disabled={loadingMore}
-                variant="outline"
-              >
-                {loadingMore ? '加载中...' : `加载更多 K线 (已加载 ${klines.length} 条)`}
-              </Button>
-            </div>
-          )}
         </Card>
       )}
 
