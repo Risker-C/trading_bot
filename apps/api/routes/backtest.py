@@ -319,12 +319,12 @@ async def get_klines(session_id: str, limit: int = None, before: int = None):
         repo = _get_repo()
         conn = repo._get_conn()
 
-        # 如果指定了before参数，返回该时间戳之前的K线
+        # 如果指定了before参数，返回该时间戳之前的K线（最早的limit条）
         if before is not None:
             if limit is None:
                 limit = 1000
             cursor = conn.execute(
-                "SELECT ts, open, high, low, close, volume FROM backtest_klines WHERE session_id = ? AND ts < ? ORDER BY ts DESC LIMIT ?",
+                "SELECT ts, open, high, low, close, volume FROM backtest_klines WHERE session_id = ? AND ts < ? ORDER BY ts ASC LIMIT ?",
                 (session_id, before, limit)
             )
         # 如果没有指定limit，返回所有K线数据
@@ -334,8 +334,9 @@ async def get_klines(session_id: str, limit: int = None, before: int = None):
                 (session_id,)
             )
         else:
+            # 初始加载：返回最早的limit条数据
             cursor = conn.execute(
-                "SELECT ts, open, high, low, close, volume FROM backtest_klines WHERE session_id = ? ORDER BY ts DESC LIMIT ?",
+                "SELECT ts, open, high, low, close, volume FROM backtest_klines WHERE session_id = ? ORDER BY ts ASC LIMIT ?",
                 (session_id, limit)
             )
 
@@ -343,10 +344,6 @@ async def get_klines(session_id: str, limit: int = None, before: int = None):
         conn.close()
 
         klines = []
-        # 如果使用了limit或before，需要反转顺序（因为查询是DESC）
-        if limit is not None or before is not None:
-            rows = reversed(rows)
-
         for row in rows:
             klines.append({
                 "timestamp": row[0],

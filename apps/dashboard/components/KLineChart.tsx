@@ -191,7 +191,7 @@ export default function KLineChart({
     try {
       console.log('[KLineChart] 请求数据 before=', currentEarliest);
       const res = await apiClient.get(
-        `/api/backtests/sessions/${sessionId}/klines?limit=1000&before=${currentEarliest - 1}`
+        `/api/backtests/sessions/${sessionId}/klines?limit=1000&before=${currentEarliest}`
       );
       const newData = res.data || [];
       console.log('[KLineChart] 收到数据', newData.length, '条');
