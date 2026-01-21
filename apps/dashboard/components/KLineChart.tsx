@@ -30,28 +30,82 @@ const tradeMarkerOverlay = {
     if (!coordinates || coordinates.length === 0) return [];
 
     const { extendData } = overlay;
-    const { tradeType, isPaired, markerSymbol } = extendData || {};
+    const { tradeType, isPaired } = extendData || {};
 
-    const color = tradeType === 'buy' ? '#22c55e' : '#ef4444';
+    const isBuy = tradeType === 'buy';
+    const color = isBuy ? '#22c55e' : '#ef4444';
     const x = coordinates[0].x;
     const y = coordinates[0].y;
 
-    return {
-      type: 'text',
+    // 使用圆形 + 箭头的组合，更清晰美观
+    const figures = [];
+
+    // 1. 绘制底部圆形背景
+    figures.push({
+      type: 'circle',
       attrs: {
         x,
-        y: tradeType === 'buy' ? y + 20 : y - 20,
-        text: markerSymbol || (tradeType === 'buy' ? '▲' : '▼'),
-        align: 'center',
-        baseline: 'middle'
+        y,
+        r: isPaired ? 8 : 6
       },
       styles: {
-        color,
-        size: isPaired ? 14 : 12,
-        weight: isPaired ? 'bold' : 'normal',
-        family: 'Arial'
+        style: 'fill',
+        color: color + '20' // 20% 透明度
       }
-    };
+    });
+
+    // 2. 绘制圆形边框
+    figures.push({
+      type: 'circle',
+      attrs: {
+        x,
+        y,
+        r: isPaired ? 8 : 6
+      },
+      styles: {
+        style: 'stroke',
+        borderColor: color,
+        borderSize: isPaired ? 2 : 1.5
+      }
+    });
+
+    // 3. 绘制箭头符号
+    const arrowSize = isPaired ? 6 : 5;
+    if (isBuy) {
+      // 向上箭头（买入）
+      figures.push({
+        type: 'polygon',
+        attrs: {
+          coordinates: [
+            { x: x, y: y - arrowSize / 2 },           // 顶点
+            { x: x - arrowSize / 2, y: y + arrowSize / 2 },  // 左下
+            { x: x + arrowSize / 2, y: y + arrowSize / 2 }   // 右下
+          ]
+        },
+        styles: {
+          style: 'fill',
+          color: color
+        }
+      });
+    } else {
+      // 向下箭头（卖出）
+      figures.push({
+        type: 'polygon',
+        attrs: {
+          coordinates: [
+            { x: x, y: y + arrowSize / 2 },           // 底点
+            { x: x - arrowSize / 2, y: y - arrowSize / 2 },  // 左上
+            { x: x + arrowSize / 2, y: y - arrowSize / 2 }   // 右上
+          ]
+        },
+        styles: {
+          style: 'fill',
+          color: color
+        }
+      });
+    }
+
+    return figures;
   }
 };
 
