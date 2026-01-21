@@ -11,6 +11,7 @@ import os
 import sys
 from typing import List, Dict, Optional
 from supabase import create_client, Client
+from dotenv import load_dotenv
 
 # 依赖顺序(先父表后子表,避免外键约束错误)
 MIGRATION_ORDER = [
@@ -162,6 +163,9 @@ def main():
     print("  SQLite → Supabase 数据迁移工具")
     print("=" * 70)
     print()
+
+    # 加载 .env.supabase 文件
+    load_dotenv('.env.supabase')
 
     # 检查环境变量
     supabase_url = os.getenv('SUPABASE_URL')
