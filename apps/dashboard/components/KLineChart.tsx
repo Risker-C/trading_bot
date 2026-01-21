@@ -790,12 +790,12 @@ export default function KLineChart({
   // ==================== Render ====================
 
   return (
-    <div className={cn("relative w-full flex flex-col", className)} style={{ height }}>
+    <div className={cn("relative w-full flex flex-col", className)}>
       {/* 绘图工具栏 */}
       <DrawingToolbar />
 
       {/* K线图表 */}
-      <div ref={chartRef} className="w-full flex-1" />
+      <div ref={chartRef} className="w-full" style={{ height: typeof height === 'number' ? `${height}px` : height }} />
 
       {/* 覆盖层 */}
       {status === 'loading' && <LoadingOverlay />}
