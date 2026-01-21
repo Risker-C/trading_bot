@@ -398,6 +398,7 @@ export default function BacktestPage() {
                     <th className="text-left p-2">操作</th>
                     <th className="text-right p-2">价格</th>
                     <th className="text-right p-2">数量</th>
+                    <th className="text-right p-2">金额(USDT)</th>
                     <th className="text-right p-2">盈亏</th>
                     <th className="text-left p-2">策略</th>
                     <th className="text-left p-2">原因</th>
@@ -458,6 +459,9 @@ export default function BacktestPage() {
                         </td>
                         <td className="p-2 text-right">{trade.price.toFixed(2)}</td>
                         <td className="p-2 text-right">{trade.qty.toFixed(4)}</td>
+                        <td className="p-2 text-right font-mono">
+                          ${(trade.qty * trade.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
                         <td className={`p-2 text-right ${
                           trade.pnl >= 0
                             ? 'text-green-600 dark:text-green-400'

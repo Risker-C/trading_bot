@@ -17,6 +17,30 @@ const CHART_COLORS = {
   primary: 'hsl(var(--primary))',
 } as const;
 
+// ==================== Utility Functions ====================
+
+// 买卖语义判定：开多/平空=买入，开空/平多=卖出
+function getTradeType(action: string, side: string): 'buy' | 'sell' {
+  if ((action === 'open' && side === 'long') ||
+      (action === 'close' && side === 'short')) {
+    return 'buy';
+  }
+  return 'sell';
+}
+
+// 金额计算：优先使用 amount 字段，回退到 qty * price
+function getTradeAmount(trade: Trade): number {
+  return trade.amount ?? ((trade.qty ?? 0) * trade.price);
+}
+
+// 金额格式化：千分位 + 2位小数
+function formatAmount(amount: number): string {
+  return `$${amount.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
+}
+
 // ==================== Types ====================
 
 type DrawingTool = 'line' | 'rect' | 'text' | null;
@@ -41,6 +65,7 @@ interface Trade {
   qty?: number;
   pnl?: number;
   open_trade_id?: number;
+  amount?: number;
 }
 
 interface KLineChartProps {
@@ -321,10 +346,15 @@ export default function KLineChart({
 
       const isPaired = activeId === trade.id || activeId === pairedTrade?.id;
 
+      // 判断买卖类型
+      const tradeType = getTradeType(trade.action, trade.side);
+      const amount = getTradeAmount(trade);
+
       // 构建交易信息文本
       const tradeInfo = [
-        `${trade.action === 'open' ? '开仓' : '平仓'} ${trade.side === 'long' ? '做多' : '做空'}`,
-        `价格: ${trade.price.toFixed(2)}`,
+        `${tradeType === 'buy' ? '买入' : '卖出'}`,
+        `价格: $${trade.price.toFixed(2)}`,
+        `金额: ${formatAmount(amount)}`,
         trade.qty ? `数量: ${trade.qty.toFixed(4)}` : '',
         trade.strategy_name ? `策略: ${trade.strategy_name}` : '',
         trade.reason ? `原因: ${trade.reason}` : '',
@@ -332,17 +362,9 @@ export default function KLineChart({
         pairedTrade ? `配对: #${pairedTrade.id}` : (trade.action === 'open' ? '未平仓' : '')
       ].filter(Boolean).join('\n');
 
-      // 根据开仓方向和操作类型选择标记样式
-      let symbolType = 'circle';
-      let symbolColor = '#6b7280';
-
-      if (trade.action === 'open') {
-        symbolType = trade.side === 'long' ? 'triangle' : 'invertedTriangle';
-        symbolColor = trade.side === 'long' ? CHART_COLORS.up : CHART_COLORS.down;
-      } else {
-        symbolType = 'circle';
-        symbolColor = (trade.pnl ?? 0) >= 0 ? CHART_COLORS.up : CHART_COLORS.down;
-      }
+      // 根据买卖类型选择标记样式
+      const symbolType = tradeType === 'buy' ? 'triangle' : 'invertedTriangle';
+      const symbolColor = tradeType === 'buy' ? CHART_COLORS.up : CHART_COLORS.down;
 
       chart.createOverlay({
         name: 'simpleAnnotation',

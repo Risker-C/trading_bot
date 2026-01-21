@@ -245,6 +245,9 @@ export default function BacktestDetailPage() {
                   价格
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  金额(USDT)
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   手续费
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -261,7 +264,7 @@ export default function BacktestDetailPage() {
             <tbody className="bg-card divide-y divide-border">
               {trades.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-6 py-12 text-center text-muted-foreground">
                     暂无交易记录
                   </td>
                 </tr>
@@ -294,6 +297,9 @@ export default function BacktestDetailPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground text-right">
                       ${formatNumber(trade.price)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground text-right font-mono">
+                      ${formatNumber(trade.qty * trade.price)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground text-right">
                       ${formatNumber(trade.fee)}
