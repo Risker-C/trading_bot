@@ -80,6 +80,7 @@ MARGIN_MODE = "crossed"  # isolated / crossed
 POSITION_SIZE_PERCENT = 0.05   # Phase 1 优化: 提升至5%以增加收益基数（目标日收益2-3%）
 MIN_ORDER_USDT = 10            # 最小订单金额
 MAX_ORDER_USDT = 1000          # 最大订单金额
+MIN_AMOUNT_PRECISION = 0.0001  # 最小数量精度（BTC）
 
 # 分批建仓配置（新增）
 USE_PARTIAL_POSITION = True    # 是否分批建仓

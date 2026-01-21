@@ -1307,7 +1307,7 @@ class BitgetTrader:
             signal = signals[0] if signals else None
         
         if signal:
-            logger.info(f"策略信号: {signal.signal.value} from {signal.strategy_name}")
+            logger.info(f"策略信号: {signal.signal.value} from {signal.strategy}")
             logger.info(f"  理由: {signal.reason}")
             logger.info(f"  强度: {signal.strength:.2f}, 置信度: {signal.confidence:.2f}")
         
