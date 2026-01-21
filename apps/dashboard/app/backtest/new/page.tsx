@@ -34,7 +34,9 @@ export default function BacktestPage() {
   const [loading, setLoading] = useState(false);
   const [metrics, setMetrics] = useState<any>(null);
   const [trades, setTrades] = useState<any[]>([]);
-  const [klines, setKlines] = useState<any[]>([]);
+  const [tradesOffset, setTradesOffset] = useState(0);
+  const [hasMoreTrades, setHasMoreTrades] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // 计算总权重和验证状态
   const totalWeight = useMemo(
@@ -70,46 +72,94 @@ export default function BacktestPage() {
     }
   }, [wsData.backtest, currentSessionId, setStatus]);
 
+  // 清空旧数据
+  useEffect(() => {
+    if (currentSessionId) {
+      setMetrics(null);
+      setTrades([]);
+      setTradesOffset(0);
+      setHasMoreTrades(true);
+    }
+  }, [currentSessionId]);
+
+  // 轮询 metrics 判断回测是否完成
   useEffect(() => {
     if (!currentSessionId || status === 'idle') return;
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    
-    const fetchResults = async () => {
-      try {
-        const [metricsRes, tradesRes, klinesRes] = await Promise.all([
-          axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/metrics`),
-          axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/trades?limit=50`),
-          axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/klines?limit=1000`)
-        ]);
 
+    const fetchMetrics = async () => {
+      try {
+        const metricsRes = await axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/metrics`);
         if (metricsRes.data) {
           setMetrics(metricsRes.data);
-          setTrades(tradesRes.data);
-          setKlines(klinesRes.data);
           if (status === 'running') {
             setStatus('finished');
           }
         }
       } catch (error) {
-        console.error('Failed to fetch results:', error);
+        console.error('Failed to fetch metrics:', error);
       }
     };
 
-    // 如果状态是 running，设置定时轮询
     let interval: NodeJS.Timeout | null = null;
     if (status === 'running') {
-      fetchResults(); // 立即获取一次
-      interval = setInterval(fetchResults, 5000);
+      fetchMetrics();
+      interval = setInterval(fetchMetrics, 5000);
     } else if (status === 'finished' && !metrics) {
-      // 如果状态变成了 finished 但还没有获取到数据，再获取一次
-      fetchResults();
+      fetchMetrics();
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
   }, [currentSessionId, status, metrics, setStatus]);
+
+  // 当回测完成后，加载交易数据
+  useEffect(() => {
+    if (!currentSessionId || !metrics || trades.length > 0) return;
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+    const fetchDetails = async () => {
+      try {
+        const tradesRes = await axios.get(`${apiUrl}/api/backtests/sessions/${currentSessionId}/trades?limit=50&offset=0`);
+
+        setTrades(tradesRes.data);
+        setHasMoreTrades(tradesRes.data.length === 50);
+        setTradesOffset(50);
+      } catch (error) {
+        console.error('Failed to fetch details:', error);
+      }
+    };
+
+    fetchDetails();
+  }, [currentSessionId, metrics, trades.length]);
+
+  const loadMoreTrades = async () => {
+    if (!currentSessionId || !hasMoreTrades || loadingMore) return;
+
+    setLoadingMore(true);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+    try {
+      const response = await axios.get(
+        `${apiUrl}/api/backtests/sessions/${currentSessionId}/trades?limit=50&offset=${tradesOffset}`
+      );
+
+      if (response.data.length > 0) {
+        setTrades([...trades, ...response.data]);
+        setTradesOffset(tradesOffset + response.data.length);
+        setHasMoreTrades(response.data.length === 50);
+      } else {
+        setHasMoreTrades(false);
+      }
+    } catch (error) {
+      console.error('Failed to load more trades:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const handleStart = async () => {
     // 验证权重
@@ -127,7 +177,6 @@ export default function BacktestPage() {
       setLoading(true);
       setMetrics(null);
       setTrades([]);
-      setKlines([]);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
       // 构建请求参数
@@ -283,15 +332,16 @@ export default function BacktestPage() {
         </Card>
       )}
 
-      {klines.length > 0 && (
+      {metrics && currentSessionId && (
         <Card className="mt-6 p-6">
           <h2 className="text-xl font-semibold mb-4">K线图表</h2>
           <KLineChart
-            data={klines}
+            mode="backtest"
+            sessionId={currentSessionId}
             trades={trades}
             activeTradeId={activeTradeId}
             onTradeClick={setActiveTradeId}
-            strategyName={params.strategyName}
+            strategyName={isMultiStrategy ? undefined : params.selectedStrategies[0]?.name}
           />
         </Card>
       )}
@@ -423,6 +473,17 @@ export default function BacktestPage() {
                 </tbody>
               </table>
             </div>
+            {hasMoreTrades && (
+              <div className="mt-4 text-center">
+                <Button
+                  onClick={loadMoreTrades}
+                  disabled={loadingMore}
+                  variant="outline"
+                >
+                  {loadingMore ? '加载中...' : `加载更多交易 (已加载 ${trades.length} 条)`}
+                </Button>
+              </div>
+            )}
           </Card>
         </div>
       )}

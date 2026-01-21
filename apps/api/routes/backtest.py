@@ -307,19 +307,28 @@ async def get_trades(session_id: str, limit: int = None):
 
 
 @router.get("/sessions/{session_id}/klines")
-async def get_klines(session_id: str, limit: int = None):
+async def get_klines(session_id: str, limit: int = None, before: int = None):
     """Get backtest klines for chart
 
     Args:
         session_id: 回测会话ID
         limit: 返回记录数限制（None表示返回所有K线）
+        before: 返回此时间戳之前的K线（用于向前加载更多数据）
     """
     try:
         repo = _get_repo()
         conn = repo._get_conn()
 
+        # 如果指定了before参数，返回该时间戳之前的K线
+        if before is not None:
+            if limit is None:
+                limit = 1000
+            cursor = conn.execute(
+                "SELECT ts, open, high, low, close, volume FROM backtest_klines WHERE session_id = ? AND ts < ? ORDER BY ts DESC LIMIT ?",
+                (session_id, before, limit)
+            )
         # 如果没有指定limit，返回所有K线数据
-        if limit is None:
+        elif limit is None:
             cursor = conn.execute(
                 "SELECT ts, open, high, low, close, volume FROM backtest_klines WHERE session_id = ? ORDER BY ts ASC",
                 (session_id,)
@@ -334,8 +343,8 @@ async def get_klines(session_id: str, limit: int = None):
         conn.close()
 
         klines = []
-        # 如果使用了limit，需要反转顺序（因为查询是DESC）
-        if limit is not None:
+        # 如果使用了limit或before，需要反转顺序（因为查询是DESC）
+        if limit is not None or before is not None:
             rows = reversed(rows)
 
         for row in rows:
