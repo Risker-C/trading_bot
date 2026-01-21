@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { init, dispose } from 'klinecharts';
+import { init, dispose, registerOverlay } from 'klinecharts';
 import apiClient from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,92 @@ const CHART_COLORS = {
   down: 'hsl(var(--trading-down))',
   primary: 'hsl(var(--primary))',
 } as const;
+
+// ==================== Custom Overlay Registration ====================
+
+// 注册自定义交易标记 overlay
+const tradeMarkerOverlay = {
+  name: 'tradeMarker',
+  totalStep: 1,
+  needDefaultPointFigure: false,
+  needDefaultXAxisFigure: false,
+  needDefaultYAxisFigure: false,
+  createPointFigures: ({ overlay, coordinates, defaultStyles }: any) => {
+    if (!coordinates || coordinates.length === 0) return [];
+
+    const { extendData } = overlay;
+    const { tradeType, isPaired, markerSymbol } = extendData || {};
+
+    const color = tradeType === 'buy' ? '#22c55e' : '#ef4444'; // green-500 : red-500
+    const x = coordinates[0].x;
+    const y = coordinates[0].y;
+
+    return [
+      // 绘制符号（三角形）
+      {
+        type: 'text',
+        attrs: {
+          x,
+          y: tradeType === 'buy' ? y + 20 : y - 20,
+          text: markerSymbol || (tradeType === 'buy' ? '▲' : '▼'),
+          align: 'center',
+          baseline: 'middle'
+        },
+        styles: {
+          color,
+          size: isPaired ? 14 : 12,
+          weight: isPaired ? 'bold' : 'normal',
+          family: 'Arial'
+        }
+      }
+    ];
+  },
+  // 添加悬浮提示
+  onMouseEnter: (event: any) => {
+    const { overlay } = event;
+    const { extendData } = overlay;
+    const { tradeInfo } = extendData || {};
+
+    if (tradeInfo && typeof window !== 'undefined') {
+      // 创建自定义 tooltip
+      const tooltip = document.createElement('div');
+      tooltip.id = `trade-tooltip-${overlay.id}`;
+      tooltip.style.cssText = `
+        position: fixed;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        white-space: pre-line;
+        z-index: 9999;
+        pointer-events: none;
+      `;
+      tooltip.textContent = tradeInfo;
+      document.body.appendChild(tooltip);
+    }
+    return true;
+  },
+  onMouseLeave: (event: any) => {
+    const { overlay } = event;
+    if (typeof window !== 'undefined') {
+      const tooltip = document.getElementById(`trade-tooltip-${overlay.id}`);
+      if (tooltip) {
+        tooltip.remove();
+      }
+    }
+    return true;
+  }
+};
+
+// 注册自定义 overlay（只注册一次）
+if (typeof window !== 'undefined') {
+  try {
+    registerOverlay(tradeMarkerOverlay);
+  } catch (e) {
+    // 已注册，忽略错误
+  }
+}
 
 // ==================== Utility Functions ====================
 
@@ -362,34 +448,19 @@ export default function KLineChart({
         pairedTrade ? `配对: #${pairedTrade.id}` : (trade.action === 'open' ? '未平仓' : '')
       ].filter(Boolean).join('\n');
 
-      // 根据买卖类型选择标记样式
-      const symbolType = tradeType === 'buy' ? 'triangle' : 'invertedTriangle';
-      const symbolColor = tradeType === 'buy' ? CHART_COLORS.up : CHART_COLORS.down;
+      // 根据买卖类型选择标记样式和颜色
+      const markerColor = tradeType === 'buy' ? CHART_COLORS.up : CHART_COLORS.down;
+      const markerSymbol = tradeType === 'buy' ? '▲' : '▼';
 
       chart.createOverlay({
-        name: 'simpleAnnotation',
+        name: 'tradeMarker',
         points: [{ timestamp: trade.ts * 1000, value: trade.price }],
-        styles: {
-          symbol: {
-            type: symbolType,
-            size: isPaired ? 10 : 8,
-            color: symbolColor,
-            activeColor: CHART_COLORS.primary,
-            offset: [0, 0]
-          },
-          text: {
-            style: 'fill',
-            size: 0,
-            family: 'Helvetica Neue',
-            weight: 'normal',
-            color: 'transparent',
-            backgroundColor: 'transparent',
-            borderColor: 'transparent'
-          }
-        },
         extendData: {
+          tradeType,
+          isPaired,
+          markerSymbol,
+          tradeInfo,
           id: trade.id,
-          info: tradeInfo,
           kind: 'trade-marker'
         },
         onClick: () => {
