@@ -26,71 +26,32 @@ const tradeMarkerOverlay = {
   needDefaultPointFigure: false,
   needDefaultXAxisFigure: false,
   needDefaultYAxisFigure: false,
-  createPointFigures: ({ overlay, coordinates, defaultStyles }: any) => {
+  createPointFigures: ({ overlay, coordinates }: any) => {
     if (!coordinates || coordinates.length === 0) return [];
 
     const { extendData } = overlay;
     const { tradeType, isPaired, markerSymbol } = extendData || {};
 
-    const color = tradeType === 'buy' ? '#22c55e' : '#ef4444'; // green-500 : red-500
+    const color = tradeType === 'buy' ? '#22c55e' : '#ef4444';
     const x = coordinates[0].x;
     const y = coordinates[0].y;
 
-    return [
-      // 绘制符号（三角形）
-      {
-        type: 'text',
-        attrs: {
-          x,
-          y: tradeType === 'buy' ? y + 20 : y - 20,
-          text: markerSymbol || (tradeType === 'buy' ? '▲' : '▼'),
-          align: 'center',
-          baseline: 'middle'
-        },
-        styles: {
-          color,
-          size: isPaired ? 14 : 12,
-          weight: isPaired ? 'bold' : 'normal',
-          family: 'Arial'
-        }
+    return {
+      type: 'text',
+      attrs: {
+        x,
+        y: tradeType === 'buy' ? y + 20 : y - 20,
+        text: markerSymbol || (tradeType === 'buy' ? '▲' : '▼'),
+        align: 'center',
+        baseline: 'middle'
+      },
+      styles: {
+        color,
+        size: isPaired ? 14 : 12,
+        weight: isPaired ? 'bold' : 'normal',
+        family: 'Arial'
       }
-    ];
-  },
-  // 添加悬浮提示
-  onMouseEnter: (event: any) => {
-    const { overlay } = event;
-    const { extendData } = overlay;
-    const { tradeInfo } = extendData || {};
-
-    if (tradeInfo && typeof window !== 'undefined') {
-      // 创建自定义 tooltip
-      const tooltip = document.createElement('div');
-      tooltip.id = `trade-tooltip-${overlay.id}`;
-      tooltip.style.cssText = `
-        position: fixed;
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 8px 12px;
-        border-radius: 4px;
-        font-size: 12px;
-        white-space: pre-line;
-        z-index: 9999;
-        pointer-events: none;
-      `;
-      tooltip.textContent = tradeInfo;
-      document.body.appendChild(tooltip);
-    }
-    return true;
-  },
-  onMouseLeave: (event: any) => {
-    const { overlay } = event;
-    if (typeof window !== 'undefined') {
-      const tooltip = document.getElementById(`trade-tooltip-${overlay.id}`);
-      if (tooltip) {
-        tooltip.remove();
-      }
-    }
-    return true;
+    };
   }
 };
 
