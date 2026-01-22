@@ -2,9 +2,10 @@
 Backtest AI Analysis Service
 """
 import json
+import os
 from typing import Dict, List, Optional
 from backtest.repository import BacktestRepository
-from backtest.ai_repository import AIReportRepository
+from backtest.repository_factory import get_backtest_repository, get_ai_report_repository
 from ai.claude_analyzer import ClaudeAnalyzer
 
 
@@ -12,8 +13,9 @@ class BacktestAIService:
     """Service for AI analysis of backtest results"""
 
     def __init__(self, db_path: str = "backtest.db"):
-        self.repo = BacktestRepository(db_path)
-        self.ai_repo = AIReportRepository(db_path)
+        use_supabase = os.getenv('USE_SUPABASE', 'false').lower() == 'true'
+        self.repo = get_backtest_repository() if use_supabase else BacktestRepository(db_path)
+        self.ai_repo = get_ai_report_repository(db_path=db_path)
         self.analyzer = ClaudeAnalyzer()
 
     def analyze_session(self, session_id: str) -> Dict:
@@ -23,56 +25,48 @@ class BacktestAIService:
         Returns:
             Analysis result with summary, strengths, weaknesses, recommendations
         """
-        # Gather session data
-        conn = self.repo._get_conn()
-        try:
-            # Get session info
-            session_row = conn.execute(
-                "SELECT * FROM backtest_sessions WHERE id = ?", (session_id,)
-            ).fetchone()
+        session = self.repo.get_session(session_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
 
-            if not session_row:
-                raise ValueError(f"Session {session_id} not found")
+        metrics = self.repo.get_metrics(session_id) or {}
+        trades = self.repo.get_trades(session_id, limit=None, desc=False) or []
+        close_trades = [t for t in trades if t.get("action") == "close"]
 
-            # Get metrics
-            metrics_row = conn.execute(
-                "SELECT * FROM backtest_metrics WHERE session_id = ?", (session_id,)
-            ).fetchone()
+        def _num(value) -> float:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return 0.0
 
-            # Get trade statistics
-            trades_cursor = conn.execute("""
-                SELECT
-                    COUNT(*) as total_trades,
-                    SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as winning_trades,
-                    SUM(CASE WHEN pnl < 0 THEN 1 ELSE 0 END) as losing_trades,
-                    AVG(CASE WHEN pnl > 0 THEN pnl END) as avg_win,
-                    AVG(CASE WHEN pnl < 0 THEN pnl END) as avg_loss,
-                    MAX(pnl) as max_win,
-                    MIN(pnl) as min_loss
-                FROM backtest_trades
-                WHERE session_id = ? AND action = 'close'
-            """, (session_id,))
-            trade_stats = trades_cursor.fetchone()
+        pnl_values = [_num(t.get("pnl")) for t in close_trades]
+        wins = [p for p in pnl_values if p > 0]
+        losses = [p for p in pnl_values if p < 0]
 
-        finally:
-            conn.close()
+        total_trades = len(close_trades)
+        winning_trades = len(wins)
+        losing_trades = len(losses)
+        avg_win = sum(wins) / len(wins) if wins else 0.0
+        avg_loss = sum(losses) / len(losses) if losses else 0.0
+        max_win = max(wins) if wins else 0.0
+        min_loss = min(losses) if losses else 0.0
 
         # Build analysis prompt
         metrics_data = {
-            "total_return": metrics_row[4] if metrics_row else 0,
-            "max_drawdown": metrics_row[5] if metrics_row else 0,
-            "sharpe": metrics_row[6] if metrics_row else 0,
-            "win_rate": metrics_row[2] if metrics_row else 0,
-            "total_trades": trade_stats[0] if trade_stats else 0,
-            "winning_trades": trade_stats[1] if trade_stats else 0,
-            "losing_trades": trade_stats[2] if trade_stats else 0,
-            "avg_win": trade_stats[3] if trade_stats else 0,
-            "avg_loss": trade_stats[4] if trade_stats else 0,
-            "max_win": trade_stats[5] if trade_stats else 0,
-            "min_loss": trade_stats[6] if trade_stats else 0,
+            "total_return": _num(metrics.get("total_return")),
+            "max_drawdown": _num(metrics.get("max_drawdown")),
+            "sharpe": _num(metrics.get("sharpe")),
+            "win_rate": _num(metrics.get("win_rate")),
+            "total_trades": total_trades,
+            "winning_trades": winning_trades,
+            "losing_trades": losing_trades,
+            "avg_win": avg_win,
+            "avg_loss": avg_loss,
+            "max_win": max_win,
+            "min_loss": min_loss,
         }
 
-        prompt = self._build_analysis_prompt(metrics_data, session_row)
+        prompt = self._build_analysis_prompt(metrics_data, session)
 
         # Call AI analyzer
         if not self.analyzer.enabled:
@@ -115,9 +109,9 @@ class BacktestAIService:
             # Re-raise exception instead of returning error dict
             raise RuntimeError(f"AI analysis failed: {str(e)}") from e
 
-    def _build_analysis_prompt(self, metrics: Dict, session_row) -> str:
+    def _build_analysis_prompt(self, metrics: Dict, session: Dict) -> str:
         """Build AI analysis prompt"""
-        strategy_name = session_row[12] if len(session_row) > 12 else "Unknown"
+        strategy_name = session.get("strategy_name") or "Unknown"
 
         return f"""你是一名资深量化交易分析师。请分析以下回测结果，并以 JSON 格式返回分析报告。
 
@@ -163,29 +157,25 @@ class BacktestAIService:
 
         # Gather data for all sessions
         sessions_data = []
-        for session_id in session_ids:
-            conn = self.repo._get_conn()
+        def _num(value) -> float:
             try:
-                session_row = conn.execute(
-                    "SELECT * FROM backtest_sessions WHERE id = ?", (session_id,)
-                ).fetchone()
+                return float(value)
+            except (TypeError, ValueError):
+                return 0.0
 
-                metrics_row = conn.execute(
-                    "SELECT * FROM backtest_metrics WHERE session_id = ?", (session_id,)
-                ).fetchone()
-
-                if session_row and metrics_row:
-                    sessions_data.append({
-                        "session_id": session_id,
-                        "strategy_name": session_row[12] if len(session_row) > 12 else "Unknown",
-                        "total_return": metrics_row[4],
-                        "max_drawdown": metrics_row[5],
-                        "sharpe": metrics_row[6],
-                        "win_rate": metrics_row[2],
-                        "total_trades": metrics_row[1],
-                    })
-            finally:
-                conn.close()
+        for session_id in session_ids:
+            session = self.repo.get_session(session_id)
+            metrics = self.repo.get_metrics(session_id)
+            if session and metrics:
+                sessions_data.append({
+                    "session_id": session_id,
+                    "strategy_name": session.get("strategy_name") or "Unknown",
+                    "total_return": _num(metrics.get("total_return")),
+                    "max_drawdown": _num(metrics.get("max_drawdown")),
+                    "sharpe": _num(metrics.get("sharpe")),
+                    "win_rate": _num(metrics.get("win_rate")),
+                    "total_trades": _num(metrics.get("total_trades")),
+                })
 
         # Build comparison prompt
         prompt = self._build_comparison_prompt(sessions_data)

@@ -2,7 +2,7 @@
 批量写入缓冲器 - 优化 Supabase 写入性能
 """
 import time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from backtest.adapters.storage.supabase_client import get_supabase_client
 from utils.logger_utils import get_logger
 
@@ -20,7 +20,13 @@ class BatchWriter:
         # 自动 flush
     """
 
-    def __init__(self, table_name: str, batch_size: int = 500):
+    def __init__(
+        self,
+        table_name: str,
+        batch_size: int = 500,
+        upsert_on_conflict: Optional[str] = None,
+        ignore_duplicates: bool = False,
+    ):
         """
         Args:
             table_name: 表名
@@ -30,12 +36,25 @@ class BatchWriter:
         self.logger = get_logger("supabase.batch_writer")
         self.table_name = table_name
         self.batch_size = batch_size
+        self.upsert_on_conflict = upsert_on_conflict
+        self.ignore_duplicates = ignore_duplicates
         self.buffer: List[Dict[str, Any]] = []
         self.logger.debug(
-            "BatchWriter init table=%s batch_size=%s",
+            "BatchWriter init table=%s batch_size=%s upsert_on_conflict=%s",
             self.table_name,
-            self.batch_size
+            self.batch_size,
+            self.upsert_on_conflict
         )
+
+    def _execute(self, records: List[Dict[str, Any]]):
+        table = self.client.table(self.table_name)
+        if self.upsert_on_conflict:
+            return table.upsert(
+                records,
+                on_conflict=self.upsert_on_conflict,
+                ignore_duplicates=self.ignore_duplicates
+            ).execute()
+        return table.insert(records).execute()
 
     def add(self, record: Dict[str, Any]):
         """
@@ -55,7 +74,7 @@ class BatchWriter:
 
         try:
             start = time.monotonic()
-            self.client.table(self.table_name).insert(self.buffer).execute()
+            self._execute(self.buffer)
             elapsed = time.monotonic() - start
             self.logger.debug(
                 "BatchWriter flush ok table=%s rows=%s elapsed=%.3fs",
@@ -74,7 +93,7 @@ class BatchWriter:
             failed_records = []
             for i, record in enumerate(self.buffer):
                 try:
-                    self.client.table(self.table_name).insert(record).execute()
+                    self._execute([record])
                 except Exception as row_err:
                     self.logger.error(
                         "BatchWriter row failed table=%s index=%s error=%s",

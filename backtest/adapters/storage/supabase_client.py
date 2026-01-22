@@ -3,7 +3,9 @@ Supabase 客户端统一初始化模块
 """
 import os
 from urllib.parse import urlparse
+import httpx
 from supabase import create_client, Client
+from supabase import ClientOptions
 from typing import Optional
 from utils.logger_utils import get_logger
 
@@ -40,7 +42,13 @@ def get_supabase_client() -> Client:
 
         parsed = urlparse(url)
         _logger.info("Initializing Supabase client host=%s", parsed.netloc or url)
-        _supabase_client = create_client(url, key)
+        http_client = httpx.Client(
+            http2=False,
+            timeout=httpx.Timeout(30.0),
+            follow_redirects=True,
+        )
+        options = ClientOptions(httpx_client=http_client)
+        _supabase_client = create_client(url, key, options=options)
         _logger.info("Supabase client initialized")
 
     return _supabase_client

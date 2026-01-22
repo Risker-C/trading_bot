@@ -310,7 +310,8 @@ class BacktestRepository:
         if before is not None:
             sql += " AND ts < ?"
             params.append(before)
-        sql += " ORDER BY ts ASC"
+        order_dir = "DESC" if limit is not None else "ASC"
+        sql += f" ORDER BY ts {order_dir}"
         if limit is not None:
             sql += " LIMIT ?"
             params.append(limit)
@@ -318,6 +319,8 @@ class BacktestRepository:
         rows = cursor.fetchall()
         columns = [col[0] for col in cursor.description]
         conn.close()
+        if order_dir == "DESC":
+            rows = list(reversed(rows))
         return [dict(zip(columns, row)) for row in rows]
 
     def get_latest_session(self, statuses: Optional[List[str]] = None) -> Dict:

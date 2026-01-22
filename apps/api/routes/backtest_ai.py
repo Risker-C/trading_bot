@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from typing import List, Optional
 from pydantic import BaseModel
 from backtest.ai_service import BacktestAIService
-from backtest.ai_repository import AIReportRepository
+from backtest.repository_factory import get_ai_report_repository
 import logging
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ async def get_session_analysis(session_id: str):
     Returns the most recent analysis report if available
     """
     try:
-        repo = AIReportRepository()
+        repo = get_ai_report_repository()
         report = repo.get_latest_report(session_id)
 
         if not report:
@@ -154,7 +154,7 @@ async def compare_sessions(request: CompareRequest):
 async def get_comparison_group(compare_group_id: str):
     """Get all reports in a comparison group"""
     try:
-        repo = AIReportRepository()
+        repo = get_ai_report_repository()
         reports = repo.get_reports_by_group(compare_group_id)
 
         if not reports:

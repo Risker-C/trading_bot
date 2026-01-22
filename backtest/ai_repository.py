@@ -8,12 +8,44 @@ import json
 from typing import Optional, Dict, List
 from datetime import datetime
 
+from backtest.adapters.storage.supabase_client import get_supabase_client
+
 
 class AIReportRepository:
     """Repository for AI analysis reports"""
 
     def __init__(self, db_path: str = "backtest.db"):
         self.db_path = db_path
+        self._ensure_schema()
+
+    def _ensure_schema(self) -> None:
+        """Ensure AI report tables exist (SQLite)."""
+        conn = self._get_conn()
+        try:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS backtest_ai_reports (
+                  id TEXT PRIMARY KEY,
+                  session_id TEXT NOT NULL,
+                  created_at INTEGER NOT NULL,
+                  model_name TEXT NOT NULL,
+                  prompt_version TEXT NOT NULL,
+                  input_digest TEXT NOT NULL,
+                  summary TEXT NOT NULL,
+                  strengths TEXT,
+                  weaknesses TEXT,
+                  recommendations TEXT,
+                  param_suggestions TEXT,
+                  compare_group_id TEXT,
+                  FOREIGN KEY (session_id) REFERENCES backtest_sessions(id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_ai_session ON backtest_ai_reports(session_id);
+                CREATE INDEX IF NOT EXISTS idx_ai_group ON backtest_ai_reports(compare_group_id);
+                CREATE INDEX IF NOT EXISTS idx_ai_created_at ON backtest_ai_reports(created_at);
+            """)
+            conn.commit()
+        finally:
+            conn.close()
 
     def _get_conn(self):
         """Get database connection with WAL mode"""
@@ -84,6 +116,85 @@ class AIReportRepository:
             return report_id
         finally:
             conn.close()
+
+
+class SupabaseAIReportRepository:
+    """Repository for AI analysis reports (Supabase 实现)"""
+
+    def __init__(self):
+        self.client = get_supabase_client()
+
+    def _parse_report(self, report: Dict) -> Dict:
+        report["strengths"] = json.loads(report["strengths"]) if report.get("strengths") else []
+        report["weaknesses"] = json.loads(report["weaknesses"]) if report.get("weaknesses") else []
+        report["recommendations"] = json.loads(report["recommendations"]) if report.get("recommendations") else []
+        report["param_suggestions"] = json.loads(report["param_suggestions"]) if report.get("param_suggestions") else {}
+        return report
+
+    def create_report(
+        self,
+        session_id: str,
+        model_name: str,
+        prompt_version: str,
+        input_data: Dict,
+        analysis_result: Dict,
+        compare_group_id: Optional[str] = None
+    ) -> str:
+        report_id = str(uuid.uuid4())
+        now_ts = int(datetime.utcnow().timestamp())
+        input_digest = hashlib.sha256(
+            json.dumps(input_data, sort_keys=True).encode()
+        ).hexdigest()[:16]
+
+        payload = {
+            "id": report_id,
+            "session_id": session_id,
+            "created_at": now_ts,
+            "model_name": model_name,
+            "prompt_version": prompt_version,
+            "input_digest": input_digest,
+            "summary": analysis_result.get("summary", ""),
+            "strengths": json.dumps(analysis_result.get("strengths", [])),
+            "weaknesses": json.dumps(analysis_result.get("weaknesses", [])),
+            "recommendations": json.dumps(analysis_result.get("recommendations", [])),
+            "param_suggestions": json.dumps(analysis_result.get("param_suggestions", {})),
+            "compare_group_id": compare_group_id,
+        }
+
+        self.client.table("backtest_ai_reports").insert(payload).execute()
+        return report_id
+
+    def get_latest_report(self, session_id: str) -> Optional[Dict]:
+        response = self.client.table("backtest_ai_reports") \
+            .select("*") \
+            .eq("session_id", session_id) \
+            .order("created_at", desc=True) \
+            .limit(1) \
+            .execute()
+
+        if not response.data:
+            return None
+        return self._parse_report(response.data[0])
+
+    def get_report(self, report_id: str) -> Optional[Dict]:
+        response = self.client.table("backtest_ai_reports") \
+            .select("*") \
+            .eq("id", report_id) \
+            .limit(1) \
+            .execute()
+
+        if not response.data:
+            return None
+        return self._parse_report(response.data[0])
+
+    def get_reports_by_group(self, compare_group_id: str) -> List[Dict]:
+        response = self.client.table("backtest_ai_reports") \
+            .select("*") \
+            .eq("compare_group_id", compare_group_id) \
+            .order("created_at", desc=True) \
+            .execute()
+
+        return [self._parse_report(row) for row in (response.data or [])]
 
     def get_latest_report(self, session_id: str) -> Optional[Dict]:
         """Get the latest AI report for a session"""

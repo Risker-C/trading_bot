@@ -1,6 +1,7 @@
 """
 Supabase Backtest Repository - Cloud persistence layer
 """
+import hashlib
 import json
 import time
 import uuid
@@ -35,6 +36,32 @@ def _decode_bytea(value: Any) -> bytes:
         except ValueError:
             return value.encode()
     raise TypeError(f"Unsupported bytea value type: {type(value)}")
+
+
+def _stable_kline_id(session_id: str, ts: int) -> int:
+    payload = f"{session_id}:{ts}".encode("utf-8")
+    digest = hashlib.blake2b(payload, digest_size=8).digest()
+    value = int.from_bytes(digest, "big", signed=False)
+    value &= (1 << 62) - 1
+    return value | (1 << 62)
+
+
+def _stable_trade_id(session_id: str, trade: Dict) -> int:
+    parts = [
+        session_id,
+        str(trade.get("ts", "")),
+        str(trade.get("action", "")),
+        str(trade.get("side", "")),
+        str(trade.get("symbol", "")),
+        repr(trade.get("qty", "")),
+        repr(trade.get("price", "")),
+        repr(trade.get("open_trade_id", "")),
+    ]
+    payload = "|".join(parts).encode("utf-8")
+    digest = hashlib.blake2b(payload, digest_size=8).digest()
+    value = int.from_bytes(digest, "big", signed=False)
+    value &= (1 << 62) - 1
+    return value | (1 << 62)
 
 _logger = get_logger("supabase.repo")
 
@@ -332,9 +359,14 @@ class SupabaseBacktestRepository:
         """
         _logger.debug("Supabase save_klines start session_id=%s rows=%s", session_id, len(klines))
         start = time.monotonic()
-        with BatchWriter('backtest_klines', batch_size=1000) as writer:
+        with BatchWriter(
+            'backtest_klines',
+            batch_size=1000,
+            upsert_on_conflict='session_id,ts'
+        ) as writer:
             for k in klines:
                 writer.add({
+                    'id': _stable_kline_id(session_id, k['ts']),
                     'session_id': session_id,
                     'ts': k['ts'],
                     'open': k['open'],
@@ -437,7 +469,9 @@ class SupabaseBacktestRepository:
         Returns:
             trade_id (注意: Supabase 自动生成,返回值可能为None)
         """
+        trade_id = _stable_trade_id(session_id, trade)
         trade_data = {
+            'id': trade_id,
             'session_id': session_id,
             'ts': trade['ts'],
             'symbol': trade['symbol'],
@@ -455,7 +489,11 @@ class SupabaseBacktestRepository:
 
         start = time.monotonic()
         try:
-            response = self.client.table('backtest_trades').insert(trade_data).execute()
+            response = self.client.table('backtest_trades').upsert(
+                trade_data,
+                on_conflict='id',
+                ignore_duplicates=True
+            ).execute()
         except Exception:
             _logger.exception(
                 "Supabase append_trade failed session_id=%s action=%s",
@@ -470,10 +508,9 @@ class SupabaseBacktestRepository:
             time.monotonic() - start
         )
 
-        # 返回自动生成的 ID (如果有)
         if response.data and len(response.data) > 0:
-            return response.data[0].get('id', 0)
-        return 0
+            return response.data[0].get('id', trade_id) or trade_id
+        return trade_id
 
     def upsert_metrics(self, session_id: str, metrics: Dict):
         """
@@ -641,11 +678,13 @@ class SupabaseBacktestRepository:
         """
         query = self.client.table('backtest_klines') \
             .select('*') \
-            .eq('session_id', session_id) \
-            .order('ts', desc=False)
+            .eq('session_id', session_id)
 
         if before is not None:
             query = query.lt('ts', before)
+
+        use_desc = limit is not None
+        query = query.order('ts', desc=use_desc)
 
         if limit is None:
             start = time.monotonic()
@@ -674,7 +713,10 @@ class SupabaseBacktestRepository:
             len(response.data) if response.data else 0,
             time.monotonic() - start
         )
-        return response.data
+        data = response.data or []
+        if use_desc:
+            data = list(reversed(data))
+        return data
 
     def get_latest_session(self, statuses: Optional[Iterable[str]] = None) -> Dict:
         query = self.client.table('backtest_sessions') \
