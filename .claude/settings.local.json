@@ -49,7 +49,9 @@
       "mcp__ace-tool__search_context",
       "mcp__ace-tool__enhance_prompt",
       "Skill(collaborating-with-gemini)",
-      "Skill(collaborating-with-codex)"
+      "Skill(collaborating-with-codex)",
+      "WebFetch(domain:tradingdashboard-eight.vercel.app)",
+      "WebFetch(domain:klinecharts.com)"
     ],
     "defaultMode": "default"
   },
