@@ -286,10 +286,10 @@ class BitgetTrader:
     def _run_async(self, coro):
         """
         运行异步协程的辅助方法
-        
+
         Args:
             coro: 异步协程对象
-            
+
         Returns:
             协程的返回值
         """
@@ -303,13 +303,16 @@ class BitgetTrader:
             else:
                 return loop.run_until_complete(coro)
         except RuntimeError:
-            # 如果没有事件循环，创建新的
+            # 如果没有事件循环或事件循环已关闭，创建新的
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
                 return loop.run_until_complete(coro)
             finally:
-                loop.close()
+                # 不要关闭事件循环，让它可以被后续操作复用
+                # loop.close()  # 注释掉这行，避免关闭事件循环
+                pass
+
     
     async def fetch_ohlcv_async(
         self,

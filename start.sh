@@ -65,6 +65,14 @@ echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  Trading Bot 启动中...${NC}"
 echo -e "${GREEN}========================================${NC}"
 
+# 加载环境变量
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    export $(cat "$PROJECT_ROOT/.env" | grep -v '^#' | xargs)
+fi
+if [ -f "$PROJECT_ROOT/.env.supabase" ]; then
+    export $(cat "$PROJECT_ROOT/.env.supabase" | grep -v '^#' | xargs)
+fi
+
 # 启动API服务
 echo -e "\n${YELLOW}[1/2] 启动API服务...${NC}"
 cd "$PROJECT_ROOT"

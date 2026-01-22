@@ -26,7 +26,8 @@ from apps.api.routes import trends as trends_routes
 from apps.api.services.ticker_service import ticker_service
 
 # 加载环境变量
-load_dotenv()
+load_dotenv()  # 加载 .env
+load_dotenv('.env.supabase')  # 加载 Supabase 配置
 
 # 创建 FastAPI 应用
 app = FastAPI(
