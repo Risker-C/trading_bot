@@ -1,8 +1,10 @@
 """
 批量写入缓冲器 - 优化 Supabase 写入性能
 """
+import time
 from typing import List, Dict, Any
 from backtest.adapters.storage.supabase_client import get_supabase_client
+from utils.logger_utils import get_logger
 
 
 class BatchWriter:
@@ -25,9 +27,15 @@ class BatchWriter:
             batch_size: 批量大小 (默认 500)
         """
         self.client = get_supabase_client()
+        self.logger = get_logger("supabase.batch_writer")
         self.table_name = table_name
         self.batch_size = batch_size
         self.buffer: List[Dict[str, Any]] = []
+        self.logger.debug(
+            "BatchWriter init table=%s batch_size=%s",
+            self.table_name,
+            self.batch_size
+        )
 
     def add(self, record: Dict[str, Any]):
         """
@@ -46,15 +54,34 @@ class BatchWriter:
             return
 
         try:
+            start = time.monotonic()
             self.client.table(self.table_name).insert(self.buffer).execute()
+            elapsed = time.monotonic() - start
+            self.logger.debug(
+                "BatchWriter flush ok table=%s rows=%s elapsed=%.3fs",
+                self.table_name,
+                len(self.buffer),
+                elapsed
+            )
             self.buffer.clear()
         except Exception as e:
+            self.logger.exception(
+                "BatchWriter flush failed table=%s rows=%s",
+                self.table_name,
+                len(self.buffer)
+            )
             # 如果批量插入失败,尝试逐行插入以找出问题
             failed_records = []
             for i, record in enumerate(self.buffer):
                 try:
                     self.client.table(self.table_name).insert(record).execute()
                 except Exception as row_err:
+                    self.logger.error(
+                        "BatchWriter row failed table=%s index=%s error=%s",
+                        self.table_name,
+                        i,
+                        row_err
+                    )
                     failed_records.append((i, record, str(row_err)))
 
             self.buffer.clear()
