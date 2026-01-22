@@ -8,18 +8,19 @@ from apps.api.models.backtest import (
     SessionResponse,
     SessionDetailResponse
 )
-from backtest.repository import BacktestRepository
+from backtest.repository_factory import get_backtest_repository
 from backtest.engine import BacktestEngine
 from backtest.data_provider import HistoricalDataProvider
 import csv
 from io import StringIO
+import json
 
 router = APIRouter(prefix="/api/backtests", tags=["backtest"])
 
 
 def _get_repo():
-    """创建新的Repository实例"""
-    return BacktestRepository()
+    """创建新的Repository实例 (根据环境变量选择SQLite或Supabase)"""
+    return get_backtest_repository()
 
 
 def _build_backtest_components():
@@ -28,6 +29,19 @@ def _build_backtest_components():
     engine = BacktestEngine(repo)
     data_provider = HistoricalDataProvider()
     return repo, engine, data_provider
+
+
+def _parse_strategy_params(raw_value):
+    if raw_value is None:
+        return None
+    if isinstance(raw_value, dict):
+        return raw_value
+    if isinstance(raw_value, str) and raw_value:
+        try:
+            return json.loads(raw_value)
+        except json.JSONDecodeError:
+            return None
+    return None
 
 
 @router.post("/sessions", response_model=SessionResponse)
@@ -151,26 +165,19 @@ async def start_session(session_id: str, background_tasks: BackgroundTasks):
     """Start backtest execution"""
     try:
         repo = _get_repo()
-        conn = repo._get_conn()
-        cursor = conn.execute("SELECT * FROM backtest_sessions WHERE id = ?", (session_id,))
-        row = cursor.fetchone()
-        conn.close()
-
-        if not row:
+        session = repo.get_session(session_id)
+        if not session:
             raise HTTPException(status_code=404, detail="Session not found")
 
-        # 解析 strategy_params（JSON 字段）
-        import json
-        strategy_params_raw = row[13] if len(row) > 13 and row[13] else None
-        strategy_params = json.loads(strategy_params_raw) if strategy_params_raw else None
+        strategy_params = _parse_strategy_params(session.get('strategy_params'))
 
         params = {
-            'symbol': row[4],
-            'timeframe': row[5],
-            'start_ts': row[6],
-            'end_ts': row[7],
-            'initial_capital': row[8],
-            'strategy_name': row[12],
+            'symbol': session.get('symbol'),
+            'timeframe': session.get('timeframe'),
+            'start_ts': session.get('start_ts'),
+            'end_ts': session.get('end_ts'),
+            'initial_capital': session.get('initial_capital'),
+            'strategy_name': session.get('strategy_name'),
             'strategy_params': strategy_params
         }
 
@@ -196,30 +203,37 @@ async def get_session(session_id: str):
     """Get backtest session details"""
     try:
         repo = _get_repo()
-        conn = repo._get_conn()
-        cursor = conn.execute("SELECT * FROM backtest_sessions WHERE id = ?", (session_id,))
-        row = cursor.fetchone()
-        conn.close()
-
-        if not row:
+        session = repo.get_session(session_id)
+        if not session:
             raise HTTPException(status_code=404, detail="Session not found")
 
+        metrics = repo.get_metrics(session_id)
+        if metrics:
+            total_pnl = metrics.get('total_pnl', 0)
+            total_return = metrics.get('total_return', 0)
+        else:
+            total_pnl = 0
+            total_return = 0
+        final_capital = None
+        if session.get('initial_capital') is not None:
+            final_capital = session.get('initial_capital') + total_pnl
+
         return {
-            "id": row[0],
-            "created_at": row[1],
-            "updated_at": row[2],
-            "status": row[3],
-            "symbol": row[4],
-            "timeframe": row[5],
-            "start_ts": row[6],
-            "end_ts": row[7],
-            "initial_capital": row[8],
-            "final_capital": row[9],
-            "total_pnl": row[10],
-            "total_return": row[11],
-            "strategy_name": row[12],
-            "strategy_params": row[13],
-            "error_message": row[14] if len(row) > 14 else None
+            "id": session.get('id'),
+            "created_at": session.get('created_at'),
+            "updated_at": session.get('updated_at'),
+            "status": session.get('status'),
+            "symbol": session.get('symbol'),
+            "timeframe": session.get('timeframe'),
+            "start_ts": session.get('start_ts'),
+            "end_ts": session.get('end_ts'),
+            "initial_capital": session.get('initial_capital'),
+            "final_capital": final_capital,
+            "total_pnl": total_pnl,
+            "total_return": total_return,
+            "strategy_name": session.get('strategy_name'),
+            "strategy_params": session.get('strategy_params'),
+            "error_message": session.get('error_message')
         }
     except HTTPException:
         raise
@@ -232,25 +246,21 @@ async def get_metrics(session_id: str):
     """Get backtest metrics"""
     try:
         repo = _get_repo()
-        conn = repo._get_conn()
-        cursor = conn.execute("SELECT * FROM backtest_metrics WHERE session_id = ?", (session_id,))
-        row = cursor.fetchone()
-        conn.close()
-
-        if not row:
+        metrics = repo.get_metrics(session_id)
+        if not metrics:
             return None
 
         return {
-            "total_trades": row[1],
-            "win_rate": row[2],
-            "total_pnl": row[3],
-            "total_return": row[4],
-            "max_drawdown": row[5],
-            "sharpe": row[6],
-            "profit_factor": row[7],
-            "expectancy": row[8],
-            "avg_win": row[9],
-            "avg_loss": row[10]
+            "total_trades": metrics.get('total_trades'),
+            "win_rate": metrics.get('win_rate'),
+            "total_pnl": metrics.get('total_pnl'),
+            "total_return": metrics.get('total_return'),
+            "max_drawdown": metrics.get('max_drawdown'),
+            "sharpe": metrics.get('sharpe'),
+            "profit_factor": metrics.get('profit_factor'),
+            "expectancy": metrics.get('expectancy'),
+            "avg_win": metrics.get('avg_win'),
+            "avg_loss": metrics.get('avg_loss')
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -266,42 +276,27 @@ async def get_trades(session_id: str, limit: int = None):
     """
     try:
         repo = _get_repo()
-        conn = repo._get_conn()
+        desc = limit is not None
+        trades = repo.get_trades(session_id, limit=limit, desc=desc)
 
-        # 如果没有指定limit，返回所有交易记录
-        if limit is None:
-            cursor = conn.execute(
-                "SELECT * FROM backtest_trades WHERE session_id = ? ORDER BY ts ASC",
-                (session_id,)
-            )
-        else:
-            cursor = conn.execute(
-                "SELECT * FROM backtest_trades WHERE session_id = ? ORDER BY ts DESC LIMIT ?",
-                (session_id, limit)
-            )
-
-        rows = cursor.fetchall()
-        conn.close()
-
-        trades = []
-        for row in rows:
-            trades.append({
-                "id": row[0],
-                "ts": row[2],
-                "symbol": row[3],
-                "side": row[4],
-                "action": row[5],
-                "qty": row[6],
-                "price": row[7],
-                "fee": row[8],
-                "pnl": row[10],
-                "pnl_pct": row[11],
-                "strategy_name": row[12],
-                "reason": row[13],
-                "open_trade_id": row[14] if len(row) > 14 else None
-            })
-
-        return trades
+        return [
+            {
+                "id": trade.get('id'),
+                "ts": trade.get('ts'),
+                "symbol": trade.get('symbol'),
+                "side": trade.get('side'),
+                "action": trade.get('action'),
+                "qty": trade.get('qty'),
+                "price": trade.get('price'),
+                "fee": trade.get('fee'),
+                "pnl": trade.get('pnl'),
+                "pnl_pct": trade.get('pnl_pct'),
+                "strategy_name": trade.get('strategy_name'),
+                "reason": trade.get('reason'),
+                "open_trade_id": trade.get('open_trade_id')
+            }
+            for trade in trades
+        ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -317,44 +312,21 @@ async def get_klines(session_id: str, limit: int = None, before: int = None):
     """
     try:
         repo = _get_repo()
-        conn = repo._get_conn()
+        if before is not None and limit is None:
+            limit = 1000
+        klines = repo.get_klines(session_id, limit=limit, before=before)
 
-        # 如果指定了before参数，返回该时间戳之前的K线（最早的limit条）
-        if before is not None:
-            if limit is None:
-                limit = 1000
-            cursor = conn.execute(
-                "SELECT ts, open, high, low, close, volume FROM backtest_klines WHERE session_id = ? AND ts < ? ORDER BY ts ASC LIMIT ?",
-                (session_id, before, limit)
-            )
-        # 如果没有指定limit，返回所有K线数据
-        elif limit is None:
-            cursor = conn.execute(
-                "SELECT ts, open, high, low, close, volume FROM backtest_klines WHERE session_id = ? ORDER BY ts ASC",
-                (session_id,)
-            )
-        else:
-            # 初始加载：返回最早的limit条数据
-            cursor = conn.execute(
-                "SELECT ts, open, high, low, close, volume FROM backtest_klines WHERE session_id = ? ORDER BY ts ASC LIMIT ?",
-                (session_id, limit)
-            )
-
-        rows = cursor.fetchall()
-        conn.close()
-
-        klines = []
-        for row in rows:
-            klines.append({
-                "timestamp": row[0],
-                "open": row[1],
-                "high": row[2],
-                "low": row[3],
-                "close": row[4],
-                "volume": row[5]
-            })
-
-        return klines
+        return [
+            {
+                "timestamp": kline.get('ts'),
+                "open": kline.get('open'),
+                "high": kline.get('high'),
+                "low": kline.get('low'),
+                "close": kline.get('close'),
+                "volume": kline.get('volume')
+            }
+            for kline in klines
+        ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -364,24 +336,11 @@ async def export_report(session_id: str):
     """Export backtest report as CSV"""
     try:
         repo = _get_repo()
-        conn = repo._get_conn()
-
-        # Get session info
-        session_cursor = conn.execute("SELECT * FROM backtest_sessions WHERE id = ?", (session_id,))
-        session = session_cursor.fetchone()
-
-        # Get metrics
-        metrics_cursor = conn.execute("SELECT * FROM backtest_metrics WHERE session_id = ?", (session_id,))
-        metrics = metrics_cursor.fetchone()
-
-        # Get trades
-        trades_cursor = conn.execute("SELECT * FROM backtest_trades WHERE session_id = ? ORDER BY ts", (session_id,))
-        trades = trades_cursor.fetchall()
-
-        conn.close()
-
+        session = repo.get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
+        metrics = repo.get_metrics(session_id)
+        trades = repo.get_trades(session_id, limit=None, desc=False)
 
         # Generate CSV
         output = StringIO()
@@ -389,28 +348,45 @@ async def export_report(session_id: str):
 
         # Session info
         writer.writerow(["Session Info"])
-        writer.writerow(["Symbol", session[4]])
-        writer.writerow(["Timeframe", session[5]])
-        writer.writerow(["Initial Capital", session[8]])
-        writer.writerow(["Strategy", session[12]])
+        writer.writerow(["Symbol", session.get('symbol')])
+        writer.writerow(["Timeframe", session.get('timeframe')])
+        writer.writerow(["Initial Capital", session.get('initial_capital')])
+        writer.writerow(["Strategy", session.get('strategy_name')])
         writer.writerow([])
 
         # Metrics
         if metrics:
             writer.writerow(["Metrics"])
-            writer.writerow(["Total Trades", metrics[1]])
-            writer.writerow(["Win Rate", f"{metrics[2]*100:.2f}%"])
-            writer.writerow(["Total PnL", f"{metrics[3]:.2f}"])
-            writer.writerow(["Total Return", f"{metrics[4]:.2f}%"])
-            writer.writerow(["Max Drawdown", f"{metrics[5]:.2f}%"])
-            writer.writerow(["Sharpe Ratio", f"{metrics[6]:.2f}"])
+            writer.writerow(["Total Trades", metrics.get('total_trades')])
+            win_rate = metrics.get('win_rate')
+            writer.writerow(["Win Rate", f"{(win_rate or 0)*100:.2f}%"])
+            total_pnl = metrics.get('total_pnl')
+            writer.writerow(["Total PnL", f"{(total_pnl or 0):.2f}"])
+            total_return = metrics.get('total_return')
+            writer.writerow(["Total Return", f"{(total_return or 0):.2f}%"])
+            max_drawdown = metrics.get('max_drawdown')
+            writer.writerow(["Max Drawdown", f"{(max_drawdown or 0):.2f}%"])
+            sharpe = metrics.get('sharpe')
+            writer.writerow(["Sharpe Ratio", f"{(sharpe or 0):.2f}"])
             writer.writerow([])
 
         # Trades
         writer.writerow(["Trades"])
         writer.writerow(["Timestamp", "Symbol", "Side", "Action", "Quantity", "Price", "Fee", "PnL", "PnL %", "Strategy", "Reason"])
         for trade in trades:
-            writer.writerow([trade[2], trade[3], trade[4], trade[5], trade[6], trade[7], trade[8], trade[10] or "", trade[11] or "", trade[12], trade[13]])
+            writer.writerow([
+                trade.get('ts'),
+                trade.get('symbol'),
+                trade.get('side'),
+                trade.get('action'),
+                trade.get('qty'),
+                trade.get('price'),
+                trade.get('fee'),
+                trade.get('pnl') or "",
+                trade.get('pnl_pct') or "",
+                trade.get('strategy_name'),
+                trade.get('reason')
+            ])
 
         output.seek(0)
         return StreamingResponse(

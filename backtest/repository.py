@@ -248,3 +248,93 @@ class BacktestRepository:
         ))
         conn.commit()
         conn.close()
+
+    def get_session(self, session_id: str) -> Dict:
+        """Get session by ID"""
+        conn = self._get_conn()
+        cursor = conn.execute("SELECT * FROM backtest_sessions WHERE id = ?", (session_id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return {}
+        columns = [col[0] for col in cursor.description]
+        conn.close()
+        return dict(zip(columns, row))
+
+    def get_metrics(self, session_id: str) -> Dict:
+        """Get metrics by session_id"""
+        conn = self._get_conn()
+        cursor = conn.execute("SELECT * FROM backtest_metrics WHERE session_id = ?", (session_id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return {}
+        columns = [col[0] for col in cursor.description]
+        conn.close()
+        return dict(zip(columns, row))
+
+    def get_trades(
+        self,
+        session_id: str,
+        limit: Optional[int] = None,
+        desc: bool = False
+    ) -> List[Dict]:
+        """Get trades for a session"""
+        conn = self._get_conn()
+        order_dir = "DESC" if desc else "ASC"
+        if limit is None:
+            cursor = conn.execute(
+                f"SELECT * FROM backtest_trades WHERE session_id = ? ORDER BY ts {order_dir}",
+                (session_id,)
+            )
+        else:
+            cursor = conn.execute(
+                f"SELECT * FROM backtest_trades WHERE session_id = ? ORDER BY ts {order_dir} LIMIT ?",
+                (session_id, limit)
+            )
+        rows = cursor.fetchall()
+        columns = [col[0] for col in cursor.description]
+        conn.close()
+        return [dict(zip(columns, row)) for row in rows]
+
+    def get_klines(
+        self,
+        session_id: str,
+        limit: Optional[int] = None,
+        before: Optional[int] = None
+    ) -> List[Dict]:
+        """Get klines for a session"""
+        conn = self._get_conn()
+        params: List = [session_id]
+        sql = "SELECT ts, open, high, low, close, volume FROM backtest_klines WHERE session_id = ?"
+        if before is not None:
+            sql += " AND ts < ?"
+            params.append(before)
+        sql += " ORDER BY ts ASC"
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(limit)
+        cursor = conn.execute(sql, tuple(params))
+        rows = cursor.fetchall()
+        columns = [col[0] for col in cursor.description]
+        conn.close()
+        return [dict(zip(columns, row)) for row in rows]
+
+    def get_latest_session(self, statuses: Optional[List[str]] = None) -> Dict:
+        """Get latest session by updated_at"""
+        conn = self._get_conn()
+        sql = "SELECT * FROM backtest_sessions"
+        params: List = []
+        if statuses:
+            placeholders = ",".join("?" for _ in statuses)
+            sql += f" WHERE status IN ({placeholders})"
+            params.extend(statuses)
+        sql += " ORDER BY updated_at DESC LIMIT 1"
+        cursor = conn.execute(sql, tuple(params))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return {}
+        columns = [col[0] for col in cursor.description]
+        conn.close()
+        return dict(zip(columns, row))

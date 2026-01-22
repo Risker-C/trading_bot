@@ -15,7 +15,7 @@ from apps.api.services.position_service import PositionService
 from apps.api.services.trade_service import TradeService
 from apps.api.services.trend_service import TrendService
 from apps.api.services.ticker_service import ticker_service
-from backtest.repository import BacktestRepository
+from backtest.repository_factory import get_backtest_repository
 
 router = APIRouter()
 
@@ -23,7 +23,9 @@ trade_service = TradeService()
 position_service = PositionService()
 trend_service = TrendService(trade_service=trade_service)
 indicator_service = IndicatorService(trade_service=trade_service)
-backtest_repo = BacktestRepository()
+
+def _get_backtest_repo():
+    return get_backtest_repository()
 
 
 class ConnectionManager:
@@ -216,29 +218,22 @@ async def _build_payload(subscribed_channels: Set[str]) -> Dict[str, Any]:
 def _get_backtest_status() -> Optional[Dict[str, Any]]:
     """Get latest running backtest session status"""
     try:
-        conn = backtest_repo._get_conn()
-        cursor = conn.execute("""
-            SELECT id, status, symbol, timeframe, initial_capital, strategy_name, updated_at, error_message
-            FROM backtest_sessions
-            WHERE status IN ('running', 'created', 'completed', 'failed')
-            ORDER BY updated_at DESC
-            LIMIT 1
-        """)
-        row = cursor.fetchone()
-        conn.close()
-
-        if not row:
+        backtest_repo = _get_backtest_repo()
+        session = backtest_repo.get_latest_session(
+            statuses=['running', 'created', 'completed', 'failed']
+        )
+        if not session:
             return None
 
         return {
-            "session_id": row[0],
-            "status": row[1],
-            "symbol": row[2],
-            "timeframe": row[3],
-            "initial_capital": row[4],
-            "strategy_name": row[5],
-            "updated_at": row[6],
-            "error_message": row[7]
+            "session_id": session.get('id'),
+            "status": session.get('status'),
+            "symbol": session.get('symbol'),
+            "timeframe": session.get('timeframe'),
+            "initial_capital": session.get('initial_capital'),
+            "strategy_name": session.get('strategy_name'),
+            "updated_at": session.get('updated_at'),
+            "error_message": session.get('error_message')
         }
     except Exception:
         return None

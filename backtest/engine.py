@@ -5,7 +5,7 @@ import pandas as pd
 from typing import Dict, List, Optional
 from datetime import datetime
 from backtest.repository import BacktestRepository
-from backtest.summary_repository import SummaryRepository
+from backtest.repository_factory import get_summary_repository
 
 
 class BacktestEngine:
@@ -168,7 +168,8 @@ class BacktestEngine:
 
             # Update summary table for history list
             try:
-                summary_repo = SummaryRepository(self.repo.db_path)
+                summary_db_path = getattr(self.repo, "db_path", None)
+                summary_repo = get_summary_repository(db_path=summary_db_path)
                 summary_repo.upsert_from_session(session_id)
             except Exception as e:
                 # Log but don't fail the backtest if summary update fails

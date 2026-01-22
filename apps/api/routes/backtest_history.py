@@ -4,7 +4,7 @@ Backtest History API routes
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
 from pydantic import BaseModel
-from backtest.summary_repository import SummaryRepository
+from backtest.repository_factory import get_summary_repository
 import logging
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ async def list_sessions(
     - Sorting by any metric field
     """
     try:
-        repo = SummaryRepository()
+        repo = get_summary_repository()
 
         # Build filters dict
         filters = {}
@@ -120,7 +120,7 @@ async def list_sessions(
 async def get_session_summary(session_id: str):
     """Get session summary by ID"""
     try:
-        repo = SummaryRepository()
+        repo = get_summary_repository()
         summary = repo.get_summary(session_id)
 
         if not summary:
