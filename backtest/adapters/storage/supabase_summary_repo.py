@@ -1,9 +1,11 @@
 """
 Supabase Summary Repository - Optimized read model for history list
 """
+import time
 from typing import Optional, Dict, List, Tuple
 from datetime import datetime
 from backtest.adapters.storage.supabase_client import get_supabase_client
+from utils.logger_utils import get_logger
 
 
 class SupabaseSummaryRepository:
@@ -17,6 +19,7 @@ class SupabaseSummaryRepository:
 
     def __init__(self):
         self.client = get_supabase_client()
+        self.logger = get_logger("supabase.summary_repo")
 
     def upsert_from_session(self, session_id: str) -> None:
         """
@@ -24,12 +27,14 @@ class SupabaseSummaryRepository:
         Called after backtest completion
         """
         # Fetch session data
+        start = time.monotonic()
         session_response = self.client.table('backtest_sessions') \
             .select('created_at, status, symbol, timeframe, start_ts, end_ts, strategy_name, strategy_params') \
             .eq('id', session_id) \
             .execute()
 
         if not session_response.data:
+            self.logger.warning("Summary upsert skipped: session not found session_id=%s", session_id)
             return
 
         session = session_response.data[0]
@@ -64,6 +69,12 @@ class SupabaseSummaryRepository:
 
         # Upsert summary
         self.client.table('backtest_session_summaries').upsert(summary).execute()
+        elapsed = time.monotonic() - start
+        self.logger.debug(
+            "Summary upsert ok session_id=%s elapsed=%.3fs",
+            session_id,
+            elapsed
+        )
 
     def list_summaries(
         self,
@@ -138,7 +149,9 @@ class SupabaseSummaryRepository:
         # Fetch limit + 1 to determine if there's a next page
         query = query.limit(limit + 1)
 
+        start = time.monotonic()
         response = query.execute()
+        elapsed = time.monotonic() - start
         summaries = response.data[:limit]
 
         # Determine next cursor
@@ -147,13 +160,27 @@ class SupabaseSummaryRepository:
             last = summaries[-1]
             next_cursor = f"{last['created_at']}:{last['session_id']}"
 
+        self.logger.debug(
+            "Summary list ok rows=%s limit=%s elapsed=%.3fs",
+            len(response.data),
+            limit,
+            elapsed
+        )
         return summaries, next_cursor
 
     def get_summary(self, session_id: str) -> Optional[Dict]:
         """Get single summary by session_id"""
+        start = time.monotonic()
         response = self.client.table('backtest_session_summaries') \
             .select('*') \
             .eq('session_id', session_id) \
             .execute()
+        elapsed = time.monotonic() - start
+        self.logger.debug(
+            "Summary get ok session_id=%s rows=%s elapsed=%.3fs",
+            session_id,
+            len(response.data) if response.data else 0,
+            elapsed
+        )
 
         return response.data[0] if response.data else None

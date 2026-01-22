@@ -2,6 +2,7 @@
 Supabase Backtest Repository - Cloud persistence layer
 """
 import json
+import time
 import uuid
 import zlib
 from datetime import datetime
@@ -12,6 +13,7 @@ import pandas as pd
 from backtest.domain.interfaces import IDataRepository
 from backtest.adapters.storage.supabase_client import get_supabase_client
 from backtest.adapters.storage.batch_writer import BatchWriter
+from utils.logger_utils import get_logger
 
 
 def _encode_bytea(data: bytes) -> str:
@@ -34,6 +36,8 @@ def _decode_bytea(value: Any) -> bytes:
             return value.encode()
     raise TypeError(f"Unsupported bytea value type: {type(value)}")
 
+_logger = get_logger("supabase.repo")
+
 
 class SupabaseRepository(IDataRepository):
     """Supabase storage adapter for optimization/backtest runs"""
@@ -48,21 +52,43 @@ class SupabaseRepository(IDataRepository):
         start_ts: int,
         end_ts: int
     ) -> pd.DataFrame:
-        response = self.client.table('kline_datasets') \
-            .select('data') \
-            .eq('symbol', symbol) \
-            .eq('timeframe', timeframe) \
-            .lte('start_ts', start_ts) \
-            .gte('end_ts', end_ts) \
-            .order('created_at', desc=True) \
-            .limit(1) \
-            .execute()
+        start = time.monotonic()
+        try:
+            response = self.client.table('kline_datasets') \
+                .select('data') \
+                .eq('symbol', symbol) \
+                .eq('timeframe', timeframe) \
+                .lte('start_ts', start_ts) \
+                .gte('end_ts', end_ts) \
+                .order('created_at', desc=True) \
+                .limit(1) \
+                .execute()
+        except Exception:
+            _logger.exception(
+                "Supabase get_candles failed symbol=%s timeframe=%s start_ts=%s end_ts=%s",
+                symbol,
+                timeframe,
+                start_ts,
+                end_ts
+            )
+            raise
 
         if not response.data:
+            _logger.debug(
+                "Supabase get_candles empty symbol=%s timeframe=%s elapsed=%.3fs",
+                symbol,
+                timeframe,
+                time.monotonic() - start
+            )
             return pd.DataFrame()
 
         compressed_data = _decode_bytea(response.data[0].get('data'))
         if not compressed_data:
+            _logger.warning(
+                "Supabase get_candles empty data symbol=%s timeframe=%s",
+                symbol,
+                timeframe
+            )
             return pd.DataFrame()
 
         json_data = zlib.decompress(compressed_data).decode()
@@ -73,6 +99,11 @@ class SupabaseRepository(IDataRepository):
             return df
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         df.set_index('timestamp', inplace=True)
+        _logger.debug(
+            "Supabase get_candles ok rows=%s elapsed=%.3fs",
+            len(df),
+            time.monotonic() - start
+        )
         return df
 
     async def save_kline_dataset(
@@ -98,9 +129,27 @@ class SupabaseRepository(IDataRepository):
             'created_at': now
         }
 
-        self.client.table('kline_datasets') \
-            .upsert(payload, on_conflict='symbol,timeframe,start_ts,end_ts') \
-            .execute()
+        start = time.monotonic()
+        try:
+            self.client.table('kline_datasets') \
+                .upsert(payload, on_conflict='symbol,timeframe,start_ts,end_ts') \
+                .execute()
+        except Exception:
+            _logger.exception(
+                "Supabase save_kline_dataset failed symbol=%s timeframe=%s start_ts=%s end_ts=%s",
+                symbol,
+                timeframe,
+                start_ts,
+                end_ts
+            )
+            raise
+
+        _logger.info(
+            "Supabase save_kline_dataset ok id=%s size=%s elapsed=%.3fs",
+            dataset_id,
+            len(data),
+            time.monotonic() - start
+        )
 
         return dataset_id
 
@@ -118,14 +167,39 @@ class SupabaseRepository(IDataRepository):
             'created_at': now
         }
 
-        self.client.table('backtest_runs').insert(payload).execute()
+        start = time.monotonic()
+        try:
+            self.client.table('backtest_runs').insert(payload).execute()
+        except Exception:
+            _logger.exception("Supabase create_backtest_run failed id=%s", run_id)
+            raise
+        _logger.info(
+            "Supabase create_backtest_run ok id=%s elapsed=%.3fs",
+            run_id,
+            time.monotonic() - start
+        )
         return run_id
 
     async def update_run_status(self, run_id: str, status: str) -> None:
-        self.client.table('backtest_runs') \
-            .update({'status': status}) \
-            .eq('id', run_id) \
-            .execute()
+        start = time.monotonic()
+        try:
+            self.client.table('backtest_runs') \
+                .update({'status': status}) \
+                .eq('id', run_id) \
+                .execute()
+        except Exception:
+            _logger.exception(
+                "Supabase update_run_status failed id=%s status=%s",
+                run_id,
+                status
+            )
+            raise
+        _logger.debug(
+            "Supabase update_run_status ok id=%s status=%s elapsed=%.3fs",
+            run_id,
+            status,
+            time.monotonic() - start
+        )
 
     async def save_metrics(self, run_id: str, metrics: Dict[str, Any]) -> None:
         payload = {
@@ -144,14 +218,32 @@ class SupabaseRepository(IDataRepository):
             'metrics': json.dumps(metrics)
         }
 
-        self.client.table('backtest_metrics').upsert(payload).execute()
+        start = time.monotonic()
+        try:
+            self.client.table('backtest_metrics').upsert(payload).execute()
+        except Exception:
+            _logger.exception("Supabase save_metrics failed run_id=%s", run_id)
+            raise
+        _logger.debug(
+            "Supabase save_metrics ok run_id=%s elapsed=%.3fs",
+            run_id,
+            time.monotonic() - start
+        )
 
     async def load_kline_dataset(self, kline_dataset_id: str) -> pd.DataFrame:
-        response = self.client.table('kline_datasets') \
-            .select('data') \
-            .eq('id', kline_dataset_id) \
-            .limit(1) \
-            .execute()
+        start = time.monotonic()
+        try:
+            response = self.client.table('kline_datasets') \
+                .select('data') \
+                .eq('id', kline_dataset_id) \
+                .limit(1) \
+                .execute()
+        except Exception:
+            _logger.exception(
+                "Supabase load_kline_dataset failed id=%s",
+                kline_dataset_id
+            )
+            raise
 
         if not response.data:
             raise ValueError(f"K线数据集不存在: {kline_dataset_id}")
@@ -168,14 +260,28 @@ class SupabaseRepository(IDataRepository):
             return df
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         df.set_index('timestamp', inplace=True)
+        _logger.debug(
+            "Supabase load_kline_dataset ok id=%s rows=%s elapsed=%.3fs",
+            kline_dataset_id,
+            len(df),
+            time.monotonic() - start
+        )
         return df
 
     async def get_strategy_version(self, strategy_version_id: str) -> Dict[str, Any]:
-        response = self.client.table('strategy_versions') \
-            .select('id, name, version, params_schema, code_hash, created_at') \
-            .eq('id', strategy_version_id) \
-            .limit(1) \
-            .execute()
+        start = time.monotonic()
+        try:
+            response = self.client.table('strategy_versions') \
+                .select('id, name, version, params_schema, code_hash, created_at') \
+                .eq('id', strategy_version_id) \
+                .limit(1) \
+                .execute()
+        except Exception:
+            _logger.exception(
+                "Supabase get_strategy_version failed id=%s",
+                strategy_version_id
+            )
+            raise
 
         if not response.data:
             raise ValueError(f"策略版本不存在: {strategy_version_id}")
@@ -224,6 +330,8 @@ class SupabaseBacktestRepository:
             session_id: 会话ID
             klines: K线列表 [{'ts': ..., 'open': ..., 'high': ..., ...}]
         """
+        _logger.debug("Supabase save_klines start session_id=%s rows=%s", session_id, len(klines))
+        start = time.monotonic()
         with BatchWriter('backtest_klines', batch_size=1000) as writer:
             for k in klines:
                 writer.add({
@@ -235,6 +343,12 @@ class SupabaseBacktestRepository:
                     'close': k['close'],
                     'volume': k['volume']
                 })
+        _logger.info(
+            "Supabase save_klines ok session_id=%s rows=%s elapsed=%.3fs",
+            session_id,
+            len(klines),
+            time.monotonic() - start
+        )
 
     def create_session(self, params: Dict) -> str:
         """
@@ -266,7 +380,17 @@ class SupabaseBacktestRepository:
             'strategy_params': json.dumps(params.get('strategy_params', {}))
         }
 
-        self.client.table('backtest_sessions').insert(session_data).execute()
+        start = time.monotonic()
+        try:
+            self.client.table('backtest_sessions').insert(session_data).execute()
+        except Exception:
+            _logger.exception("Supabase create_session failed id=%s", session_id)
+            raise
+        _logger.info(
+            "Supabase create_session ok id=%s elapsed=%.3fs",
+            session_id,
+            time.monotonic() - start
+        )
 
         return session_id
 
@@ -281,11 +405,26 @@ class SupabaseBacktestRepository:
         """
         now = int(datetime.utcnow().timestamp())
 
-        self.client.table('backtest_sessions').update({
-            'status': status,
-            'updated_at': now,
-            'error_message': error
-        }).eq('id', session_id).execute()
+        start = time.monotonic()
+        try:
+            self.client.table('backtest_sessions').update({
+                'status': status,
+                'updated_at': now,
+                'error_message': error
+            }).eq('id', session_id).execute()
+        except Exception:
+            _logger.exception(
+                "Supabase update_session_status failed session_id=%s status=%s",
+                session_id,
+                status
+            )
+            raise
+        _logger.info(
+            "Supabase update_session_status ok session_id=%s status=%s elapsed=%.3fs",
+            session_id,
+            status,
+            time.monotonic() - start
+        )
 
     def append_trade(self, session_id: str, trade: Dict) -> int:
         """
@@ -314,7 +453,22 @@ class SupabaseBacktestRepository:
             'open_trade_id': trade.get('open_trade_id')
         }
 
-        response = self.client.table('backtest_trades').insert(trade_data).execute()
+        start = time.monotonic()
+        try:
+            response = self.client.table('backtest_trades').insert(trade_data).execute()
+        except Exception:
+            _logger.exception(
+                "Supabase append_trade failed session_id=%s action=%s",
+                session_id,
+                trade.get('action')
+            )
+            raise
+        _logger.debug(
+            "Supabase append_trade ok session_id=%s action=%s elapsed=%.3fs",
+            session_id,
+            trade.get('action'),
+            time.monotonic() - start
+        )
 
         # 返回自动生成的 ID (如果有)
         if response.data and len(response.data) > 0:
@@ -345,7 +499,17 @@ class SupabaseBacktestRepository:
             'end_ts': metrics['end_ts']
         }
 
-        self.client.table('backtest_metrics').upsert(metrics_data).execute()
+        start = time.monotonic()
+        try:
+            self.client.table('backtest_metrics').upsert(metrics_data).execute()
+        except Exception:
+            _logger.exception("Supabase upsert_metrics failed session_id=%s", session_id)
+            raise
+        _logger.debug(
+            "Supabase upsert_metrics ok session_id=%s elapsed=%.3fs",
+            session_id,
+            time.monotonic() - start
+        )
 
     def get_session(self, session_id: str) -> Dict:
         """
@@ -357,10 +521,21 @@ class SupabaseBacktestRepository:
         Returns:
             Session dict or None
         """
-        response = self.client.table('backtest_sessions') \
-            .select('*') \
-            .eq('id', session_id) \
-            .execute()
+        start = time.monotonic()
+        try:
+            response = self.client.table('backtest_sessions') \
+                .select('*') \
+                .eq('id', session_id) \
+                .execute()
+        except Exception:
+            _logger.exception("Supabase get_session failed session_id=%s", session_id)
+            raise
+        _logger.debug(
+            "Supabase get_session ok session_id=%s rows=%s elapsed=%.3fs",
+            session_id,
+            len(response.data) if response.data else 0,
+            time.monotonic() - start
+        )
 
         if response.data:
             return response.data[0]
@@ -376,10 +551,21 @@ class SupabaseBacktestRepository:
         Returns:
             Metrics dict or None
         """
-        response = self.client.table('backtest_metrics') \
-            .select('*') \
-            .eq('session_id', session_id) \
-            .execute()
+        start = time.monotonic()
+        try:
+            response = self.client.table('backtest_metrics') \
+                .select('*') \
+                .eq('session_id', session_id) \
+                .execute()
+        except Exception:
+            _logger.exception("Supabase get_metrics failed session_id=%s", session_id)
+            raise
+        _logger.debug(
+            "Supabase get_metrics ok session_id=%s rows=%s elapsed=%.3fs",
+            session_id,
+            len(response.data) if response.data else 0,
+            time.monotonic() - start
+        )
 
         if response.data:
             return response.data[0]
@@ -408,9 +594,32 @@ class SupabaseBacktestRepository:
             .order('ts', desc=desc)
 
         if limit is None:
-            return self._fetch_all(query)
+            start = time.monotonic()
+            try:
+                data = self._fetch_all(query)
+            except Exception:
+                _logger.exception("Supabase get_trades failed session_id=%s", session_id)
+                raise
+            _logger.debug(
+                "Supabase get_trades ok session_id=%s rows=%s elapsed=%.3fs",
+                session_id,
+                len(data),
+                time.monotonic() - start
+            )
+            return data
 
-        response = query.limit(limit).execute()
+        start = time.monotonic()
+        try:
+            response = query.limit(limit).execute()
+        except Exception:
+            _logger.exception("Supabase get_trades failed session_id=%s", session_id)
+            raise
+        _logger.debug(
+            "Supabase get_trades ok session_id=%s rows=%s elapsed=%.3fs",
+            session_id,
+            len(response.data) if response.data else 0,
+            time.monotonic() - start
+        )
         return response.data
 
     def get_klines(
@@ -439,9 +648,32 @@ class SupabaseBacktestRepository:
             query = query.lt('ts', before)
 
         if limit is None:
-            return self._fetch_all(query)
+            start = time.monotonic()
+            try:
+                data = self._fetch_all(query)
+            except Exception:
+                _logger.exception("Supabase get_klines failed session_id=%s", session_id)
+                raise
+            _logger.debug(
+                "Supabase get_klines ok session_id=%s rows=%s elapsed=%.3fs",
+                session_id,
+                len(data),
+                time.monotonic() - start
+            )
+            return data
 
-        response = query.limit(limit).execute()
+        start = time.monotonic()
+        try:
+            response = query.limit(limit).execute()
+        except Exception:
+            _logger.exception("Supabase get_klines failed session_id=%s", session_id)
+            raise
+        _logger.debug(
+            "Supabase get_klines ok session_id=%s rows=%s elapsed=%.3fs",
+            session_id,
+            len(response.data) if response.data else 0,
+            time.monotonic() - start
+        )
         return response.data
 
     def get_latest_session(self, statuses: Optional[Iterable[str]] = None) -> Dict:
@@ -453,7 +685,17 @@ class SupabaseBacktestRepository:
         if statuses:
             query = query.in_('status', list(statuses))
 
-        response = query.execute()
+        start = time.monotonic()
+        try:
+            response = query.execute()
+        except Exception:
+            _logger.exception("Supabase get_latest_session failed")
+            raise
+        _logger.debug(
+            "Supabase get_latest_session ok rows=%s elapsed=%.3fs",
+            len(response.data) if response.data else 0,
+            time.monotonic() - start
+        )
         if response.data:
             return response.data[0]
         return {}
@@ -468,10 +710,20 @@ class SupabaseBacktestRepository:
         Returns:
             List of events
         """
-        response = self.client.table('backtest_events') \
-            .select('*') \
-            .eq('session_id', session_id) \
-            .order('ts', desc=False) \
-            .execute()
-
+        start = time.monotonic()
+        try:
+            response = self.client.table('backtest_events') \
+                .select('*') \
+                .eq('session_id', session_id) \
+                .order('ts', desc=False) \
+                .execute()
+        except Exception:
+            _logger.exception("Supabase get_events failed session_id=%s", session_id)
+            raise
+        _logger.debug(
+            "Supabase get_events ok session_id=%s rows=%s elapsed=%.3fs",
+            session_id,
+            len(response.data) if response.data else 0,
+            time.monotonic() - start
+        )
         return response.data
