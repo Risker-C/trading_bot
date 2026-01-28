@@ -62,6 +62,254 @@ class BaseStrategy(ABC):
         return {}
 
 
+# ==================== 带不交易区间的动态对冲策略 ====================
+
+class BandLimitedHedgingStrategy(BaseStrategy):
+    """Band-Limited Dynamic Hedging Strategy"""
+
+    name = "band_limited_hedging"
+    description = "双向持仓 + MES 不交易区间 + 利润迁移的动态对冲策略"
+
+    def __init__(self, df: pd.DataFrame, **kwargs):
+        super().__init__(df, **kwargs)
+        self.mes = float(kwargs.get("MES", kwargs.get("mes", 0.006)))
+        self.alpha = float(kwargs.get("alpha", 0.5))
+        self.e_max = float(kwargs.get("E_max", kwargs.get("e_max", 0.0)))
+        self.fee_rate = float(kwargs.get("fee_rate", 0.001))
+        self.exit_eta = float(kwargs.get("eta", 0.2))
+        self.exit_epsilon = float(kwargs.get("epsilon", 1e-8))
+        self.sigma_window = int(kwargs.get("sigma_window", 50))
+        self.initial_capital = float(kwargs.get("initial_capital", 10000.0))
+
+        self.state = {
+            "p_ref": None,
+            "long_qty": 0.0,
+            "long_avg": 0.0,
+            "short_qty": 0.0,
+            "short_avg": 0.0,
+            "mode": "active",
+        }
+
+    def update_window(self, df: pd.DataFrame) -> None:
+        self.df = df
+
+    def _current_price(self) -> float:
+        return float(self.df["close"].iloc[-1])
+
+    def _fee(self, qty: float, price: float) -> float:
+        return max(qty, 0.0) * price * self.fee_rate
+
+    def _build_open(self, side: str, qty: float, price: float, reason: str) -> Optional[Dict]:
+        if qty <= 0:
+            return None
+        state = self.state
+        if side == "long":
+            new_qty = state["long_qty"] + qty
+            new_avg = (state["long_avg"] * state["long_qty"] + price * qty) / new_qty
+            state["long_qty"] = new_qty
+            state["long_avg"] = new_avg
+        else:
+            new_qty = state["short_qty"] + qty
+            new_avg = (state["short_avg"] * state["short_qty"] + price * qty) / new_qty
+            state["short_qty"] = new_qty
+            state["short_avg"] = new_avg
+
+        return {
+            "side": side,
+            "action": "open",
+            "qty": qty,
+            "price": price,
+            "fee": self._fee(qty, price),
+            "pnl": 0.0,
+            "reason": reason,
+        }
+
+    def _build_close(self, side: str, qty: float, price: float, reason: str) -> Optional[Tuple[Dict, float]]:
+        if qty <= 0:
+            return None
+        state = self.state
+        if side == "long":
+            entry_price = state["long_avg"]
+            state["long_qty"] = max(state["long_qty"] - qty, 0.0)
+            if state["long_qty"] <= self.exit_epsilon:
+                state["long_qty"] = 0.0
+                state["long_avg"] = 0.0
+        else:
+            entry_price = state["short_avg"]
+            state["short_qty"] = max(state["short_qty"] - qty, 0.0)
+            if state["short_qty"] <= self.exit_epsilon:
+                state["short_qty"] = 0.0
+                state["short_avg"] = 0.0
+
+        gross_pnl = (price - entry_price) * qty if side == "long" else (entry_price - price) * qty
+        fee = self._fee(qty, price)
+        action = {
+            "side": side,
+            "action": "close",
+            "qty": qty,
+            "price": price,
+            "fee": fee,
+            "pnl": gross_pnl,
+            "reason": reason,
+        }
+        return action, gross_pnl - fee
+
+    def _sigma_eff2(self) -> Optional[float]:
+        if len(self.df) < self.sigma_window + 1:
+            return None
+        returns = self.df["close"].pct_change().dropna().tail(self.sigma_window)
+        if returns.empty:
+            return None
+        return float(returns.var())
+
+    def _exit_reduce(self, price: float) -> List[Dict]:
+        state = self.state
+        actions: List[Dict] = []
+        total_qty = state["long_qty"] + state["short_qty"]
+        if total_qty <= self.exit_epsilon:
+            state["mode"] = "pause"
+            return actions
+
+        long_qty = state["long_qty"] * self.exit_eta
+        short_qty = state["short_qty"] * self.exit_eta
+
+        if state["long_qty"] <= self.exit_epsilon:
+            long_qty = 0.0
+        if state["short_qty"] <= self.exit_epsilon:
+            short_qty = 0.0
+
+        if long_qty > 0:
+            close_action = self._build_close("long", long_qty, price, "退出减仓")
+            if close_action:
+                actions.append(close_action[0])
+        if short_qty > 0:
+            close_action = self._build_close("short", short_qty, price, "退出减仓")
+            if close_action:
+                actions.append(close_action[0])
+
+        total_qty = state["long_qty"] + state["short_qty"]
+        if total_qty <= self.exit_epsilon:
+            state["mode"] = "pause"
+        return actions
+
+    def _rebalance_up(self, price: float) -> List[Dict]:
+        state = self.state
+        actions: List[Dict] = []
+
+        net_profit = 0.0
+        if state["long_qty"] > 0:
+            close_action = self._build_close("long", state["long_qty"], price, "盈利侧平仓")
+            if close_action:
+                actions.append(close_action[0])
+                net_profit = max(close_action[1], 0.0)
+
+        loss_part = self.alpha * net_profit
+        rebuild_part = max(net_profit - loss_part, 0.0)
+
+        if state["short_qty"] > 0 and loss_part > 0:
+            reduce_qty = min(state["short_qty"], loss_part / price)
+            close_action = self._build_close("short", reduce_qty, price, "利润迁移减仓")
+            if close_action:
+                actions.append(close_action[0])
+
+        if rebuild_part > 0:
+            add_qty = rebuild_part / (2 * price)
+            open_long = self._build_open("long", add_qty, price, "结构重建")
+            open_short = self._build_open("short", add_qty, price, "结构重建")
+            if open_long:
+                actions.append(open_long)
+            if open_short:
+                actions.append(open_short)
+
+        state["p_ref"] = price
+        return actions
+
+    def _rebalance_down(self, price: float) -> List[Dict]:
+        state = self.state
+        actions: List[Dict] = []
+
+        net_profit = 0.0
+        if state["short_qty"] > 0:
+            close_action = self._build_close("short", state["short_qty"], price, "盈利侧平仓")
+            if close_action:
+                actions.append(close_action[0])
+                net_profit = max(close_action[1], 0.0)
+
+        loss_part = self.alpha * net_profit
+        rebuild_part = max(net_profit - loss_part, 0.0)
+
+        if state["long_qty"] > 0 and loss_part > 0:
+            reduce_qty = min(state["long_qty"], loss_part / price)
+            close_action = self._build_close("long", reduce_qty, price, "利润迁移减仓")
+            if close_action:
+                actions.append(close_action[0])
+
+        if rebuild_part > 0:
+            add_qty = rebuild_part / (2 * price)
+            open_long = self._build_open("long", add_qty, price, "结构重建")
+            open_short = self._build_open("short", add_qty, price, "结构重建")
+            if open_long:
+                actions.append(open_long)
+            if open_short:
+                actions.append(open_short)
+
+        state["p_ref"] = price
+        return actions
+
+    def analyze(self) -> TradeSignal:
+        price = self._current_price()
+        state = self.state
+        actions: List[Dict] = []
+        reason = ""
+
+        if state["p_ref"] is None:
+            state["p_ref"] = price
+            init_qty = (self.initial_capital * 0.95) / (price * 2)
+            open_long = self._build_open("long", init_qty, price, "初始化双向持仓")
+            open_short = self._build_open("short", init_qty, price, "初始化双向持仓")
+            if open_long:
+                actions.append(open_long)
+            if open_short:
+                actions.append(open_short)
+            reason = "初始化双向持仓"
+            return TradeSignal(Signal.HOLD, self.name, reason, indicators={"actions": actions, "state": state.copy()})
+
+        if state["mode"] == "active":
+            sigma_eff2 = self._sigma_eff2()
+            net_exposure = abs(state["long_qty"] - state["short_qty"]) * price
+            if (sigma_eff2 is not None and sigma_eff2 < self.mes * self.fee_rate) or (
+                self.e_max > 0 and net_exposure > self.e_max
+            ):
+                state["mode"] = "exit"
+                reason = "触发退出条件"
+
+        if state["mode"] == "exit":
+            actions = self._exit_reduce(price)
+            return TradeSignal(
+                Signal.HOLD,
+                self.name,
+                reason or "退出减仓",
+                indicators={"actions": actions, "state": state.copy()},
+            )
+
+        rel_move = abs(price - state["p_ref"]) / state["p_ref"]
+        if rel_move < self.mes:
+            return TradeSignal(
+                Signal.HOLD,
+                self.name,
+                "价格在MES区间内",
+                indicators={"actions": [], "state": state.copy()},
+            )
+
+        if price >= state["p_ref"]:
+            actions = self._rebalance_up(price)
+            reason = "价格上破MES触发再平衡"
+        else:
+            actions = self._rebalance_down(price)
+            reason = "价格下破MES触发再平衡"
+
+        return TradeSignal(Signal.HOLD, self.name, reason, indicators={"actions": actions, "state": state.copy()})
+
 # ==================== 布林带突破策略 ====================
 
 class BollingerBreakthroughStrategy(BaseStrategy):
@@ -1199,6 +1447,7 @@ STRATEGY_MAP: Dict[str, type] = {
     "multi_timeframe": MultiTimeframeStrategy,
     "grid": GridStrategy,
     "composite_score": CompositeScoreStrategy,
+    "band_limited_hedging": BandLimitedHedgingStrategy,
 }
 
 

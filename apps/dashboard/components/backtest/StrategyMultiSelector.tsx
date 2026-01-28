@@ -10,6 +10,7 @@ const AVAILABLE_STRATEGIES = [
   { value: 'composite_score', label: 'Composite Score' },
   { value: 'multi_timeframe', label: 'Multi Timeframe' },
   { value: 'adx_trend', label: 'ADX Trend' },
+  { value: 'band_limited_hedging', label: 'Band-Limited Hedging' },
 ];
 
 interface StrategyMultiSelectorProps {

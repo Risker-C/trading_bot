@@ -21,6 +21,7 @@ const STRATEGY_LABELS: Record<string, string> = {
   'composite_score': 'Composite Score',
   'multi_timeframe': 'Multi Timeframe',
   'adx_trend': 'ADX Trend',
+  'band_limited_hedging': 'Band-Limited Hedging',
 };
 
 export function WeightConfigList({ strategies, onUpdateWeight, onRemove }: WeightConfigListProps) {

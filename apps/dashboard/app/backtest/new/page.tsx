@@ -50,16 +50,65 @@ export default function BacktestPage() {
   );
 
   const isMultiStrategy = params.selectedStrategies.length > 1;
+  const isSingleStrategy = params.selectedStrategies.length === 1;
+  const selectedStrategyName = params.selectedStrategies[0]?.name;
+  const isBandLimited = isSingleStrategy && selectedStrategyName === 'band_limited_hedging';
+
+  const bandMes = Number(params.strategyParams?.MES);
+  const bandAlpha = Number(params.strategyParams?.alpha);
+  const bandEmax = Number(params.strategyParams?.E_max);
+  const isBandParamsValid = !isBandLimited || (
+    Number.isFinite(bandMes) && bandMes > 0
+    && Number.isFinite(bandAlpha) && bandAlpha > 0 && bandAlpha < 1
+    && Number.isFinite(bandEmax) && bandEmax > 0
+  );
 
   // 策略切换处理
   const handleStrategyToggle = (name: string) => {
     const isSelected = params.selectedStrategies.some(s => s.name === name);
+    const hasBandLimited = params.selectedStrategies.some(s => s.name === 'band_limited_hedging');
+
+    if (name !== 'band_limited_hedging' && hasBandLimited) {
+      alert('Band-Limited Hedging 仅支持单独运行');
+      return;
+    }
+
+    if (name === 'band_limited_hedging' && !isSelected) {
+      setParams({
+        selectedStrategies: [{ name: 'band_limited_hedging', weight: 100 }],
+      });
+      return;
+    }
+
     if (isSelected) {
       removeStrategy(name);
     } else {
       addStrategy(name);
     }
   };
+
+  useEffect(() => {
+    if (!isBandLimited) return;
+    const nextParams = { ...(params.strategyParams || {}) };
+    let changed = false;
+
+    if (nextParams.MES === undefined) {
+      nextParams.MES = 0.006;
+      changed = true;
+    }
+    if (nextParams.alpha === undefined) {
+      nextParams.alpha = 0.5;
+      changed = true;
+    }
+    if (nextParams.E_max === undefined) {
+      nextParams.E_max = Math.round(params.capital);
+      changed = true;
+    }
+
+    if (changed) {
+      setParams({ strategyParams: nextParams });
+    }
+  }, [isBandLimited, params.capital, params.strategyParams, setParams]);
 
   useEffect(() => {
     if (wsData.backtest && wsData.backtest.session_id === currentSessionId) {
@@ -170,6 +219,11 @@ export default function BacktestPage() {
 
     if (params.selectedStrategies.length === 0) {
       alert('请至少选择一个策略');
+      return;
+    }
+
+    if (!isBandParamsValid) {
+      alert('Band-Limited Hedging 参数不合法，请检查 MES / alpha / E_max');
       return;
     }
 
@@ -299,6 +353,59 @@ export default function BacktestPage() {
             onToggle={handleStrategyToggle}
           />
 
+          {isBandLimited && (
+            <div className="space-y-3 rounded-lg border p-4">
+              <div className="text-sm font-medium">Band-Limited Hedging 参数</div>
+              <div>
+                <Label htmlFor="mes">MES (相对比例)</Label>
+                <Input
+                  id="mes"
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  value={Number.isFinite(bandMes) ? bandMes : ''}
+                  onChange={(e) => setParams({
+                    strategyParams: { ...params.strategyParams, MES: parseFloat(e.target.value) }
+                  })}
+                  placeholder="例如 0.006"
+                />
+                <p className="text-xs text-muted-foreground mt-1">建议 MES = 6 × fee_rate (0.006 ≈ 0.6%)</p>
+              </div>
+              <div>
+                <Label htmlFor="alpha">alpha (利润迁移比例)</Label>
+                <Input
+                  id="alpha"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  value={Number.isFinite(bandAlpha) ? bandAlpha : ''}
+                  onChange={(e) => setParams({
+                    strategyParams: { ...params.strategyParams, alpha: parseFloat(e.target.value) }
+                  })}
+                  placeholder="0.5"
+                />
+              </div>
+              <div>
+                <Label htmlFor="e_max">E_max (最大风险资本)</Label>
+                <Input
+                  id="e_max"
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={Number.isFinite(bandEmax) ? bandEmax : ''}
+                  onChange={(e) => setParams({
+                    strategyParams: { ...params.strategyParams, E_max: parseFloat(e.target.value) }
+                  })}
+                  placeholder="10000"
+                />
+              </div>
+              {!isBandParamsValid && (
+                <p className="text-xs text-red-500">参数非法：MES > 0，alpha 在 (0,1)，E_max > 0</p>
+              )}
+            </div>
+          )}
+
           {/* 权重配置（仅多策略时显示） */}
           {isMultiStrategy && (
             <div className="space-y-3">
@@ -316,7 +423,7 @@ export default function BacktestPage() {
 
           <Button
             onClick={handleStart}
-            disabled={loading || status === 'running' || !isWeightValid || params.selectedStrategies.length === 0}
+            disabled={loading || status === 'running' || !isWeightValid || !isBandParamsValid || params.selectedStrategies.length === 0}
             className="w-full"
           >
             {loading ? '启动中...' : status === 'running' ? '回测进行中...' : '开始回测'}

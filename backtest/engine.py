@@ -44,6 +44,25 @@ class BacktestEngine:
             # 判断是否为多策略模式
             is_multi_strategy = strategy_params and strategy_params.get("strategies")
             weighted_threshold = strategy_params.get("threshold", 0.30) if strategy_params else 0.30
+            is_band_limited = (strategy_name == "band_limited_hedging") and not is_multi_strategy
+
+            if is_band_limited:
+                metrics = self._run_band_limited(
+                    session_id=session_id,
+                    klines=klines,
+                    strategy_params=strategy_params,
+                    initial_capital=initial_capital
+                )
+                self.repo.upsert_metrics(session_id, metrics)
+                self.repo.update_session_status(session_id, "completed")
+
+                try:
+                    summary_db_path = getattr(self.repo, "db_path", None)
+                    summary_repo = get_summary_repository(db_path=summary_db_path)
+                    summary_repo.upsert_from_session(session_id)
+                except Exception as e:
+                    print(f"Warning: Failed to update summary for session {session_id}: {e}")
+                return
 
             for i in range(50, len(klines)):
                 window = klines.iloc[i-50:i+1]
@@ -178,3 +197,97 @@ class BacktestEngine:
         except Exception as e:
             self.repo.update_session_status(session_id, "failed", str(e))
             raise
+
+    def _run_band_limited(
+        self,
+        session_id: str,
+        klines: pd.DataFrame,
+        strategy_params: Optional[Dict],
+        initial_capital: float
+    ) -> Dict:
+        from strategies.strategies import get_strategy
+
+        params = dict(strategy_params or {})
+        params.setdefault("initial_capital", initial_capital)
+
+        trade_count = 0
+        win_count = 0
+        win_pnl_sum = 0.0
+        total_pnl = 0.0
+
+        open_trade_ids: Dict[str, List[int]] = {"long": [], "short": []}
+        strategy = get_strategy("band_limited_hedging", klines.iloc[0:51], **params)
+
+        for i in range(50, len(klines)):
+            window = klines.iloc[i-50:i+1]
+            current_bar = klines.iloc[i]
+
+            try:
+                if hasattr(strategy, "update_window"):
+                    strategy.update_window(window)
+                else:
+                    strategy.df = window
+                signal = strategy.analyze()
+                actions = []
+                if signal and isinstance(signal.indicators, dict):
+                    actions = signal.indicators.get("actions", []) or []
+
+                for action in actions:
+                    qty = float(action.get("qty", 0))
+                    if qty <= 0:
+                        continue
+
+                    side = action.get("side", "")
+                    price = float(action.get("price", current_bar["close"]))
+                    fee = float(action.get("fee", 0.0))
+                    gross_pnl = float(action.get("pnl", 0.0))
+                    net_pnl = gross_pnl - fee
+
+                    trade = {
+                        "ts": int(current_bar.name.timestamp()),
+                        "symbol": "BTC/USDT:USDT",
+                        "side": side,
+                        "action": action.get("action", "open"),
+                        "qty": qty,
+                        "price": price,
+                        "fee": fee,
+                        "strategy_name": "band_limited_hedging",
+                        "reason": action.get("reason", signal.reason if signal else "")
+                    }
+
+                    if trade["action"] == "open":
+                        trade_id = self.repo.append_trade(session_id, trade)
+                        open_trade_ids[side].append(trade_id)
+                        total_pnl -= fee
+                    else:
+                        trade["pnl"] = net_pnl
+                        trade["pnl_pct"] = (net_pnl / initial_capital) * 100
+                        open_list = open_trade_ids.get(side, [])
+                        trade["open_trade_id"] = open_list.pop(0) if open_list else None
+                        self.repo.append_trade(session_id, trade)
+
+                        total_pnl += net_pnl
+                        if net_pnl > 0:
+                            win_count += 1
+                            win_pnl_sum += net_pnl
+
+                    trade_count += 1
+            finally:
+                signal = None
+                window = None
+                current_bar = None
+
+        return {
+            "total_trades": trade_count,
+            "win_rate": win_count / trade_count if trade_count else 0,
+            "total_pnl": total_pnl,
+            "total_return": (total_pnl / initial_capital) * 100,
+            "max_drawdown": 0,
+            "sharpe": 0,
+            "profit_factor": 1.0,
+            "expectancy": total_pnl / trade_count if trade_count else 0,
+            "avg_win": win_pnl_sum / win_count if win_count else 0,
+            "avg_loss": 0,
+            "start_ts": int(klines.index[0].timestamp()),
+            "end_ts": int(klines.index[-1].timestamp())
+        }

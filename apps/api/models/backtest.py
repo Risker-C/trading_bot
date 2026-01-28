@@ -1,7 +1,7 @@
 """
 Backtest API models
 """
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, Dict, List, Any
 
 
@@ -47,6 +47,38 @@ class CreateSessionRequest(BaseModel):
                 )
 
         return v
+
+    @model_validator(mode="after")
+    def validate_band_limited_params(self):
+        if self.strategy_name != "band_limited_hedging":
+            return self
+
+        if self.strategies:
+            raise ValueError("band_limited_hedging 仅支持单策略回测")
+
+        params = dict(self.strategy_params or {})
+        fee_rate = self.fee_rate or 0.001
+
+        if params.get("MES") is None:
+            params["MES"] = 6 * fee_rate
+        if params.get("alpha") is None:
+            params["alpha"] = 0.5
+        if params.get("E_max") is None:
+            params["E_max"] = self.initial_capital
+
+        mes = float(params.get("MES", 0))
+        alpha = float(params.get("alpha", 0))
+        e_max = float(params.get("E_max", 0))
+
+        if mes <= 0:
+            raise ValueError("MES 必须大于 0")
+        if alpha <= 0 or alpha >= 1:
+            raise ValueError("alpha 必须在 (0, 1) 区间")
+        if e_max <= 0:
+            raise ValueError("E_max 必须大于 0")
+
+        self.strategy_params = params
+        return self
 
 
 class SessionResponse(BaseModel):
