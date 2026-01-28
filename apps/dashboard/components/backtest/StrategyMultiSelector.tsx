@@ -4,9 +4,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 
 const AVAILABLE_STRATEGIES = [
+  { value: 'bollinger_breakthrough', label: 'Bollinger Breakthrough' },
   { value: 'bollinger_trend', label: 'Bollinger Trend' },
+  { value: 'rsi_divergence', label: 'RSI Divergence' },
   { value: 'macd_cross', label: 'MACD Cross' },
   { value: 'ema_cross', label: 'EMA Cross' },
+  { value: 'kdj_cross', label: 'KDJ Cross' },
+  { value: 'volume_breakout', label: 'Volume Breakout' },
+  { value: 'grid', label: 'Grid' },
   { value: 'composite_score', label: 'Composite Score' },
   { value: 'multi_timeframe', label: 'Multi Timeframe' },
   { value: 'adx_trend', label: 'ADX Trend' },

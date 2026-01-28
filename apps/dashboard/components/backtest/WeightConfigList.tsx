@@ -15,12 +15,17 @@ interface WeightConfigListProps {
 }
 
 const STRATEGY_LABELS: Record<string, string> = {
+  'bollinger_breakthrough': 'Bollinger Breakthrough',
   'bollinger_trend': 'Bollinger Trend',
+  'rsi_divergence': 'RSI Divergence',
   'macd_cross': 'MACD Cross',
   'ema_cross': 'EMA Cross',
+  'kdj_cross': 'KDJ Cross',
   'composite_score': 'Composite Score',
   'multi_timeframe': 'Multi Timeframe',
   'adx_trend': 'ADX Trend',
+  'volume_breakout': 'Volume Breakout',
+  'grid': 'Grid',
 };
 
 export function WeightConfigList({ strategies, onUpdateWeight, onRemove }: WeightConfigListProps) {
