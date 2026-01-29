@@ -401,7 +401,7 @@ export default function BacktestPage() {
                 />
               </div>
               {!isBandParamsValid && (
-                <p className="text-xs text-red-500">参数非法：MES > 0，alpha 在 (0,1)，E_max > 0</p>
+                <p className="text-xs text-red-500">参数非法：MES &gt; 0，alpha 在 (0,1)，E_max &gt; 0</p>
               )}
             </div>
           )}
