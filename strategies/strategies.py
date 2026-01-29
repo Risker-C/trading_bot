@@ -88,6 +88,8 @@ class BandLimitedHedgingStrategy(BaseStrategy):
             "short_qty": 0.0,
             "short_avg": 0.0,
             "mode": "active",
+            "rebalance_count": 0,
+            "low_sigma_streak": 0,
         }
 
     def update_window(self, df: pd.DataFrame) -> None:
@@ -222,6 +224,8 @@ class BandLimitedHedgingStrategy(BaseStrategy):
                 actions.append(open_short)
 
         state["p_ref"] = price
+        state["rebalance_count"] += 1
+        state["low_sigma_streak"] = 0
         return actions
 
     def _rebalance_down(self, price: float) -> List[Dict]:
@@ -254,6 +258,8 @@ class BandLimitedHedgingStrategy(BaseStrategy):
                 actions.append(open_short)
 
         state["p_ref"] = price
+        state["rebalance_count"] += 1
+        state["low_sigma_streak"] = 0
         return actions
 
     def analyze(self) -> TradeSignal:
@@ -278,12 +284,21 @@ class BandLimitedHedgingStrategy(BaseStrategy):
             sigma_eff2 = self._sigma_eff2()
             net_exposure = abs(state["long_qty"] - state["short_qty"]) * price
             exit_sigma_k = float(self.params.get("exit_sigma_k", 0.02))
+            exit_sigma_consecutive = int(self.params.get("exit_sigma_consecutive", 5))
             sigma_exit_threshold = exit_sigma_k * (self.mes ** 2)
-            if (sigma_eff2 is not None and sigma_eff2 < sigma_exit_threshold) or (
-                self.e_max > 0 and net_exposure > self.e_max
-            ):
+
+            if self.e_max > 0 and net_exposure > self.e_max:
                 state["mode"] = "exit"
                 reason = "触发退出条件"
+            elif sigma_eff2 is not None:
+                if sigma_eff2 < sigma_exit_threshold:
+                    state["low_sigma_streak"] += 1
+                else:
+                    state["low_sigma_streak"] = 0
+
+                if state["rebalance_count"] > 0 and state["low_sigma_streak"] >= exit_sigma_consecutive:
+                    state["mode"] = "exit"
+                    reason = "触发退出条件"
 
         if state["mode"] == "exit":
             actions = self._exit_reduce(price)
