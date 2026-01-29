@@ -6,6 +6,15 @@ import { useTrades } from '@/hooks/use-trades';
 export function TradeTable() {
   const { data: trades, isLoading } = useTrades({ limit: 20 });
 
+  const formatNumber = (value: number, decimals: number = 2) => {
+    const abs = Math.abs(value);
+    if (abs === 0) return '0';
+    if (abs < 1e-6) return value.toExponential(2);
+    if (abs < 0.01) return value.toFixed(6);
+    if (abs < 1) return value.toFixed(4);
+    return value.toFixed(decimals);
+  };
+
   if (isLoading) {
     return <div className="text-center py-8">加载中...</div>;
   }
@@ -40,11 +49,13 @@ export function TradeTable() {
                   {trade.side === 'long' ? '做多' : '做空'}
                 </span>
               </TableCell>
-              <TableCell className="font-mono tabular-nums">{trade.price.toFixed(2)}</TableCell>
-              <TableCell className="font-mono tabular-nums">{trade.amount}</TableCell>
+              <TableCell className="font-mono tabular-nums">{formatNumber(trade.price, 2)}</TableCell>
+              <TableCell className="font-mono tabular-nums">{formatNumber(trade.amount, 6)}</TableCell>
               <TableCell>
                 <span className={`font-mono tabular-nums ${trade.pnl && trade.pnl > 0 ? 'text-trading-up' : 'text-trading-down'}`}>
-                  {trade.pnl ? `${trade.pnl > 0 ? '+' : ''}${trade.pnl.toFixed(2)}` : '-'}
+                  {trade.pnl !== null && trade.pnl !== undefined
+                    ? `${trade.pnl > 0 ? '+' : ''}${formatNumber(trade.pnl, 6)}`
+                    : '-'}
                 </span>
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">{trade.strategy || '-'}</TableCell>

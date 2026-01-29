@@ -99,6 +99,11 @@ export default function BacktestDetailPage() {
   };
 
   const formatNumber = (value: number, decimals: number = 2) => {
+    const abs = Math.abs(value);
+    if (abs === 0) return '0';
+    if (abs < 1e-6) return value.toExponential(2);
+    if (abs < 0.01) return value.toFixed(6);
+    if (abs < 1) return value.toFixed(4);
     return value.toFixed(decimals);
   };
 
@@ -293,16 +298,16 @@ export default function BacktestDetailPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground text-right">
-                      {formatNumber(trade.qty, 4)}
+                      {formatNumber(trade.qty, 6)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground text-right">
-                      ${formatNumber(trade.price)}
+                      ${formatNumber(trade.price, 2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground text-right font-mono">
-                      ${formatNumber(trade.qty * trade.price)}
+                      ${formatNumber(trade.qty * trade.price, 2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground text-right">
-                      ${formatNumber(trade.fee)}
+                      ${formatNumber(trade.fee, 6)}
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${
                       trade.pnl && trade.pnl > 0
@@ -311,7 +316,7 @@ export default function BacktestDetailPage() {
                         ? 'text-red-600 dark:text-red-400'
                         : 'text-foreground'
                     }`}>
-                      {trade.pnl !== null ? `$${formatNumber(trade.pnl)}` : '-'}
+                      {trade.pnl !== null ? `$${formatNumber(trade.pnl, 6)}` : '-'}
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${
                       trade.pnl_pct && trade.pnl_pct > 0

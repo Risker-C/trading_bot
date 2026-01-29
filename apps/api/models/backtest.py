@@ -60,7 +60,7 @@ class CreateSessionRequest(BaseModel):
         fee_rate = self.fee_rate or 0.001
 
         if params.get("MES") is None:
-            params["MES"] = 6 * fee_rate
+            params["MES"] = 5 * fee_rate
         if params.get("alpha") is None:
             params["alpha"] = 0.5
         if params.get("E_max") is None:

@@ -95,6 +95,11 @@ export default function BacktestHistoryPage() {
 
   const formatNumber = (value: number | null, decimals: number = 2) => {
     if (value === null) return '-';
+    const abs = Math.abs(value);
+    if (abs === 0) return '0';
+    if (abs < 1e-6) return value.toExponential(2);
+    if (abs < 0.01) return value.toFixed(6);
+    if (abs < 1) return value.toFixed(4);
     return value.toFixed(decimals);
   };
 
