@@ -37,6 +37,7 @@ export default function BacktestPage() {
   const [tradesOffset, setTradesOffset] = useState(0);
   const [hasMoreTrades, setHasMoreTrades] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [bandEmaxTouched, setBandEmaxTouched] = useState(false);
 
   // 计算总权重和验证状态
   const totalWeight = useMemo(
@@ -76,7 +77,13 @@ export default function BacktestPage() {
     if (name === 'band_limited_hedging' && !isSelected) {
       setParams({
         selectedStrategies: [{ name: 'band_limited_hedging', weight: 100 }],
+        strategyParams: {
+          MES: 0.006,
+          alpha: 0.5,
+          E_max: Math.round(params.capital)
+        }
       });
+      setBandEmaxTouched(false);
       return;
     }
 
@@ -104,11 +111,15 @@ export default function BacktestPage() {
       nextParams.E_max = Math.round(params.capital);
       changed = true;
     }
+    if (!bandEmaxTouched && nextParams.E_max !== Math.round(params.capital)) {
+      nextParams.E_max = Math.round(params.capital);
+      changed = true;
+    }
 
     if (changed) {
       setParams({ strategyParams: nextParams });
     }
-  }, [isBandLimited, params.capital, params.strategyParams, setParams]);
+  }, [isBandLimited, params.capital, params.strategyParams, setParams, bandEmaxTouched]);
 
   useEffect(() => {
     if (wsData.backtest && wsData.backtest.session_id === currentSessionId) {
@@ -394,11 +405,15 @@ export default function BacktestPage() {
                   step="1"
                   min="0"
                   value={Number.isFinite(bandEmax) ? bandEmax : ''}
-                  onChange={(e) => setParams({
-                    strategyParams: { ...params.strategyParams, E_max: parseFloat(e.target.value) }
-                  })}
+                  onChange={(e) => {
+                    setBandEmaxTouched(true);
+                    setParams({
+                      strategyParams: { ...params.strategyParams, E_max: parseFloat(e.target.value) }
+                    });
+                  }}
                   placeholder="10000"
                 />
+                <p className="text-xs text-muted-foreground mt-1">默认等于初始资金，除非手动修改</p>
               </div>
               {!isBandParamsValid && (
                 <p className="text-xs text-red-500">参数非法：MES &gt; 0，alpha 在 (0,1)，E_max &gt; 0</p>
