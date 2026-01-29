@@ -76,6 +76,7 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         self.alpha = float(kwargs.get("alpha", 0.5))
         self.e_max = float(kwargs.get("E_max", kwargs.get("e_max", 0.0)))
         self.fee_rate = float(kwargs.get("fee_rate", 0.001))
+        self.base_position_ratio = float(kwargs.get("base_position_ratio", 0.95))
         self.exit_eta = float(kwargs.get("eta", 0.2))
         self.exit_mes_ratio = float(
             kwargs.get("exit_mes_ratio", kwargs.get("exit_delta", kwargs.get("delta", 0.7)))
@@ -122,6 +123,15 @@ class BandLimitedHedgingStrategy(BaseStrategy):
     def _fee(self, qty: float, price: float) -> float:
         return max(qty, 0.0) * price * self.fee_rate
 
+    def _base_target_qty(self, price: float) -> float:
+        if price <= 0:
+            return 0.0
+        base_ratio = max(self.base_position_ratio, 0.0)
+        base_notional = self.initial_capital * base_ratio / 2
+        if base_notional <= 0:
+            return 0.0
+        return base_notional / price
+
     def _estimate_net_profit(self, side: str, price: float, qty: float) -> float:
         if qty <= 0:
             return 0.0
@@ -133,6 +143,22 @@ class BandLimitedHedgingStrategy(BaseStrategy):
             entry_price = state["short_avg"]
             gross_pnl = (entry_price - price) * qty
         return gross_pnl - self._fee(qty, price)
+
+    def _maintain_base_position(self, price: float, actions: List[Dict]) -> None:
+        target_qty = self._base_target_qty(price)
+        if target_qty <= 0:
+            return
+        state = self.state
+        if state["long_qty"] < target_qty:
+            add_qty = target_qty - state["long_qty"]
+            open_long = self._build_open("long", add_qty, price, "本金维持补仓")
+            if open_long:
+                actions.append(open_long)
+        if state["short_qty"] < target_qty:
+            add_qty = target_qty - state["short_qty"]
+            open_short = self._build_open("short", add_qty, price, "本金维持补仓")
+            if open_short:
+                actions.append(open_short)
 
     def _is_dust(self, qty: float, price: float) -> bool:
         return qty <= 0 or qty < self.min_trade_qty or (qty * price) < self.min_trade_notional
@@ -281,6 +307,7 @@ class BandLimitedHedgingStrategy(BaseStrategy):
             if open_short:
                 actions.append(open_short)
 
+        self._maintain_base_position(price, actions)
         state["p_ref"] = price
         state["rebalance_count"] += 1
         state["low_sigma_streak"] = 0
@@ -321,6 +348,7 @@ class BandLimitedHedgingStrategy(BaseStrategy):
             if open_short:
                 actions.append(open_short)
 
+        self._maintain_base_position(price, actions)
         state["p_ref"] = price
         state["rebalance_count"] += 1
         state["low_sigma_streak"] = 0
