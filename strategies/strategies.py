@@ -84,6 +84,9 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         self.sigma_window = int(kwargs.get("sigma_window", 50))
         self.tau_max = float(kwargs.get("tau_max", 0.0))
         self.initial_capital = float(kwargs.get("initial_capital", 10000.0))
+        self.min_rebalance_profit = float(
+            kwargs.get("min_rebalance_profit", self.initial_capital * self.fee_rate)
+        )
         self.min_trade_qty = float(kwargs.get("min_trade_qty", 1e-7))
         default_notional = max(0.01, self.initial_capital * 0.0001)
         self.min_trade_notional = float(kwargs.get("min_trade_notional", default_notional))
@@ -118,6 +121,18 @@ class BandLimitedHedgingStrategy(BaseStrategy):
 
     def _fee(self, qty: float, price: float) -> float:
         return max(qty, 0.0) * price * self.fee_rate
+
+    def _estimate_net_profit(self, side: str, price: float, qty: float) -> float:
+        if qty <= 0:
+            return 0.0
+        state = self.state
+        if side == "long":
+            entry_price = state["long_avg"]
+            gross_pnl = (price - entry_price) * qty
+        else:
+            entry_price = state["short_avg"]
+            gross_pnl = (entry_price - price) * qty
+        return gross_pnl - self._fee(qty, price)
 
     def _is_dust(self, qty: float, price: float) -> bool:
         return qty <= 0 or qty < self.min_trade_qty or (qty * price) < self.min_trade_notional
@@ -238,10 +253,15 @@ class BandLimitedHedgingStrategy(BaseStrategy):
 
         net_profit = 0.0
         if state["long_qty"] > 0:
+            estimated_profit = self._estimate_net_profit("long", price, state["long_qty"])
+            if estimated_profit < self.min_rebalance_profit:
+                return actions
             close_action = self._build_close("long", state["long_qty"], price, "盈利侧平仓")
             if close_action:
                 actions.append(close_action[0])
                 net_profit = max(close_action[1], 0.0)
+        else:
+            return actions
 
         loss_part = self.alpha * net_profit
         rebuild_part = max(net_profit - loss_part, 0.0)
@@ -273,10 +293,15 @@ class BandLimitedHedgingStrategy(BaseStrategy):
 
         net_profit = 0.0
         if state["short_qty"] > 0:
+            estimated_profit = self._estimate_net_profit("short", price, state["short_qty"])
+            if estimated_profit < self.min_rebalance_profit:
+                return actions
             close_action = self._build_close("short", state["short_qty"], price, "盈利侧平仓")
             if close_action:
                 actions.append(close_action[0])
                 net_profit = max(close_action[1], 0.0)
+        else:
+            return actions
 
         loss_part = self.alpha * net_profit
         rebuild_part = max(net_profit - loss_part, 0.0)
@@ -397,6 +422,9 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         else:
             actions = self._rebalance_down(price, now_ts)
             reason = "价格下破MES触发再平衡"
+
+        if not actions:
+            reason = "收益不足，跳过再平衡"
 
         return TradeSignal(Signal.HOLD, self.name, reason, indicators={"actions": actions, "state": state.copy()})
 

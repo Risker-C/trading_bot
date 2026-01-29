@@ -65,10 +65,13 @@ class CreateSessionRequest(BaseModel):
             params["alpha"] = 0.5
         if params.get("E_max") is None:
             params["E_max"] = self.initial_capital
+        if params.get("min_rebalance_profit") is None:
+            params["min_rebalance_profit"] = self.initial_capital * fee_rate
 
         mes = float(params.get("MES", 0))
         alpha = float(params.get("alpha", 0))
         e_max = float(params.get("E_max", 0))
+        min_rebalance_profit = float(params.get("min_rebalance_profit", 0))
 
         if mes <= 0:
             raise ValueError("MES 必须大于 0")
@@ -76,6 +79,8 @@ class CreateSessionRequest(BaseModel):
             raise ValueError("alpha 必须在 (0, 1) 区间")
         if e_max <= 0:
             raise ValueError("E_max 必须大于 0")
+        if min_rebalance_profit < 0:
+            raise ValueError("min_rebalance_profit 不能为负数")
 
         self.strategy_params = params
         return self
