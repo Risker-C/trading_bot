@@ -86,7 +86,7 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         self.tau_max = float(kwargs.get("tau_max", 0.0))
         self.initial_capital = float(kwargs.get("initial_capital", 10000.0))
         self.min_rebalance_profit = float(
-            kwargs.get("min_rebalance_profit", self.initial_capital * self.fee_rate)
+            kwargs.get("min_rebalance_profit", 0.0)
         )
         self.min_rebalance_profit_ratio = float(
             kwargs.get("min_rebalance_profit_ratio", 1.0)

@@ -66,7 +66,7 @@ class CreateSessionRequest(BaseModel):
         if params.get("E_max") is None:
             params["E_max"] = self.initial_capital
         if params.get("min_rebalance_profit") is None:
-            params["min_rebalance_profit"] = self.initial_capital * fee_rate
+            params["min_rebalance_profit"] = 0.0
         if params.get("min_rebalance_profit_ratio") is None:
             params["min_rebalance_profit_ratio"] = 1.0
         if params.get("base_position_ratio") is None:
