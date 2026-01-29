@@ -14,8 +14,8 @@ logger = get_logger("main")
 
 def run_live():
     """运行实盘交易"""
-    from core.trader import BitgetTrader
-    
+    from bot import TradingBot
+
     # 验证配置
     errors = config.validate_config()
     if errors:
@@ -23,11 +23,11 @@ def run_live():
         for e in errors:
             logger.error(f"  - {e}")
         sys.exit(1)
-    
+
     config.print_config()
-    
-    trader = BitgetTrader()
-    trader.run()
+
+    bot = TradingBot()
+    bot.start()
 
 
 def run_backtest(args):

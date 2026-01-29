@@ -85,6 +85,7 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         self.sigma_window = int(kwargs.get("sigma_window", 50))
         self.tau_max = float(kwargs.get("tau_max", 0.0))
         self.initial_capital = float(kwargs.get("initial_capital", 10000.0))
+        self.leverage = float(kwargs.get("leverage", 1.0))  # 杠杆倍数
         self.min_rebalance_profit = float(
             kwargs.get("min_rebalance_profit", 0.0)
         )
@@ -130,10 +131,17 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         if price <= 0:
             return 0.0
         base_ratio = max(self.base_position_ratio, 0.0)
-        base_notional = self.initial_capital * base_ratio / 2
+        # 考虑杠杆：实际可用资金 = 初始资金 * 杠杆倍数
+        base_notional = self.initial_capital * self.leverage * base_ratio / 2
         if base_notional <= 0:
             return 0.0
-        return base_notional / price
+        qty = base_notional / price
+        # 调试日志
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[DEBUG] _base_target_qty: capital={self.initial_capital}, leverage={self.leverage}, "
+                   f"base_ratio={base_ratio}, price={price}, base_notional={base_notional}, qty={qty}")
+        return qty
 
     def _estimate_net_profit(self, side: str, price: float, qty: float) -> float:
         if qty <= 0:
@@ -372,7 +380,8 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         if state["p_ref"] is None:
             state["p_ref"] = price
             state["last_rebalance_ts"] = now_ts
-            init_qty = (self.initial_capital * 0.95) / (price * 2)
+            # 使用 _base_target_qty 计算初始仓位（考虑杠杆）
+            init_qty = self._base_target_qty(price)
             open_long = self._build_open("long", init_qty, price, "初始化双向持仓")
             open_short = self._build_open("short", init_qty, price, "初始化双向持仓")
             if open_long:

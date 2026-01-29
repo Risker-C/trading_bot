@@ -20,7 +20,7 @@ EXCHANGES_CONFIG = {
         "api_key": os.getenv("BITGET_API_KEY", ""),
         "api_secret": os.getenv("BITGET_API_SECRET") or os.getenv("BITGET_SECRET", ""),
         "api_password": os.getenv("BITGET_API_PASSWORD") or os.getenv("BITGET_PASSWORD", ""),
-        "symbol": "BTCUSDT",
+        "symbol": "ETHUSDT",  # 切换到ETH
         "product_type": "USDT-FUTURES",
         "leverage": 50,
         "margin_mode": "crossed",
@@ -31,7 +31,7 @@ EXCHANGES_CONFIG = {
         "api_key": os.getenv("BINANCE_API_KEY", ""),
         "api_secret": os.getenv("BINANCE_API_SECRET", ""),
         "api_password": None,
-        "symbol": "BTCUSDT",
+        "symbol": "ETHUSDT",  # 切换到ETH
         "leverage": 50,
         "margin_mode": "crossed",
         "maker_fee": 0.0002,
@@ -41,7 +41,7 @@ EXCHANGES_CONFIG = {
         "api_key": os.getenv("OKX_API_KEY", ""),
         "api_secret": os.getenv("OKX_API_SECRET", ""),
         "api_password": os.getenv("OKX_API_PASSWORD", ""),
-        "symbol": "BTCUSDT",
+        "symbol": "ETHUSDT",  # 切换到ETH
         "leverage": 50,
         "margin_mode": "crossed",
         "maker_fee": 0.0002,
@@ -52,7 +52,7 @@ EXCHANGES_CONFIG = {
 # 向后兼容：保持EXCHANGE_CONFIG指向当前激活的交易所
 EXCHANGE_CONFIG = EXCHANGES_CONFIG.get(ACTIVE_EXCHANGE, EXCHANGES_CONFIG["bitget"])
 
-SYMBOL = "BTCUSDT"
+SYMBOL = "ETHUSDT"  # 切换到ETH
 PRODUCT_TYPE = "USDT-FUTURES"  # USDT 合约
 TIMEFRAME = "15m"              # 主时间周期
 KLINE_LIMIT = 200              # K线数量
@@ -861,7 +861,7 @@ def validate_config():
         valid_strategies = [
             "bollinger_breakthrough", "bollinger_trend", "rsi_divergence", "macd_cross",
             "ema_cross", "kdj_cross", "adx_trend", "volume_breakout",
-            "multi_timeframe", "grid", "composite_score"
+            "multi_timeframe", "grid", "composite_score", "band_limited_hedging"
         ]
         if strategy not in valid_strategies:
             errors.append(f"未知策略: {strategy}")

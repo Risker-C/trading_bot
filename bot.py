@@ -223,12 +223,15 @@ class TradingBot:
     def _init_band_limited_mode(self):
         """检测并初始化 Band-Limited Hedging 模式"""
         strategies = getattr(config, 'ENABLE_STRATEGIES', [])
+        logger.info(f"🔍 检测策略配置: {strategies}")
+
         if "band_limited_hedging" not in strategies:
+            logger.info("未启用 Band-Limited Hedging 策略")
             return
 
         # 检查是否为单策略模式
         if len(strategies) > 1:
-            logger.warning("Band-Limited Hedging 需要单策略模式运行，当前配置了多个策略")
+            logger.warning(f"Band-Limited Hedging 需要单策略模式运行，当前配置了多个策略: {strategies}")
             return
 
         self.is_band_limited_mode = True
@@ -263,7 +266,7 @@ class TradingBot:
         logger.info("=" * 50)
 
         # 检查交易所连接
-        if self.trader.exchange is None:
+        if self.trader is None or not self.trader.is_connected():
             logger.error("交易所初始化失败，退出")
             return
 
@@ -348,7 +351,7 @@ class TradingBot:
         logger.info("=" * 50)
 
         # 检查交易所连接
-        if self.trader.exchange is None:
+        if self.trader is None or not self.trader.is_connected():
             logger.error("交易所初始化失败，退出")
             return
 
@@ -1489,6 +1492,13 @@ class TradingBot:
         # 首次运行：初始化策略实例
         if self.band_limited_strategy is None:
             self._initialize_band_limited_strategy(df)
+            # 立即执行一次分析以获取初始化 actions（建立双向持仓）
+            signal = self.band_limited_strategy.analyze()
+            if signal and isinstance(signal.indicators, dict):
+                actions = signal.indicators.get("actions", []) or []
+                if actions:
+                    logger.info(f"[Band-Limited] 执行初始化建仓: {len(actions)} 个操作")
+                    self._execute_band_limited_actions(actions, current_price)
             return
 
         # 更新策略窗口 (与 backtest/engine.py:226-229 一致)
@@ -1545,12 +1555,14 @@ class TradingBot:
         params = dict(self.band_limited_params)
         params["initial_capital"] = balance
         params["E_max"] = balance
+        params["leverage"] = config.LEVERAGE  # 传递杠杆倍数
 
         # 创建策略实例 (与 backtest/engine.py:219 一致)
         self.band_limited_strategy = get_strategy("band_limited_hedging", df, **params)
 
         logger.info(f"[Band-Limited] 策略已初始化")
         logger.info(f"   初始资金: {balance:.2f} USDT")
+        logger.info(f"   杠杆: {config.LEVERAGE}x")
         logger.info(f"   MES: {params['MES']}")
         logger.info(f"   alpha: {params['alpha']}")
         logger.info(f"   base_position_ratio: {params['base_position_ratio']}")

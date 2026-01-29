@@ -290,8 +290,8 @@ class BitgetAdapter(ExchangeInterface):
             return OrderResult(
                 success=True,
                 order_id=order.get('id', ''),
-                price=float(order.get('price', 0)) if order.get('price') else None,
-                amount=float(order.get('amount', amount)),
+                price=float(order.get('price') or 0) if order.get('price') else None,
+                amount=float(order.get('amount') or amount),
                 side=side,
                 raw_data=order
             )
