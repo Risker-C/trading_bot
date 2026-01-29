@@ -78,7 +78,7 @@ export default function BacktestPage() {
       setParams({
         selectedStrategies: [{ name: 'band_limited_hedging', weight: 100 }],
         strategyParams: {
-          MES: 0.006,
+          MES: 0.009,
           alpha: 0.5,
           E_max: Math.round(params.capital)
         }
