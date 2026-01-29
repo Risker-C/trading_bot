@@ -88,6 +88,9 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         self.min_rebalance_profit = float(
             kwargs.get("min_rebalance_profit", self.initial_capital * self.fee_rate)
         )
+        self.min_rebalance_profit_ratio = float(
+            kwargs.get("min_rebalance_profit_ratio", 1.0)
+        )
         self.min_trade_qty = float(kwargs.get("min_trade_qty", 1e-7))
         default_notional = max(0.01, self.initial_capital * 0.0001)
         self.min_trade_notional = float(kwargs.get("min_trade_notional", default_notional))
@@ -143,6 +146,10 @@ class BandLimitedHedgingStrategy(BaseStrategy):
             entry_price = state["short_avg"]
             gross_pnl = (entry_price - price) * qty
         return gross_pnl - self._fee(qty, price)
+
+    def _min_rebalance_profit(self, price: float, qty: float) -> float:
+        dynamic_floor = max(qty, 0.0) * price * self.fee_rate * self.min_rebalance_profit_ratio
+        return max(self.min_rebalance_profit, dynamic_floor)
 
     def _maintain_base_position(self, price: float, actions: List[Dict]) -> None:
         target_qty = self._base_target_qty(price)
@@ -280,7 +287,7 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         net_profit = 0.0
         if state["long_qty"] > 0:
             estimated_profit = self._estimate_net_profit("long", price, state["long_qty"])
-            if estimated_profit < self.min_rebalance_profit:
+            if estimated_profit < self._min_rebalance_profit(price, state["long_qty"]):
                 return actions
             close_action = self._build_close("long", state["long_qty"], price, "盈利侧平仓")
             if close_action:
@@ -321,7 +328,7 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         net_profit = 0.0
         if state["short_qty"] > 0:
             estimated_profit = self._estimate_net_profit("short", price, state["short_qty"])
-            if estimated_profit < self.min_rebalance_profit:
+            if estimated_profit < self._min_rebalance_profit(price, state["short_qty"]):
                 return actions
             close_action = self._build_close("short", state["short_qty"], price, "盈利侧平仓")
             if close_action:
