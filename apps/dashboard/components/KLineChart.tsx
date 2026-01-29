@@ -515,6 +515,10 @@ export default function KLineChart({
         'macd_cross': 'MACD',
         'ema_cross': 'EMA',
         'rsi_divergence': 'RSI',
+        'kdj_cross': 'KDJ',
+        'adx_trend': 'DMI',
+        'volume_breakout': 'VOL',
+        'grid': 'MA',
         'composite_score': 'MA',
         'multi_timeframe': 'MA',
       };
