@@ -77,8 +77,12 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         self.e_max = float(kwargs.get("E_max", kwargs.get("e_max", 0.0)))
         self.fee_rate = float(kwargs.get("fee_rate", 0.001))
         self.exit_eta = float(kwargs.get("eta", 0.2))
+        self.exit_mes_ratio = float(
+            kwargs.get("exit_mes_ratio", kwargs.get("exit_delta", kwargs.get("delta", 0.7)))
+        )
         self.exit_epsilon = float(kwargs.get("epsilon", 1e-8))
         self.sigma_window = int(kwargs.get("sigma_window", 50))
+        self.tau_max = float(kwargs.get("tau_max", 0.0))
         self.initial_capital = float(kwargs.get("initial_capital", 10000.0))
         self.min_trade_qty = float(kwargs.get("min_trade_qty", 1e-7))
         default_notional = max(0.01, self.initial_capital * 0.0001)
@@ -93,6 +97,8 @@ class BandLimitedHedgingStrategy(BaseStrategy):
             "mode": "active",
             "rebalance_count": 0,
             "low_sigma_streak": 0,
+            "last_rebalance_ts": None,
+            "exit_ref": None,
         }
 
     def update_window(self, df: pd.DataFrame) -> None:
@@ -100,6 +106,15 @@ class BandLimitedHedgingStrategy(BaseStrategy):
 
     def _current_price(self) -> float:
         return float(self.df["close"].iloc[-1])
+
+    def _current_ts(self) -> Optional[float]:
+        ts = self.df.index[-1]
+        if hasattr(ts, "timestamp"):
+            return float(ts.timestamp())
+        try:
+            return float(ts)
+        except (TypeError, ValueError):
+            return None
 
     def _fee(self, qty: float, price: float) -> float:
         return max(qty, 0.0) * price * self.fee_rate
@@ -179,6 +194,14 @@ class BandLimitedHedgingStrategy(BaseStrategy):
     def _exit_reduce(self, price: float) -> List[Dict]:
         state = self.state
         actions: List[Dict] = []
+        if state["exit_ref"] is None:
+            state["exit_ref"] = price
+        exit_ref = state["exit_ref"]
+        rel_move = abs(price - exit_ref) / exit_ref if exit_ref else 0.0
+        exit_mes = self.exit_mes_ratio * self.mes
+        if rel_move < exit_mes:
+            return actions
+
         total_qty = state["long_qty"] + state["short_qty"]
         if total_qty <= self.exit_epsilon:
             state["mode"] = "pause"
@@ -204,9 +227,12 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         total_qty = state["long_qty"] + state["short_qty"]
         if total_qty <= self.exit_epsilon:
             state["mode"] = "pause"
+            state["exit_ref"] = None
+        else:
+            state["exit_ref"] = price
         return actions
 
-    def _rebalance_up(self, price: float) -> List[Dict]:
+    def _rebalance_up(self, price: float, ts: Optional[float]) -> List[Dict]:
         state = self.state
         actions: List[Dict] = []
 
@@ -238,9 +264,10 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         state["p_ref"] = price
         state["rebalance_count"] += 1
         state["low_sigma_streak"] = 0
+        state["last_rebalance_ts"] = ts
         return actions
 
-    def _rebalance_down(self, price: float) -> List[Dict]:
+    def _rebalance_down(self, price: float, ts: Optional[float]) -> List[Dict]:
         state = self.state
         actions: List[Dict] = []
 
@@ -272,16 +299,19 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         state["p_ref"] = price
         state["rebalance_count"] += 1
         state["low_sigma_streak"] = 0
+        state["last_rebalance_ts"] = ts
         return actions
 
     def analyze(self) -> TradeSignal:
         price = self._current_price()
+        now_ts = self._current_ts()
         state = self.state
         actions: List[Dict] = []
         reason = ""
 
         if state["p_ref"] is None:
             state["p_ref"] = price
+            state["last_rebalance_ts"] = now_ts
             init_qty = (self.initial_capital * 0.95) / (price * 2)
             open_long = self._build_open("long", init_qty, price, "初始化双向持仓")
             open_short = self._build_open("short", init_qty, price, "初始化双向持仓")
@@ -297,7 +327,12 @@ class BandLimitedHedgingStrategy(BaseStrategy):
             net_exposure = abs(state["long_qty"] - state["short_qty"]) * price
             exit_sigma_k = float(self.params.get("exit_sigma_k", 0.01))
             exit_sigma_consecutive = int(self.params.get("exit_sigma_consecutive", 10))
-            sigma_exit_threshold = exit_sigma_k * (self.mes ** 2)
+            sigma_exit_threshold = exit_sigma_k * self.mes * self.fee_rate
+
+            if self.tau_max > 0 and state["last_rebalance_ts"] is not None and now_ts is not None:
+                if (now_ts - state["last_rebalance_ts"]) > self.tau_max:
+                    state["mode"] = "pause"
+                    reason = "再平衡冻结"
 
             if self.e_max > 0 and net_exposure > self.e_max:
                 state["mode"] = "exit"
@@ -311,6 +346,32 @@ class BandLimitedHedgingStrategy(BaseStrategy):
                 if state["rebalance_count"] > 0 and state["low_sigma_streak"] >= exit_sigma_consecutive:
                     state["mode"] = "exit"
                     reason = "触发退出条件"
+
+        if state["mode"] == "pause":
+            if state["mode"] != "exit":
+                sigma_eff2 = self._sigma_eff2()
+                net_exposure = abs(state["long_qty"] - state["short_qty"]) * price
+                exit_sigma_k = float(self.params.get("exit_sigma_k", 0.01))
+                exit_sigma_consecutive = int(self.params.get("exit_sigma_consecutive", 10))
+                sigma_exit_threshold = exit_sigma_k * self.mes * self.fee_rate
+
+                if self.e_max > 0 and net_exposure > self.e_max:
+                    state["mode"] = "exit"
+                    reason = "触发退出条件"
+                elif sigma_eff2 is not None:
+                    if sigma_eff2 < sigma_exit_threshold:
+                        state["low_sigma_streak"] += 1
+                    else:
+                        state["low_sigma_streak"] = 0
+
+                    if state["rebalance_count"] > 0 and state["low_sigma_streak"] >= exit_sigma_consecutive:
+                        state["mode"] = "exit"
+                        reason = "触发退出条件"
+
+            if state["mode"] != "exit":
+                rel_move = abs(price - state["p_ref"]) / state["p_ref"]
+                if rel_move >= self.mes:
+                    state["mode"] = "active"
 
         if state["mode"] == "exit":
             actions = self._exit_reduce(price)
@@ -331,10 +392,10 @@ class BandLimitedHedgingStrategy(BaseStrategy):
             )
 
         if price >= state["p_ref"]:
-            actions = self._rebalance_up(price)
+            actions = self._rebalance_up(price, now_ts)
             reason = "价格上破MES触发再平衡"
         else:
-            actions = self._rebalance_down(price)
+            actions = self._rebalance_down(price, now_ts)
             reason = "价格下破MES触发再平衡"
 
         return TradeSignal(Signal.HOLD, self.name, reason, indicators={"actions": actions, "state": state.copy()})
