@@ -78,6 +78,8 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         self.fee_rate = float(kwargs.get("fee_rate", 0.001))
         self.exit_eta = float(kwargs.get("eta", 0.2))
         self.exit_epsilon = float(kwargs.get("epsilon", 1e-8))
+        self.min_trade_qty = float(kwargs.get("min_trade_qty", 1e-6))
+        self.min_trade_notional = float(kwargs.get("min_trade_notional", 0.1))
         self.sigma_window = int(kwargs.get("sigma_window", 50))
         self.initial_capital = float(kwargs.get("initial_capital", 10000.0))
 
@@ -101,8 +103,11 @@ class BandLimitedHedgingStrategy(BaseStrategy):
     def _fee(self, qty: float, price: float) -> float:
         return max(qty, 0.0) * price * self.fee_rate
 
+    def _is_dust(self, qty: float, price: float) -> bool:
+        return qty <= 0 or qty < self.min_trade_qty or (qty * price) < self.min_trade_notional
+
     def _build_open(self, side: str, qty: float, price: float, reason: str) -> Optional[Dict]:
-        if qty <= 0:
+        if self._is_dust(qty, price):
             return None
         state = self.state
         if side == "long":
@@ -127,9 +132,15 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         }
 
     def _build_close(self, side: str, qty: float, price: float, reason: str) -> Optional[Tuple[Dict, float]]:
-        if qty <= 0:
-            return None
         state = self.state
+        if self._is_dust(qty, price):
+            if side == "long":
+                state["long_qty"] = 0.0
+                state["long_avg"] = 0.0
+            else:
+                state["short_qty"] = 0.0
+                state["short_avg"] = 0.0
+            return None
         if side == "long":
             entry_price = state["long_avg"]
             state["long_qty"] = max(state["long_qty"] - qty, 0.0)
