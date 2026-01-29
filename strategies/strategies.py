@@ -78,10 +78,11 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         self.fee_rate = float(kwargs.get("fee_rate", 0.001))
         self.exit_eta = float(kwargs.get("eta", 0.2))
         self.exit_epsilon = float(kwargs.get("epsilon", 1e-8))
-        self.min_trade_qty = float(kwargs.get("min_trade_qty", 1e-6))
-        self.min_trade_notional = float(kwargs.get("min_trade_notional", 0.1))
         self.sigma_window = int(kwargs.get("sigma_window", 50))
         self.initial_capital = float(kwargs.get("initial_capital", 10000.0))
+        self.min_trade_qty = float(kwargs.get("min_trade_qty", 1e-7))
+        default_notional = max(0.01, self.initial_capital * 0.0001)
+        self.min_trade_notional = float(kwargs.get("min_trade_notional", default_notional))
 
         self.state = {
             "p_ref": None,

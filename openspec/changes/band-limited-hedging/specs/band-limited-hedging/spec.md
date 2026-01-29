@@ -36,6 +36,7 @@
 #### Scenario: 微量仓位处理
 - **WHEN** 交易数量或名义价值低于最小阈值
 - **THEN** 忽略该笔交易并清理对应方向的微量仓位
+- **AND** 阈值可通过 `min_trade_qty` 与 `min_trade_notional` 配置（默认随初始资金缩放）
 
 ### Requirement: 退出机制
 策略 SHALL 提供退出模式，触发后分阶段减仓直至仓位基本归零。
