@@ -277,7 +277,9 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         if state["mode"] == "active":
             sigma_eff2 = self._sigma_eff2()
             net_exposure = abs(state["long_qty"] - state["short_qty"]) * price
-            if (sigma_eff2 is not None and sigma_eff2 < self.mes * self.fee_rate) or (
+            exit_sigma_k = float(self.params.get("exit_sigma_k", 0.02))
+            sigma_exit_threshold = exit_sigma_k * (self.mes ** 2)
+            if (sigma_eff2 is not None and sigma_eff2 < sigma_exit_threshold) or (
                 self.e_max > 0 and net_exposure > self.e_max
             ):
                 state["mode"] = "exit"

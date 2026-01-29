@@ -37,6 +37,6 @@
 策略 SHALL 提供退出模式，触发后分阶段减仓直至仓位基本归零。
 
 #### Scenario: 触发退出并分阶段减仓
-- **WHEN** 触发退出条件（如 `sigma_eff^2 < MES * f` 或 `E_t > E_max`）
+- **WHEN** 触发退出条件（如 `sigma_eff^2 < k * MES^2`（默认 k=0.02）或 `E_t > E_max`）
 - **THEN** 进入退出模式并按 `eta` 比例逐步减仓
 - **AND** 当 `qL + qS < epsilon` 时退出完成
