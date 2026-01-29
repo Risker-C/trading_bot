@@ -5,6 +5,8 @@ import sys
 from datetime import datetime
 from typing import Optional, List, Dict
 
+import pandas as pd
+
 from config.settings import settings as config
 from config.validator import validate_config
 from exchange.manager import ExchangeManager
@@ -12,7 +14,8 @@ from exchange.legacy_adapter import LegacyAdapter
 from risk.risk_manager import RiskManager
 from strategies.strategies import (
     Signal, TradeSignal,
-    get_strategy, analyze_all_strategies, STRATEGY_MAP
+    get_strategy, analyze_all_strategies, STRATEGY_MAP,
+    BandLimitedHedgingStrategy
 )
 from strategies.market_regime import MarketRegimeDetector
 from utils.logger_utils import get_logger, db, notifier, MetricsLogger
@@ -63,6 +66,22 @@ class TradingBot:
         self.current_position_side: Optional[str] = None
         self.current_strategy: Optional[str] = None
         self.current_trade_id: Optional[str] = None  # 用于影子模式追踪
+
+        # Band-Limited Hedging 模式状态
+        self.is_band_limited_mode: bool = False
+        self.band_limited_strategy = None
+        self.band_limited_params: Dict = {
+            "MES": 0.009,  # 9 * fee_rate (与回测系统一致)
+            "alpha": 0.5,
+            "base_position_ratio": 0.95,
+            "min_rebalance_profit": 0.0,
+            "min_rebalance_profit_ratio": 1.0,
+            "fee_rate": 0.001,
+            "eta": 0.2,
+            "exit_mes_ratio": 0.7,
+            "exit_sigma_k": 0.01,
+            "exit_sigma_consecutive": 10,
+        }
 
         # 初始化状态监控调度器
         if hasattr(config, 'ENABLE_STATUS_MONITOR') and config.ENABLE_STATUS_MONITOR:
@@ -189,6 +208,9 @@ class TradingBot:
         self.heartbeat_count = 0  # 心跳计数器
         self.HEARTBEAT_INTERVAL = 60  # 每60次循环（约5分钟）打印一次心跳
 
+        # 初始化 Band-Limited Hedging 模式
+        self._init_band_limited_mode()
+
         # 注册信号处理
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -197,6 +219,30 @@ class TradingBot:
         """处理退出信号"""
         logger.info("收到退出信号，正在停止...")
         self.running = False
+
+    def _init_band_limited_mode(self):
+        """检测并初始化 Band-Limited Hedging 模式"""
+        strategies = getattr(config, 'ENABLE_STRATEGIES', [])
+        if "band_limited_hedging" not in strategies:
+            return
+
+        # 检查是否为单策略模式
+        if len(strategies) > 1:
+            logger.warning("Band-Limited Hedging 需要单策略模式运行，当前配置了多个策略")
+            return
+
+        self.is_band_limited_mode = True
+
+        # 从配置覆盖默认参数
+        config_params = getattr(config, 'BAND_LIMITED_PARAMS', {})
+        for key, value in config_params.items():
+            if key in self.band_limited_params:
+                self.band_limited_params[key] = value
+
+        logger.info("✅ Band-Limited Hedging 模式已启用")
+        logger.info(f"   参数: MES={self.band_limited_params['MES']}, "
+                    f"alpha={self.band_limited_params['alpha']}, "
+                    f"base_ratio={self.band_limited_params['base_position_ratio']}")
     
     def start(self):
         """启动机器人"""
@@ -458,6 +504,16 @@ class TradingBot:
                 import traceback
                 logger.debug(traceback.format_exc())
 
+        # Band-Limited Hedging 模式：使用专门的循环逻辑
+        if self.is_band_limited_mode:
+            self._run_band_limited_cycle(df, current_price)
+            # Phase 0: 记录循环总延迟
+            loop_duration = (time.time() - loop_start) * 1000
+            self.metrics_logger.record_latency("main_loop_async", loop_duration)
+            if self.cycle_count % 50 == 0:
+                logger.info(f"[异步模式-Band-Limited] 第 {self.cycle_count} 次循环完成，耗时: {loop_duration:.2f}ms")
+            return
+
         if has_position:
             # 有持仓：检查风控和退出信号
             self._check_exit_conditions(df, current_price, positions[0])
@@ -468,7 +524,7 @@ class TradingBot:
         # Phase 0: 记录循环总延迟
         loop_duration = (time.time() - loop_start) * 1000  # 转换为毫秒
         self.metrics_logger.record_latency("main_loop_async", loop_duration)
-        
+
         # 记录性能对比日志
         if self.cycle_count % 50 == 0:
             logger.info(f"[异步模式] 第 {self.cycle_count} 次循环完成，耗时: {loop_duration:.2f}ms")
@@ -499,6 +555,11 @@ class TradingBot:
         """检查现有持仓"""
         positions = self.trader.get_positions()
 
+        # Band-Limited 模式：处理双向持仓
+        if self.is_band_limited_mode:
+            self._check_existing_band_limited_positions(positions)
+            return
+
         if positions:
             logger.info("\n📊 现有持仓:")
             for pos in positions:
@@ -521,6 +582,29 @@ class TradingBot:
                 )
         else:
             logger.info("\n📊 当前无持仓")
+
+    def _check_existing_band_limited_positions(self, positions: List[Dict]):
+        """检查并恢复 Band-Limited 双向持仓"""
+        long_pos = None
+        short_pos = None
+
+        for pos in positions:
+            if pos['side'] == 'long':
+                long_pos = pos
+            elif pos['side'] == 'short':
+                short_pos = pos
+
+        if long_pos or short_pos:
+            logger.info("\n📊 [Band-Limited] 现有持仓:")
+            if long_pos:
+                pnl_pct = (long_pos['unrealized_pnl'] / (long_pos['entry_price'] * long_pos['amount'])) * 100 if long_pos['amount'] > 0 else 0
+                logger.info(f"   LONG: {long_pos['amount']:.6f} @ {long_pos['entry_price']:.2f} (PnL: {pnl_pct:+.2f}%)")
+            if short_pos:
+                pnl_pct = (short_pos['unrealized_pnl'] / (short_pos['entry_price'] * short_pos['amount'])) * 100 if short_pos['amount'] > 0 else 0
+                logger.info(f"   SHORT: {short_pos['amount']:.6f} @ {short_pos['entry_price']:.2f} (PnL: {pnl_pct:+.2f}%)")
+            logger.info("   策略将在首次循环时同步状态")
+        else:
+            logger.info("\n📊 [Band-Limited] 当前无持仓 - 将初始化双向持仓")
     
     def _main_loop(self):
         """主循环逻辑"""
@@ -618,6 +702,14 @@ class TradingBot:
                 logger.error(f"Policy Layer 更新失败: {e}")
                 import traceback
                 logger.debug(traceback.format_exc())
+
+        # Band-Limited Hedging 模式：使用专门的循环逻辑
+        if self.is_band_limited_mode:
+            self._run_band_limited_cycle(df, current_price)
+            # Phase 0: 记录循环总延迟
+            loop_duration = (time.time() - loop_start) * 1000
+            self.metrics_logger.record_latency("main_loop", loop_duration)
+            return
 
         if has_position:
             # 有持仓：检查风控和退出信号
@@ -1265,6 +1357,205 @@ class TradingBot:
                 self.current_trade_id = None  # 重置trade_id
                 self.current_strategy = None
             notifier.notify_error(f"平仓失败")
+
+    def _execute_band_limited_actions(self, actions: List[Dict], current_price: float) -> bool:
+        """
+        执行 Band-Limited 策略的 actions 列表
+
+        Actions 格式:
+        {
+            "side": "long" | "short",
+            "action": "open" | "close",
+            "qty": float,
+            "price": float,
+            "fee": float,
+            "pnl": float,  # 仅 close 操作有值
+            "reason": str
+        }
+        """
+        if not actions:
+            return True
+
+        success_count = 0
+        for action in actions:
+            side = action.get("side")
+            action_type = action.get("action")
+            qty = action.get("qty", 0)
+            reason = action.get("reason", "")
+
+            if qty <= 0:
+                continue
+
+            try:
+                if action_type == "open":
+                    result = self._execute_band_limited_open(side, qty, current_price, reason)
+                elif action_type == "close":
+                    result = self._execute_band_limited_close(side, qty, current_price, reason, action)
+                else:
+                    logger.warning(f"未知的 action 类型: {action_type}")
+                    continue
+
+                if result:
+                    success_count += 1
+
+            except Exception as e:
+                logger.error(f"执行 action 失败 {action}: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                continue
+
+        return success_count > 0
+
+    def _execute_band_limited_open(self, side: str, qty: float, price: float, reason: str) -> bool:
+        """执行 Band-Limited 策略的开仓操作"""
+        logger.info(f"[Band-Limited] 开{side}仓: {qty:.6f} @ {price:.2f} - {reason}")
+
+        try:
+            # 记录信号
+            db.log_signal_buffered(
+                "band_limited_hedging", f"open_{side}",
+                reason, 1.0, 1.0, {}
+            )
+        except Exception as e:
+            logger.error(f"记录信号失败: {e}")
+
+        try:
+            if side == "long":
+                result = self.trader.open_long(
+                    qty,
+                    strategy="band_limited_hedging",
+                    reason=reason
+                )
+            else:
+                result = self.trader.open_short(
+                    qty,
+                    strategy="band_limited_hedging",
+                    reason=reason
+                )
+
+            if result:
+                notifier.notify_trade('open', config.SYMBOL, side, qty, price, reason=reason)
+                logger.info(f"✅ [Band-Limited] 开{side}仓成功")
+            else:
+                logger.error(f"❌ [Band-Limited] 开{side}仓失败")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"执行开{side}仓失败: {e}")
+            return False
+
+    def _execute_band_limited_close(self, side: str, qty: float, price: float, reason: str, action: Dict) -> bool:
+        """执行 Band-Limited 策略的平仓操作"""
+        pnl = action.get("pnl", 0)
+        fee = action.get("fee", 0)
+        net_pnl = pnl - fee
+
+        logger.info(f"[Band-Limited] 平{side}仓: {qty:.6f} @ {price:.2f} - {reason} (PnL: {net_pnl:+.2f})")
+
+        try:
+            # 获取持仓均价
+            entry_price = price
+            if self.band_limited_strategy and self.band_limited_strategy.state:
+                entry_price = self.band_limited_strategy.state.get(f"{side}_avg", price)
+
+            # 构造持仓数据
+            position_data = {
+                'side': side,
+                'amount': qty,
+                'entry_price': entry_price,
+            }
+
+            result = self.trader.close_position(reason=reason, position_data=position_data)
+
+            if result:
+                notifier.notify_trade('close', config.SYMBOL, side, qty, price, pnl=net_pnl, reason=reason)
+                pnl_emoji = "🟢" if net_pnl >= 0 else "🔴"
+                logger.info(f"✅ [Band-Limited] 平{side}仓成功 | {pnl_emoji} {net_pnl:+.2f} USDT")
+            else:
+                logger.error(f"❌ [Band-Limited] 平{side}仓失败")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"执行平{side}仓失败: {e}")
+            return False
+
+    def _run_band_limited_cycle(self, df: pd.DataFrame, current_price: float):
+        """
+        运行一个 Band-Limited Hedging 策略循环
+        与 backtest/engine.py:_run_band_limited() 保持一致
+        """
+        # 首次运行：初始化策略实例
+        if self.band_limited_strategy is None:
+            self._initialize_band_limited_strategy(df)
+            return
+
+        # 更新策略窗口 (与 backtest/engine.py:226-229 一致)
+        if hasattr(self.band_limited_strategy, "update_window"):
+            self.band_limited_strategy.update_window(df)
+        else:
+            self.band_limited_strategy.df = df
+
+        # 获取信号 (与 backtest/engine.py:230 一致)
+        signal = self.band_limited_strategy.analyze()
+
+        # 提取 actions (与 backtest/engine.py:232-233 一致)
+        actions = []
+        if signal and isinstance(signal.indicators, dict):
+            actions = signal.indicators.get("actions", []) or []
+
+        # 获取策略状态用于日志
+        state = signal.indicators.get("state", {}) if signal else {}
+        mode = state.get("mode", "unknown")
+        long_qty = state.get("long_qty", 0)
+        short_qty = state.get("short_qty", 0)
+        p_ref = state.get("p_ref", 0)
+
+        # 执行 actions
+        if actions:
+            logger.info(
+                f"[Band-Limited] 模式: {mode.upper()} | "
+                f"价格: {current_price:.2f} (参考: {p_ref:.2f}) | "
+                f"Long: {long_qty:.6f} | Short: {short_qty:.6f} | "
+                f"Actions: {len(actions)}"
+            )
+            self._execute_band_limited_actions(actions, current_price)
+        else:
+            # 心跳日志
+            self.heartbeat_count += 1
+            if self.heartbeat_count >= self.HEARTBEAT_INTERVAL:
+                logger.info(
+                    f"💓 [Band-Limited] 模式: {mode.upper()} | "
+                    f"价格: {current_price:.2f} | "
+                    f"Long: {long_qty:.6f} | Short: {short_qty:.6f} | "
+                    f"{signal.reason if signal else 'No signal'}"
+                )
+                self.heartbeat_count = 0
+
+    def _initialize_band_limited_strategy(self, df: pd.DataFrame):
+        """
+        初始化 Band-Limited 策略实例
+        与 backtest/engine.py:219 保持一致
+        """
+        # 获取初始资金
+        balance = self.trader.get_balance()
+
+        # 准备参数
+        params = dict(self.band_limited_params)
+        params["initial_capital"] = balance
+        params["E_max"] = balance
+
+        # 创建策略实例 (与 backtest/engine.py:219 一致)
+        self.band_limited_strategy = get_strategy("band_limited_hedging", df, **params)
+
+        logger.info(f"[Band-Limited] 策略已初始化")
+        logger.info(f"   初始资金: {balance:.2f} USDT")
+        logger.info(f"   MES: {params['MES']}")
+        logger.info(f"   alpha: {params['alpha']}")
+        logger.info(f"   base_position_ratio: {params['base_position_ratio']}")
+        logger.info(f"   min_rebalance_profit: {params['min_rebalance_profit']}")
+        logger.info(f"   min_rebalance_profit_ratio: {params['min_rebalance_profit_ratio']}")
     
     def get_status(self) -> dict:
         """获取机器人状态"""

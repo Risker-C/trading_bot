@@ -60,16 +60,26 @@ class OKXAdapter(ExchangeInterface):
     def _setup_trading_params(self):
         """设置交易参数"""
         try:
+            # 设置双向持仓模式（Band-Limited策略需要）
+            try:
+                self.exchange.private_post_account_set_position_mode({
+                    'posMode': 'long_short_mode'  # 双向持仓模式
+                })
+                logger.info("OKX双向持仓模式设置成功")
+            except Exception as e:
+                # 如果已经是双向持仓模式，会返回错误，忽略
+                logger.debug(f"OKX设置双向持仓模式: {e}")
+
             # OKX使用tdMode参数：cross(全仓) 或 isolated(逐仓)
             td_mode = "cross" if self.margin_mode.lower() == "crossed" else "isolated"
 
-            # 设置杠杆
+            # 设置杠杆（需要为多空分别设置）
             self.exchange.set_leverage(
                 self.leverage,
                 self.symbol,
                 params={
                     "mgnMode": td_mode,
-                    "posSide": "long"  # 需要为多空分别设置
+                    "posSide": "long"
                 }
             )
 

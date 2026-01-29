@@ -58,6 +58,16 @@ class BinanceAdapter(ExchangeInterface):
     def _setup_trading_params(self):
         """设置交易参数"""
         try:
+            # 设置双向持仓模式（Band-Limited策略需要）
+            try:
+                self.exchange.fapiPrivate_post_positionside_dual({
+                    'dualSidePosition': 'true'  # 启用双向持仓
+                })
+                logger.info("Binance双向持仓模式设置成功")
+            except Exception as e:
+                # 如果已经是双向持仓模式，会返回错误，忽略
+                logger.debug(f"Binance设置双向持仓模式: {e}")
+
             # 设置杠杆
             self.exchange.set_leverage(self.leverage, self.symbol)
 

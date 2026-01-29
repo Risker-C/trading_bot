@@ -60,6 +60,18 @@ class BitgetAdapter(ExchangeInterface):
     def _setup_trading_params(self):
         """设置交易参数"""
         try:
+            # 设置双向持仓模式（Band-Limited策略需要）
+            try:
+                self.exchange.private_mix_post_v2_mix_account_set_position_mode({
+                    'symbol': self.symbol,
+                    'productType': self.product_type,
+                    'holdMode': 'double_hold'  # 双向持仓模式
+                })
+                logger.info("Bitget双向持仓模式设置成功")
+            except Exception as e:
+                # 如果已经是双向持仓模式，会返回错误，忽略
+                logger.debug(f"Bitget设置双向持仓模式: {e}")
+
             # 设置杠杆
             self.exchange.set_leverage(
                 self.leverage,

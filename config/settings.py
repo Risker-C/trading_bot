@@ -22,7 +22,7 @@ EXCHANGES_CONFIG = {
         "api_password": os.getenv("BITGET_API_PASSWORD") or os.getenv("BITGET_PASSWORD", ""),
         "symbol": "BTCUSDT",
         "product_type": "USDT-FUTURES",
-        "leverage": 10,
+        "leverage": 20,
         "margin_mode": "crossed",
         "maker_fee": 0.0002,
         "taker_fee": 0.0006,
@@ -32,7 +32,7 @@ EXCHANGES_CONFIG = {
         "api_secret": os.getenv("BINANCE_API_SECRET", ""),
         "api_password": None,
         "symbol": "BTCUSDT",
-        "leverage": 10,
+        "leverage": 20,
         "margin_mode": "crossed",
         "maker_fee": 0.0002,
         "taker_fee": 0.0004,
@@ -42,7 +42,7 @@ EXCHANGES_CONFIG = {
         "api_secret": os.getenv("OKX_API_SECRET", ""),
         "api_password": os.getenv("OKX_API_PASSWORD", ""),
         "symbol": "BTCUSDT",
-        "leverage": 10,
+        "leverage": 20,
         "margin_mode": "crossed",
         "maker_fee": 0.0002,
         "taker_fee": 0.0005,
@@ -72,7 +72,7 @@ USE_ASYNC_DATA_FETCH = True  # 启用异步并发获取多时间周期数据
 USE_ASYNC_MAIN_LOOP = False  # 启用异步主循环（实验性功能）
 # ==================== 杠杆和保证金 ====================
 
-LEVERAGE = 10
+LEVERAGE = 20
 MARGIN_MODE = "crossed"  # isolated / crossed
 
 # ==================== 仓位管理 ====================
@@ -282,18 +282,40 @@ ORDERBOOK_DATA_FRESHNESS_SECONDS = 5.0  # 只使用5秒内的数据
 LIQUIDITY_INSUFFICIENT_ACTION = "reject"  # reject=拒绝订单, reduce=减少订单量, ignore=忽略
 
 # ==================== 策略配置 ====================
-# 注：已统一配置管理，移除config/strategies.py中的重复配置
+# ==================== Band-Limited Hedging 策略配置 ====================
+# Band-Limited 策略已启用，其他策略已禁用
 
 ENABLE_STRATEGIES: List[str] = [
-    "bollinger_trend",        # 顺势策略：突破上轨做多（替代抄底策略）
-    # "bollinger_breakthrough",  # 禁用：逆势抄底策略，在震荡下跌时容易亏损
-    # "rsi_divergence",          # 禁用：抄底策略，RSI超卖时做多，胜率35.7%，盈亏比0.82，表现最差
-    "macd_cross",
-    "ema_cross",
-    "composite_score",
-    "multi_timeframe",        # 启用：多时间周期策略，胜率30%但盈亏比1.76，唯一盈利策略
-    "adx_trend",              # 启用：ADX趋势策略，胜率50%，盈亏比0.97，表现中等
+    "band_limited_hedging",  # Band-Limited Dynamic Hedging 策略（双向持仓）
 ]
+
+# Band-Limited 策略参数（可选，不配置则使用默认值）
+BAND_LIMITED_PARAMS = {
+    "MES": 0.009,              # Minimum Effective Scale (默认: 9 * fee_rate = 0.009)
+    "alpha": 0.5,              # 利润迁移比例 (默认: 0.5)
+    "base_position_ratio": 0.95,  # 基础仓位维持比例 (默认: 0.95，即使用95%资金)
+    "min_rebalance_profit": 0.0,  # 固定利润阈值 (默认: 0.0)
+    "min_rebalance_profit_ratio": 1.0,  # 动态利润阈值倍数 (默认: 1.0)
+    "fee_rate": 0.001,         # 交易手续费率 (默认: 0.001)
+    # 退出参数
+    "eta": 0.2,                # 退出减仓比例 (默认: 0.2)
+    "exit_mes_ratio": 0.7,     # 退出MES比例 (默认: 0.7)
+    "exit_sigma_k": 0.01,      # 低波动退出系数 (默认: 0.01)
+    "exit_sigma_consecutive": 10,  # 连续低波动次数 (默认: 10)
+}
+
+# 注意：Band-Limited 策略需要单策略模式运行，不能与其他策略混用
+
+# ==================== 其他策略（已禁用）====================
+# 以下策略在 Band-Limited 模式下不会被执行
+# ENABLE_STRATEGIES: List[str] = [
+#     "bollinger_trend",
+#     "macd_cross",
+#     "ema_cross",
+#     "composite_score",
+#     "multi_timeframe",
+#     "adx_trend",
+# ]
 
 # 共识信号配置
 USE_CONSENSUS_SIGNAL = True        # 是否使用共识信号
