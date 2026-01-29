@@ -22,7 +22,7 @@ EXCHANGES_CONFIG = {
         "api_password": os.getenv("BITGET_API_PASSWORD") or os.getenv("BITGET_PASSWORD", ""),
         "symbol": "BTCUSDT",
         "product_type": "USDT-FUTURES",
-        "leverage": 20,
+        "leverage": 50,
         "margin_mode": "crossed",
         "maker_fee": 0.0002,
         "taker_fee": 0.0006,
@@ -32,7 +32,7 @@ EXCHANGES_CONFIG = {
         "api_secret": os.getenv("BINANCE_API_SECRET", ""),
         "api_password": None,
         "symbol": "BTCUSDT",
-        "leverage": 20,
+        "leverage": 50,
         "margin_mode": "crossed",
         "maker_fee": 0.0002,
         "taker_fee": 0.0004,
@@ -42,7 +42,7 @@ EXCHANGES_CONFIG = {
         "api_secret": os.getenv("OKX_API_SECRET", ""),
         "api_password": os.getenv("OKX_API_PASSWORD", ""),
         "symbol": "BTCUSDT",
-        "leverage": 20,
+        "leverage": 50,
         "margin_mode": "crossed",
         "maker_fee": 0.0002,
         "taker_fee": 0.0005,
@@ -72,7 +72,7 @@ USE_ASYNC_DATA_FETCH = True  # 启用异步并发获取多时间周期数据
 USE_ASYNC_MAIN_LOOP = False  # 启用异步主循环（实验性功能）
 # ==================== 杠杆和保证金 ====================
 
-LEVERAGE = 20
+LEVERAGE = 50
 MARGIN_MODE = "crossed"  # isolated / crossed
 
 # ==================== 仓位管理 ====================
