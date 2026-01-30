@@ -217,10 +217,10 @@ MAKER_EXTREME_VOL_THRESHOLD = 0.08  # 极端波动阈值（8%）
 ENABLE_DYNAMIC_CHECK_INTERVAL = True
 
 # 默认检查间隔（秒）- 无持仓时
-DEFAULT_CHECK_INTERVAL = 5
+DEFAULT_CHECK_INTERVAL = 1  # 极高频模式：1秒
 
 # 持仓时检查间隔（秒）- 有持仓时提高频率
-POSITION_CHECK_INTERVAL = 2
+POSITION_CHECK_INTERVAL = 0.5  # 极高频模式：0.5秒
 
 # ==================== 错误退避控制器配置 (Error Backoff Controller) ====================
 
@@ -406,6 +406,15 @@ SAVE_EQUITY_CURVE = True
 # 数据库批量写入配置（性能优化）
 DB_BATCH_SIZE = 50                 # 从20优化为50，减少写入频率
 DB_BATCH_FLUSH_INTERVAL = 10.0     # 从5秒优化为10秒，减少刷新频率
+
+# ==================== Supabase 实时交易数据库配置 ====================
+
+# 是否使用 Supabase 存储实时交易数据（默认关闭，使用 SQLite）
+USE_SUPABASE_FOR_LIVE_DATA = True
+
+# Supabase 批量写入配置（网络延迟更高，批量更大）
+SUPABASE_BATCH_SIZE = 100          # Supabase 批量大小（比 SQLite 更大）
+SUPABASE_BATCH_FLUSH_INTERVAL = 5  # Supabase 刷新间隔（秒）
 
 # ==================== 错误处理配置 ====================
 
