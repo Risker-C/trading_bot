@@ -72,6 +72,15 @@ class BandLimitedHedgingStrategy(BaseStrategy):
 
     def __init__(self, df: pd.DataFrame, **kwargs):
         super().__init__(df, **kwargs)
+
+        # 强制参数验证：防止通过通用策略路径创建实例时使用默认值
+        if "initial_capital" not in kwargs or "leverage" not in kwargs:
+            raise ValueError(
+                "BandLimitedHedgingStrategy 必须提供 initial_capital 和 leverage 参数。"
+                "请通过 TradingBot._initialize_band_limited_strategy() 创建实例，"
+                "不要通过 get_strategy() 或 analyze_all_strategies() 创建。"
+            )
+
         self.mes = float(kwargs.get("MES", kwargs.get("mes", 0.006)))
         self.alpha = float(kwargs.get("alpha", 0.5))
         self.e_max = float(kwargs.get("E_max", kwargs.get("e_max", 0.0)))
@@ -84,8 +93,8 @@ class BandLimitedHedgingStrategy(BaseStrategy):
         self.exit_epsilon = float(kwargs.get("epsilon", 1e-8))
         self.sigma_window = int(kwargs.get("sigma_window", 50))
         self.tau_max = float(kwargs.get("tau_max", 0.0))
-        self.initial_capital = float(kwargs.get("initial_capital", 10000.0))
-        self.leverage = float(kwargs.get("leverage", 1.0))  # 杠杆倍数
+        self.initial_capital = float(kwargs["initial_capital"])
+        self.leverage = float(kwargs["leverage"])  # 杠杆倍数
         self.min_rebalance_profit = float(
             kwargs.get("min_rebalance_profit", 0.0)
         )

@@ -810,8 +810,15 @@ class TradingBot:
             # 使用配置文件中的固定策略
             selected_strategies = config.ENABLE_STRATEGIES
 
-        # 运行选定的策略
-        signals = analyze_all_strategies(df, selected_strategies)
+        # Band-Limited 模式下，过滤掉通用策略列表中的 band_limited_hedging
+        # 该策略有专用循环 _run_band_limited_cycle()，不应通过通用路径创建实例
+        if self.is_band_limited_mode:
+            selected_strategies = [s for s in selected_strategies if s != "band_limited_hedging"]
+
+        # 运行选定的策略（如果有）
+        signals = []
+        if selected_strategies:
+            signals = analyze_all_strategies(df, selected_strategies)
 
         # ML信号过滤（如果启用）
         if self.ml_predictor is not None and signals:
