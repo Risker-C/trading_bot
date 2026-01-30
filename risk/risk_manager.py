@@ -1347,11 +1347,40 @@ class RiskManager:
         self.last_daily_reset = datetime.now().date()
     
     def _save_position_to_db(self):
-        """保存持仓状态到数据库"""
+        """保存持仓状态到数据库（P2增强：包含 Bitget API 详细信息）"""
         if not self.position:
             return
 
         try:
+            # P2增强：尝试从交易所获取详细持仓信息
+            margin_mode = None
+            liquidation_price = None
+            margin_ratio = None
+            mark_price = None
+            notional = None
+            initial_margin = None
+            maintenance_margin = None
+
+            try:
+                from exchange.manager import ExchangeManager
+                exchange_manager = ExchangeManager()
+                exchange = exchange_manager.get_current_exchange()
+                if exchange:
+                    positions = exchange.get_positions()
+                    if positions:
+                        pos = positions[0]
+                        if hasattr(pos, 'raw_data') and pos.raw_data:
+                            raw = pos.raw_data
+                            margin_mode = raw.get('marginMode')
+                            liquidation_price = float(raw.get('liquidationPrice', 0)) if raw.get('liquidationPrice') else None
+                            margin_ratio = float(raw.get('marginRatio', 0)) if raw.get('marginRatio') else None
+                            mark_price = float(raw.get('markPrice', 0)) if raw.get('markPrice') else None
+                            notional = float(raw.get('notional', 0)) if raw.get('notional') else None
+                            initial_margin = float(raw.get('initialMargin', 0)) if raw.get('initialMargin') else None
+                            maintenance_margin = float(raw.get('maintenanceMargin', 0)) if raw.get('maintenanceMargin') else None
+            except Exception as e:
+                logger.debug(f"获取持仓详细信息失败: {e}")
+
             db.log_position_snapshot(
                 symbol=config.SYMBOL,
                 side=self.position.side,
@@ -1362,7 +1391,14 @@ class RiskManager:
                 leverage=config.LEVERAGE,
                 highest_price=self.position.highest_price,
                 lowest_price=self.position.lowest_price,
-                entry_time=self.position.entry_time.isoformat() if self.position.entry_time else None
+                entry_time=self.position.entry_time.isoformat() if self.position.entry_time else None,
+                margin_mode=margin_mode,
+                liquidation_price=liquidation_price,
+                margin_ratio=margin_ratio,
+                mark_price=mark_price,
+                notional=notional,
+                initial_margin=initial_margin,
+                maintenance_margin=maintenance_margin
             )
             logger.debug(f"💾 持仓状态已保存: highest={self.position.highest_price:.2f}, "
                         f"lowest={self.position.lowest_price:.2f}, "

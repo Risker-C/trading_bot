@@ -343,6 +343,30 @@ class TradeDatabase:
             if 'remaining_amount' not in existing_columns:
                 cursor.execute('ALTER TABLE trades ADD COLUMN remaining_amount REAL')
 
+            # 添加 leverage 字段（杠杆倍数）
+            if 'leverage' not in existing_columns:
+                cursor.execute('ALTER TABLE trades ADD COLUMN leverage INTEGER')
+
+            # 添加 margin_mode 字段（保证金模式：crossed/isolated）
+            if 'margin_mode' not in existing_columns:
+                cursor.execute('ALTER TABLE trades ADD COLUMN margin_mode TEXT')
+
+            # 添加 position_side 字段（持仓方向：long/short）
+            if 'position_side' not in existing_columns:
+                cursor.execute('ALTER TABLE trades ADD COLUMN position_side TEXT')
+
+            # 添加 order_type 字段（订单类型：market/limit）
+            if 'order_type' not in existing_columns:
+                cursor.execute('ALTER TABLE trades ADD COLUMN order_type TEXT')
+
+            # 添加 reduce_only 字段（是否只减仓）
+            if 'reduce_only' not in existing_columns:
+                cursor.execute('ALTER TABLE trades ADD COLUMN reduce_only INTEGER')
+
+            # 添加 trade_side 字段（交易方向：open/close）
+            if 'trade_side' not in existing_columns:
+                cursor.execute('ALTER TABLE trades ADD COLUMN trade_side TEXT')
+
         except Exception as e:
             # 如果添加字段失败，记录错误但不影响程序运行
             print(f"Warning: Failed to add new columns to trades table: {e}")
@@ -381,6 +405,28 @@ class TradeDatabase:
             if 'entry_time' not in existing_columns:
                 cursor.execute('ALTER TABLE position_snapshots ADD COLUMN entry_time INTEGER')
                 print("Migration: Added entry_time column to position_snapshots")
+
+            # P2增强：添加 Bitget API 详细信息字段
+            if 'margin_mode' not in existing_columns:
+                cursor.execute('ALTER TABLE position_snapshots ADD COLUMN margin_mode TEXT')
+
+            if 'liquidation_price' not in existing_columns:
+                cursor.execute('ALTER TABLE position_snapshots ADD COLUMN liquidation_price REAL')
+
+            if 'margin_ratio' not in existing_columns:
+                cursor.execute('ALTER TABLE position_snapshots ADD COLUMN margin_ratio REAL')
+
+            if 'mark_price' not in existing_columns:
+                cursor.execute('ALTER TABLE position_snapshots ADD COLUMN mark_price REAL')
+
+            if 'notional' not in existing_columns:
+                cursor.execute('ALTER TABLE position_snapshots ADD COLUMN notional REAL')
+
+            if 'initial_margin' not in existing_columns:
+                cursor.execute('ALTER TABLE position_snapshots ADD COLUMN initial_margin REAL')
+
+            if 'maintenance_margin' not in existing_columns:
+                cursor.execute('ALTER TABLE position_snapshots ADD COLUMN maintenance_margin REAL')
         except Exception as e:
             print(f"Warning: Failed to add new columns to position_snapshots table: {e}")
 
@@ -422,48 +468,6 @@ class TradeDatabase:
             )
         ''')
         
-        # 每日统计表
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS daily_stats (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                date TEXT UNIQUE,
-                total_trades INTEGER,
-                winning_trades INTEGER,
-                losing_trades INTEGER,
-                total_pnl REAL,
-                max_drawdown REAL,
-                starting_balance REAL,
-                ending_balance REAL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # ========== 新增：权益曲线表 ==========
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS equity_curve (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                equity REAL,
-                balance REAL,
-                drawdown REAL,
-                peak_equity REAL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # ========== 新增：风险指标表 ==========
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS risk_metrics (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                total_trades INTEGER,
-                win_rate REAL,
-                profit_factor REAL,
-                expectancy REAL,
-                max_drawdown REAL,
-                kelly_fraction REAL,
-                consecutive_losses INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
 
         # Phase 3: 添加索引以优化查询性能
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_trades_created_at ON trades(created_at)')
@@ -503,10 +507,17 @@ class TradeDatabase:
         fee: float = None,
         fee_currency: str = None,
         batch_number: int = None,
-        remaining_amount: float = None
+        remaining_amount: float = None,
+        # P2增强：Bitget API 详细信息
+        leverage: int = None,
+        margin_mode: str = None,
+        position_side: str = None,
+        order_type: str = None,
+        reduce_only: bool = None,
+        trade_side: str = None
     ) -> int:
         """
-        记录交易（P1优化：支持完整的交易数据记录）
+        记录交易（P2增强：支持 Bitget API 详细信息）
 
         新增参数：
         - filled_price: 实际成交价（可能与price不同）
@@ -515,6 +526,12 @@ class TradeDatabase:
         - fee_currency: 手续费币种
         - batch_number: 批次号（用于分批操作）
         - remaining_amount: 剩余持仓量（用于部分平仓）
+        - leverage: 杠杆倍数
+        - margin_mode: 保证金模式（crossed/isolated）
+        - position_side: 持仓方向（long/short）
+        - order_type: 订单类型（market/limit）
+        - reduce_only: 是否只减仓
+        - trade_side: 交易方向（open/close）
         """
         conn = self._get_conn()
         cursor = conn.cursor()
@@ -527,12 +544,15 @@ class TradeDatabase:
             INSERT INTO trades (
                 order_id, symbol, side, action, amount, price,
                 value_usdt, pnl, pnl_percent, strategy, reason, status,
-                filled_price, filled_time, fee, fee_currency, batch_number, remaining_amount
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                filled_price, filled_time, fee, fee_currency, batch_number, remaining_amount,
+                leverage, margin_mode, position_side, order_type, reduce_only, trade_side
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             order_id, symbol, side, action, amount, price,
             value_usdt, pnl, pnl_percent, strategy, reason, status,
-            filled_price, filled_time, fee, fee_currency, batch_number, remaining_amount
+            filled_price, filled_time, fee, fee_currency, batch_number, remaining_amount,
+            leverage, margin_mode, position_side, order_type,
+            1 if reduce_only else 0 if reduce_only is not None else None, trade_side
         ))
 
         trade_id = cursor.lastrowid
@@ -926,19 +946,30 @@ class TradeDatabase:
         leverage: int,
         highest_price: float = 0,
         lowest_price: float = 0,
-        entry_time: str = None
+        entry_time: str = None,
+        margin_mode: str = None,
+        liquidation_price: float = None,
+        margin_ratio: float = None,
+        mark_price: float = None,
+        notional: float = None,
+        initial_margin: float = None,
+        maintenance_margin: float = None
     ):
-        """记录持仓快照"""
+        """记录持仓快照（P2增强：支持 Bitget API 详细信息）"""
         conn = self._get_conn()
         cursor = conn.cursor()
 
         cursor.execute('''
             INSERT INTO position_snapshots (
                 symbol, side, amount, entry_price, current_price,
-                unrealized_pnl, leverage, highest_price, lowest_price, entry_time
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                unrealized_pnl, leverage, highest_price, lowest_price, entry_time,
+                margin_mode, liquidation_price, margin_ratio, mark_price,
+                notional, initial_margin, maintenance_margin
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (symbol, side, amount, entry_price, current_price, unrealized_pnl, leverage,
-              highest_price, lowest_price, entry_time))
+              highest_price, lowest_price, entry_time,
+              margin_mode, liquidation_price, margin_ratio, mark_price,
+              notional, initial_margin, maintenance_margin))
 
         conn.commit()
         conn.close()
@@ -1056,117 +1087,6 @@ class TradeDatabase:
         conn.commit()
         conn.close()
     
-    # ========== 新增方法 ==========
-    
-    def log_equity(
-        self,
-        equity: float,
-        balance: float,
-        drawdown: float,
-        peak_equity: float
-    ):
-        """记录权益曲线点"""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            INSERT INTO equity_curve (equity, balance, drawdown, peak_equity)
-            VALUES (?, ?, ?, ?)
-        ''', (equity, balance, drawdown, peak_equity))
-        
-        conn.commit()
-        conn.close()
-    
-    def log_risk_metrics(
-        self,
-        total_trades: int,
-        win_rate: float,
-        profit_factor: float,
-        expectancy: float,
-        max_drawdown: float,
-        kelly_fraction: float,
-        consecutive_losses: int
-    ):
-        """记录风险指标快照"""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            INSERT INTO risk_metrics (
-                total_trades, win_rate, profit_factor, expectancy,
-                max_drawdown, kelly_fraction, consecutive_losses
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            total_trades, win_rate, profit_factor, expectancy,
-            max_drawdown, kelly_fraction, consecutive_losses
-        ))
-        
-        conn.commit()
-        conn.close()
-    
-    def get_equity_curve(self, limit: int = 1000) -> List[Dict]:
-        """获取权益曲线数据"""
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT * FROM equity_curve
-            ORDER BY created_at DESC
-            LIMIT ?
-        ''', (limit,))
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [dict(row) for row in reversed(rows)]
-    
-    def get_latest_risk_metrics(self) -> Optional[Dict]:
-        """获取最新风险指标"""
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT * FROM risk_metrics
-            ORDER BY created_at DESC
-            LIMIT 1
-        ''')
-        
-        row = cursor.fetchone()
-        conn.close()
-        
-        return dict(row) if row else None
-    
-    # ========== 原有方法保持不变 ==========
-    
-    def update_daily_stats(
-        self,
-        date: str,
-        total_trades: int,
-        winning_trades: int,
-        losing_trades: int,
-        total_pnl: float,
-        max_drawdown: float,
-        starting_balance: float,
-        ending_balance: float
-    ):
-        """更新每日统计"""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            INSERT OR REPLACE INTO daily_stats (
-                date, total_trades, winning_trades, losing_trades,
-                total_pnl, max_drawdown, starting_balance, ending_balance
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            date, total_trades, winning_trades, losing_trades,
-            total_pnl, max_drawdown, starting_balance, ending_balance
-        ))
-        
-        conn.commit()
-        conn.close()
     
     def get_trades(self, limit: int = 100, offset: int = 0) -> List[Dict]:
         """获取交易记录"""
@@ -1945,5 +1865,13 @@ class MultiNotifier:
 
 
 # 全局实例
-db = TradeDatabase()
+# 根据配置选择数据库实现
+if getattr(config, 'USE_SUPABASE_FOR_LIVE_DATA', False):
+    from utils.supabase_trade_database import SupabaseTradeDatabase
+    db = SupabaseTradeDatabase()
+    get_logger(__name__).info("Using SupabaseTradeDatabase for live trading data")
+else:
+    db = TradeDatabase()
+    get_logger(__name__).info("Using SQLite TradeDatabase for live trading data")
+
 notifier = MultiNotifier()

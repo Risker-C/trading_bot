@@ -909,6 +909,10 @@ class BitgetTrader:
             filled_time = None
             fee = None
             fee_currency = None
+            # P2增强：Bitget API 详细信息
+            leverage = config.LEVERAGE
+            margin_mode = getattr(config, 'MARGIN_MODE', 'crossed')
+            order_type = order.get('type', 'market')
 
             try:
                 # 尝试获取订单详情
@@ -922,6 +926,10 @@ class BitgetTrader:
                     fee_info = order_detail.get('fee', {})
                     fee = fee_info.get('cost')
                     fee_currency = fee_info.get('currency')
+                    # P2增强：从订单详情获取更多信息
+                    if 'info' in order_detail:
+                        info = order_detail['info']
+                        order_type = info.get('orderType', order_type)
             except Exception as e:
                 logger.warning(f"获取订单详情失败: {e}，使用默认值")
 
@@ -934,29 +942,35 @@ class BitgetTrader:
                 strategy=strategy  # 传递策略名称用于差异化止损
             )
 
-            # 记录到数据库（P1优化：包含完整的交易信息）
+            # 记录到数据库（P2增强：包含 Bitget API 详细信息）
             db.log_trade_buffered(
                 symbol=config.SYMBOL,
                 side='long',
                 action='open',
                 amount=amount,
                 price=entry_price,
-                strategy=strategy or 'unknown',  # 使用传入的策略名称
-                reason=reason,  # 记录开仓原因
+                strategy=strategy or 'unknown',
+                reason=reason,
                 order_id=order_id,
                 filled_price=filled_price,
                 filled_time=filled_time,
                 fee=fee,
-                fee_currency=fee_currency
+                fee_currency=fee_currency,
+                leverage=leverage,
+                margin_mode=margin_mode,
+                position_side='long',
+                order_type=order_type,
+                reduce_only=False,
+                trade_side='open'
             )
 
             return True
 
         return False
-    
+
     def open_short(self, amount: float, df: pd.DataFrame = None, strategy: str = "", reason: str = "",
                    signal_strength: float = 1.0, volatility: float = 0.03) -> bool:
-        """开空仓（P1优化：记录完整的交易信息）
+        """开空仓（P2增强：记录 Bitget API 详细信息）
 
         Args:
             amount: 开仓数量
@@ -978,6 +992,10 @@ class BitgetTrader:
             filled_time = None
             fee = None
             fee_currency = None
+            # P2增强：Bitget API 详细信息
+            leverage = config.LEVERAGE
+            margin_mode = getattr(config, 'MARGIN_MODE', 'crossed')
+            order_type = order.get('type', 'market')
 
             try:
                 # 尝试获取订单详情
@@ -991,6 +1009,10 @@ class BitgetTrader:
                     fee_info = order_detail.get('fee', {})
                     fee = fee_info.get('cost')
                     fee_currency = fee_info.get('currency')
+                    # P2增强：从订单详情获取更多信息
+                    if 'info' in order_detail:
+                        info = order_detail['info']
+                        order_type = info.get('orderType', order_type)
             except Exception as e:
                 logger.warning(f"获取订单详情失败: {e}，使用默认值")
 
@@ -1002,26 +1024,32 @@ class BitgetTrader:
                 strategy=strategy  # 传递策略名称用于差异化止损
             )
 
-            # 记录到数据库（P1优化：包含完整的交易信息）
+            # 记录到数据库（P2增强：包含 Bitget API 详细信息）
             db.log_trade_buffered(
                 symbol=config.SYMBOL,
                 side='short',
                 action='open',
                 amount=amount,
                 price=entry_price,
-                strategy=strategy or 'unknown',  # 使用传入的策略名称
-                reason=reason,  # 记录开仓原因
+                strategy=strategy or 'unknown',
+                reason=reason,
                 order_id=order_id,
                 filled_price=filled_price,
                 filled_time=filled_time,
                 fee=fee,
-                fee_currency=fee_currency
+                fee_currency=fee_currency,
+                leverage=leverage,
+                margin_mode=margin_mode,
+                position_side='short',
+                order_type=order_type,
+                reduce_only=False,
+                trade_side='open'
             )
 
             return True
 
         return False
-    
+
     def close_position(self, reason: str = "", position_data: dict = None) -> bool:
         """
         平仓
@@ -1155,7 +1183,12 @@ class BitgetTrader:
             # 记录交易结果
             self.risk_manager.record_trade_result(pnl)
 
-            # 记录到数据库（修复：确保使用正确的order_id）
+            # P2增强：Bitget API 详细信息
+            leverage = config.LEVERAGE
+            margin_mode = getattr(config, 'MARGIN_MODE', 'crossed')
+            order_type = 'market'
+
+            # 记录到数据库（P2增强：包含 Bitget API 详细信息）
             db.log_trade_buffered(
                 symbol=config.SYMBOL,
                 side=position_side,
@@ -1165,11 +1198,17 @@ class BitgetTrader:
                 pnl=pnl,
                 pnl_percent=pnl_percent,
                 reason=reason,
-                order_id=order_id,  # 使用开仓时的order_id
+                order_id=order_id,
                 filled_price=filled_price,
                 filled_time=filled_time,
                 fee=fee,
-                fee_currency=fee_currency
+                fee_currency=fee_currency,
+                leverage=leverage,
+                margin_mode=margin_mode,
+                position_side=position_side,
+                order_type=order_type,
+                reduce_only=True,
+                trade_side='close'
             )
 
             logger.info(f"✅ 平仓记录已写入数据库: order_id={order_id}, pnl={pnl:.4f}")
@@ -1210,7 +1249,11 @@ class BitgetTrader:
             
             # 更新持仓
             self.risk_manager.partial_close(ratio, close_price, pnl)
-            
+
+            # P2增强：Bitget API 详细信息
+            leverage = config.LEVERAGE
+            margin_mode = getattr(config, 'MARGIN_MODE', 'crossed')
+
             db.log_trade_buffered(
                 symbol=config.SYMBOL,
                 side=position.side,
@@ -1218,7 +1261,13 @@ class BitgetTrader:
                 amount=close_amount,
                 price=close_price,
                 pnl=pnl,
-                reason=reason
+                reason=reason,
+                leverage=leverage,
+                margin_mode=margin_mode,
+                position_side=position.side,
+                order_type='market',
+                reduce_only=True,
+                trade_side='close'
             )
             
             logger.info(f"部分平仓 {ratio:.0%}: {reason}, PnL={pnl:.2f}")
