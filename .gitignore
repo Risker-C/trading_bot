@@ -17,12 +17,15 @@ ENV/
 # 数据库和日志
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 *.db.backup.*
 logs/
 *.log
 
 # 运行时文件
 bot.pid
+*.pid
 nohup.out
 
 # 备份文件
