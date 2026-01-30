@@ -22,6 +22,7 @@ ENV/
 *.db.backup.*
 logs/
 *.log
+data/  # 运行时数据（包括 pending_orders.json）
 
 # 运行时文件
 bot.pid

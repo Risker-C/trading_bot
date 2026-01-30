@@ -2,6 +2,8 @@ import time
 import asyncio
 import signal
 import sys
+import json
+import os
 from datetime import datetime
 from typing import Optional, List, Dict
 
@@ -82,6 +84,12 @@ class TradingBot:
             "exit_sigma_k": 0.01,
             "exit_sigma_consecutive": 10,
         }
+
+        # 小额订单累积器 (用于解决低于最小下单量的问题)
+        self.pending_orders_file = "data/pending_orders.json"
+        self.pending_orders: Dict[str, float] = {"long": 0.0, "short": 0.0}
+        self.pending_close_orders: Dict[str, float] = {"long": 0.0, "short": 0.0}
+        self._load_pending_orders()  # 从文件加载累积订单
 
         # 初始化状态监控调度器
         if hasattr(config, 'ENABLE_STATUS_MONITOR') and config.ENABLE_STATUS_MONITOR:
@@ -1411,6 +1419,38 @@ class TradingBot:
 
     def _execute_band_limited_open(self, side: str, qty: float, price: float, reason: str) -> bool:
         """执行 Band-Limited 策略的开仓操作"""
+        # 验证 side 参数
+        if side not in ("long", "short"):
+            logger.error(f"[Band-Limited] 无效的 side 参数: {side}")
+            return False
+
+        # 获取交易所最小下单量
+        min_amount = self._get_min_order_amount()
+
+        # 如果订单量低于最小值，累积到待处理订单
+        if qty < min_amount:
+            self.pending_orders[side] += qty
+            self._save_pending_orders()  # 持久化累积订单
+            logger.info(f"[Band-Limited] 开{side}仓数量 {qty:.6f} 低于最小量 {min_amount:.6f}，累积到待处理订单 (当前累积: {self.pending_orders[side]:.6f})")
+
+            # 检查累积量是否达到最小下单量
+            if self.pending_orders[side] >= min_amount:
+                actual_qty = self.pending_orders[side]
+                logger.info(f"[Band-Limited] 累积订单达到最小量，执行开{side}仓: {actual_qty:.6f}")
+                result = self._execute_band_limited_open_internal(side, actual_qty, price, reason)
+                # 只有成功执行后才清空累积
+                if result:
+                    self.pending_orders[side] = 0.0
+                    self._save_pending_orders()  # 持久化清空状态
+                return result
+            else:
+                return False
+
+        # 订单量足够，直接执行
+        return self._execute_band_limited_open_internal(side, qty, price, reason)
+
+    def _execute_band_limited_open_internal(self, side: str, qty: float, price: float, reason: str) -> bool:
+        """内部方法：实际执行开仓操作"""
         logger.info(f"[Band-Limited] 开{side}仓: {qty:.6f} @ {price:.2f} - {reason}")
 
         try:
@@ -1448,12 +1488,51 @@ class TradingBot:
             logger.error(f"执行开{side}仓失败: {e}")
             return False
 
+    def _get_min_order_amount(self) -> float:
+        """获取交易所最小下单量"""
+        # 从配置中获取
+        exchange_config = config.EXCHANGES_CONFIG.get(config.ACTIVE_EXCHANGE, {})
+        min_amount = exchange_config.get("min_amount", 0.01)
+        return min_amount
+
     def _execute_band_limited_close(self, side: str, qty: float, price: float, reason: str, action: Dict) -> bool:
         """执行 Band-Limited 策略的平仓操作"""
+        # 验证 side 参数
+        if side not in ("long", "short"):
+            logger.error(f"[Band-Limited] 无效的 side 参数: {side}")
+            return False
+
         pnl = action.get("pnl", 0)
         fee = action.get("fee", 0)
         net_pnl = pnl - fee
 
+        # 获取交易所最小下单量
+        min_amount = self._get_min_order_amount()
+
+        # 如果平仓量低于最小值，累积到待处理平仓订单
+        if qty < min_amount:
+            self.pending_close_orders[side] += qty
+            self._save_pending_orders()  # 持久化累积订单
+            logger.info(f"[Band-Limited] 平{side}仓数量 {qty:.6f} 低于最小量 {min_amount:.6f}，累积到待处理订单 (当前累积: {self.pending_close_orders[side]:.6f})")
+
+            # 检查累积量是否达到最小下单量
+            if self.pending_close_orders[side] >= min_amount:
+                actual_qty = self.pending_close_orders[side]
+                logger.info(f"[Band-Limited] 累积平仓订单达到最小量，执行平{side}仓: {actual_qty:.6f}")
+                result = self._execute_band_limited_close_internal(side, actual_qty, price, reason, net_pnl)
+                # 只有成功执行后才清空累积
+                if result:
+                    self.pending_close_orders[side] = 0.0
+                    self._save_pending_orders()  # 持久化清空状态
+                return result
+            else:
+                return False
+
+        # 订单量足够，直接执行
+        return self._execute_band_limited_close_internal(side, qty, price, reason, net_pnl)
+
+    def _execute_band_limited_close_internal(self, side: str, qty: float, price: float, reason: str, net_pnl: float) -> bool:
+        """内部方法：实际执行平仓操作"""
         logger.info(f"[Band-Limited] 平{side}仓: {qty:.6f} @ {price:.2f} - {reason} (PnL: {net_pnl:+.2f})")
 
         try:
@@ -1492,13 +1571,14 @@ class TradingBot:
         # 首次运行：初始化策略实例
         if self.band_limited_strategy is None:
             self._initialize_band_limited_strategy(df)
-            # 立即执行一次分析以获取初始化 actions（建立双向持仓）
-            signal = self.band_limited_strategy.analyze()
-            if signal and isinstance(signal.indicators, dict):
-                actions = signal.indicators.get("actions", []) or []
-                if actions:
-                    logger.info(f"[Band-Limited] 执行初始化建仓: {len(actions)} 个操作")
-                    self._execute_band_limited_actions(actions, current_price)
+            # 只有在没有现有持仓时才执行初始化建仓
+            if self.band_limited_strategy.state["p_ref"] is None:
+                signal = self.band_limited_strategy.analyze()
+                if signal and isinstance(signal.indicators, dict):
+                    actions = signal.indicators.get("actions", []) or []
+                    if actions:
+                        logger.info(f"[Band-Limited] 执行初始化建仓: {len(actions)} 个操作")
+                        self._execute_band_limited_actions(actions, current_price)
             return
 
         # 更新策略窗口 (与 backtest/engine.py:226-229 一致)
@@ -1568,7 +1648,109 @@ class TradingBot:
         logger.info(f"   base_position_ratio: {params['base_position_ratio']}")
         logger.info(f"   min_rebalance_profit: {params['min_rebalance_profit']}")
         logger.info(f"   min_rebalance_profit_ratio: {params['min_rebalance_profit_ratio']}")
-    
+
+        # 检查并恢复现有持仓状态
+        self._restore_band_limited_positions()
+
+    def _restore_band_limited_positions(self):
+        """恢复现有的 Band-Limited 双向持仓到策略状态"""
+        try:
+            positions = self.trader.get_positions()
+            long_pos = None
+            short_pos = None
+
+            for pos in positions:
+                if pos['side'] == 'long':
+                    long_pos = pos
+                elif pos['side'] == 'short':
+                    short_pos = pos
+
+            if long_pos or short_pos:
+                logger.info("[Band-Limited] 检测到现有持仓，恢复策略状态")
+
+                if long_pos:
+                    self.band_limited_strategy.state["long_qty"] = float(long_pos['amount'])
+                    self.band_limited_strategy.state["long_avg"] = float(long_pos['entry_price'])
+                    logger.info(f"   恢复 LONG 持仓: {long_pos['amount']:.6f} @ {long_pos['entry_price']:.2f}")
+
+                if short_pos:
+                    self.band_limited_strategy.state["short_qty"] = float(short_pos['amount'])
+                    self.band_limited_strategy.state["short_avg"] = float(short_pos['entry_price'])
+                    logger.info(f"   恢复 SHORT 持仓: {short_pos['amount']:.6f} @ {short_pos['entry_price']:.2f}")
+
+                # 设置参考价格（使用现有持仓均价的平均值）
+                if long_pos and short_pos:
+                    avg_entry = (float(long_pos['entry_price']) + float(short_pos['entry_price'])) / 2
+                    self.band_limited_strategy.state["p_ref"] = avg_entry
+                    logger.info(f"   设置参考价格: {avg_entry:.2f}")
+                elif long_pos:
+                    self.band_limited_strategy.state["p_ref"] = float(long_pos['entry_price'])
+                    logger.info(f"   设置参考价格: {long_pos['entry_price']:.2f}")
+                elif short_pos:
+                    self.band_limited_strategy.state["p_ref"] = float(short_pos['entry_price'])
+                    logger.info(f"   设置参考价格: {short_pos['entry_price']:.2f}")
+
+                # 设置最后再平衡时间为当前时间
+                self.band_limited_strategy.state["last_rebalance_ts"] = time.time()
+
+                logger.info("[Band-Limited] 持仓状态已恢复，将继续运行策略")
+            else:
+                logger.info("[Band-Limited] 未检测到现有持仓，将在首次分析时建立双向持仓")
+        except Exception as e:
+            logger.error(f"恢复持仓状态失败: {e}")
+            logger.warning("[Band-Limited] 将跳过状态恢复，策略将重新初始化")
+
+    def _load_pending_orders(self):
+        """从文件加载累积的待处理订单"""
+        try:
+            if os.path.exists(self.pending_orders_file):
+                with open(self.pending_orders_file, 'r') as f:
+                    data = json.load(f)
+                    # 验证数据格式
+                    if not isinstance(data, dict):
+                        raise ValueError("Invalid data format: expected dict")
+
+                    open_orders = data.get("open", {})
+                    close_orders = data.get("close", {})
+
+                    # 验证并转换为float
+                    if isinstance(open_orders, dict):
+                        self.pending_orders["long"] = float(open_orders.get("long", 0.0))
+                        self.pending_orders["short"] = float(open_orders.get("short", 0.0))
+                    if isinstance(close_orders, dict):
+                        self.pending_close_orders["long"] = float(close_orders.get("long", 0.0))
+                        self.pending_close_orders["short"] = float(close_orders.get("short", 0.0))
+
+                    if any(v > 0 for v in self.pending_orders.values()) or any(v > 0 for v in self.pending_close_orders.values()):
+                        logger.info(f"[Band-Limited] 已加载累积订单: 开仓={self.pending_orders}, 平仓={self.pending_close_orders}")
+        except json.JSONDecodeError as e:
+            logger.error(f"累积订单文件损坏，将备份并重置: {e}")
+            # 备份损坏的文件
+            if os.path.exists(self.pending_orders_file):
+                backup_file = f"{self.pending_orders_file}.corrupt.{int(time.time())}"
+                os.rename(self.pending_orders_file, backup_file)
+                logger.info(f"已备份损坏文件到: {backup_file}")
+        except Exception as e:
+            logger.warning(f"加载累积订单失败: {e}")
+
+    def _save_pending_orders(self):
+        """保存累积的待处理订单到文件（原子写入）"""
+        try:
+            # 确保目录存在
+            os.makedirs(os.path.dirname(self.pending_orders_file), exist_ok=True)
+            data = {
+                "open": self.pending_orders,
+                "close": self.pending_close_orders,
+                "updated_at": datetime.now().isoformat()
+            }
+            # 原子写入：先写临时文件，再重命名
+            tmp_file = self.pending_orders_file + ".tmp"
+            with open(tmp_file, 'w') as f:
+                json.dump(data, f, indent=2)
+            os.replace(tmp_file, self.pending_orders_file)  # 原子操作
+        except Exception as e:
+            logger.warning(f"保存累积订单失败: {e}")
+
     def get_status(self) -> dict:
         """获取机器人状态"""
         balance = self.trader.get_balance()

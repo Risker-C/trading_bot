@@ -26,6 +26,7 @@ EXCHANGES_CONFIG = {
         "margin_mode": "crossed",
         "maker_fee": 0.0002,
         "taker_fee": 0.0006,
+        "min_amount": 0.01,  # ETH 最小下单量
     },
     "binance": {
         "api_key": os.getenv("BINANCE_API_KEY", ""),
@@ -36,6 +37,7 @@ EXCHANGES_CONFIG = {
         "margin_mode": "crossed",
         "maker_fee": 0.0002,
         "taker_fee": 0.0004,
+        "min_amount": 0.01,  # ETH 最小下单量
     },
     "okx": {
         "api_key": os.getenv("OKX_API_KEY", ""),
@@ -46,6 +48,7 @@ EXCHANGES_CONFIG = {
         "margin_mode": "crossed",
         "maker_fee": 0.0002,
         "taker_fee": 0.0005,
+        "min_amount": 0.01,  # ETH 最小下单量
     }
 }
 
