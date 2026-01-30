@@ -478,9 +478,33 @@ class BitgetTrader:
             return None
 
     def get_positions(self) -> list:
-        """获取持仓列表（兼容bot.py）"""
-        position = self.get_position()
-        return [position] if position else []
+        """获取持仓列表（支持双向持仓模式）"""
+        try:
+            positions = self.exchange.fetch_positions(
+                symbols=[config.SYMBOL],
+                params={"productType": config.PRODUCT_TYPE}
+            )
+
+            self.health_monitor.record_success()
+
+            result = []
+            for pos in positions:
+                amount = float(pos.get('contracts', 0))
+                if amount > 0:
+                    result.append({
+                        'side': pos.get('side'),
+                        'amount': amount,
+                        'entry_price': float(pos.get('entryPrice', 0)),
+                        'unrealized_pnl': float(pos.get('unrealizedPnl', 0)),
+                        'liquidation_price': float(pos.get('liquidationPrice', 0)),
+                    })
+
+            return result
+
+        except Exception as e:
+            self.health_monitor.record_error(e)
+            logger.error(f"获取持仓列表失败: {e}")
+            return []
 
     def get_ticker(self, symbol: str = None) -> Optional[Dict]:
         """获取最新价格"""
