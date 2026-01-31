@@ -23,6 +23,13 @@ class ShadowModeTracker:
     def _init_database(self):
         """初始化影子模式数据表"""
         try:
+            # 检查 db 是否有 _get_conn 方法（SQLite）
+            if not hasattr(db, '_get_conn'):
+                # 使用 Supabase 时跳过本地表创建
+                # 影子模式数据将通过 Supabase API 存储
+                logger.info("影子模式: 使用 Supabase 存储，跳过本地表创建")
+                return
+
             conn = db._get_conn()
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS shadow_decisions (

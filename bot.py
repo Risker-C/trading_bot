@@ -1564,6 +1564,28 @@ class TradingBot:
             else:
                 logger.error(f"❌ [Band-Limited] 平{side}仓失败")
 
+                # 平仓失败时，检查交易所实际持仓状态
+                try:
+                    positions = self.trader.get_positions()
+                    has_position = any(p.get('side') == side for p in positions) if positions else False
+
+                    if not has_position:
+                        # 交易所确实没有该侧持仓，同步策略内部状态
+                        if self.band_limited_strategy and self.band_limited_strategy.state:
+                            old_qty = self.band_limited_strategy.state.get(f"{side}_qty", 0)
+                            self.band_limited_strategy.state[f"{side}_qty"] = 0.0
+                            logger.warning(
+                                f"⚠️ [Band-Limited] 检测到交易所无{side}持仓，已同步策略状态 "
+                                f"({old_qty:.6f} → 0.0)"
+                            )
+                            # 如果双边都没有持仓，重置参考价格
+                            if (self.band_limited_strategy.state.get("long_qty", 0) == 0 and
+                                self.band_limited_strategy.state.get("short_qty", 0) == 0):
+                                self.band_limited_strategy.state["p_ref"] = None
+                                logger.warning("⚠️ [Band-Limited] 双边持仓已清空，重置参考价格")
+                except Exception as sync_error:
+                    logger.error(f"同步策略状态失败: {sync_error}")
+
             return result
 
         except Exception as e:
